@@ -111,6 +111,12 @@ import java.util.Locale
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.outlined.Album
+import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
+import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.PlayCircleOutline
+import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalFoundationApi::class)
 @Composable
@@ -337,29 +343,30 @@ private fun StatsTopBar(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-
 private fun StatsHeroSection(
     summary: PlaybackStatsRepository.PlaybackStatsSummary?,
     modifier: Modifier = Modifier
 ) {
+    val hasData = (summary?.totalDurationMs ?: 0L) > 0 || (summary?.totalPlayCount ?: 0) > 0
+    
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Time Card
+        // Time Card - Primary Container
         HeroCard(
-            title = "Listening Time",
-            value = formatListeningDurationCompact(summary?.totalDurationMs ?: 0L),
+            title = "Listening",
+            value = if (hasData) formatListeningDurationCompact(summary?.totalDurationMs ?: 0L) else "--",
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             modifier = Modifier.weight(1f)
         )
 
-        // Plays Card
+        // Plays Card - Tertiary Container
         HeroCard(
-            title = "Total Plays",
-            value = "${summary?.totalPlayCount ?: 0}",
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer, // Vivid contrast
+            title = "Plays",
+            value = if (hasData) "${summary?.totalPlayCount ?: 0}" else "--",
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
             contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
             modifier = Modifier.weight(1f)
         )
@@ -376,25 +383,81 @@ private fun HeroCard(
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(28.dp)) // Expressive large corners
+            .clip(RoundedCornerShape(24.dp))
             .background(containerColor)
-            .padding(24.dp), // Spacious padding
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
             text = title,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Medium,
-            color = contentColor.copy(alpha = 0.7f)
+            color = contentColor.copy(alpha = 0.85f)
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.headlineMedium, // Large and bold
+            style = ExpTitleTypography.displayMedium.copy(fontSize = 32.sp),
             fontWeight = FontWeight.Bold,
             color = contentColor
         )
     }
 }
+
+// Empty state component with M3 Expressive styling
+@Composable
+private fun StatsEmptyState(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier.padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(RoundedStarShape(sides = 8, curve = 0.1, rotation = 0f))
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(32.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
 
 @Composable
 private fun SummaryPill(
@@ -575,8 +638,8 @@ private fun ListeningHabitsCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(32.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+        shape = RoundedCornerShape(28.dp), // Consistent with Hero
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 24.dp),
@@ -588,10 +651,10 @@ private fun ListeningHabitsCard(
                 color = MaterialTheme.colorScheme.onSurface
             )
             if (summary == null) {
-                Text(
-                    text = "We will surface your habits once we know you better.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                StatsEmptyState(
+                    icon = Icons.Outlined.History,
+                    title = "No habits yet",
+                    subtitle = "We will surface your listening habits once we know you better."
                 )
             } else {
                 Column(
@@ -819,15 +882,25 @@ private fun ListeningTimelineSection(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = "Listening timeline",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        Column(
+            modifier = Modifier.padding(horizontal = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = "Listening timeline",
+                style = ExpTitleTypography.headlineSmall, // Custom font
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = selectedMetric.description,
+                style = MaterialTheme.typography.bodyMedium, // Increased size
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
         FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(0.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             TimelineMetric.entries.forEach { metric ->
                 val isSelected = metric == selectedMetric
@@ -841,14 +914,15 @@ private fun ListeningTimelineSection(
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
                     },
+                    shape = CircleShape, // Fully rounded
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primary,
                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
                         labelColor = MaterialTheme.colorScheme.onSurface
                     ),
                     border = FilterChipDefaults.filterChipBorder(
-                        borderColor = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outlineVariant,
+                        borderColor = Color.Transparent,
                         selectedBorderColor = Color.Transparent,
                         enabled = true,
                         selected = isSelected
@@ -856,25 +930,21 @@ private fun ListeningTimelineSection(
                 )
             }
         }
-        Text(
-            text = selectedMetric.description,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
 
         val timeline = summary?.timeline.orEmpty()
         if (timeline.isEmpty() || timeline.all { it.totalDurationMs == 0L && it.playCount == 0 }) {
-            Text(
-                text = "Press play to build your listening timeline.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            StatsEmptyState(
+                icon = Icons.Outlined.PlayCircleOutline,
+                title = "No listening data yet",
+                subtitle = "Press play to start building your listening timeline"
             )
         } else {
+// Timeline Section
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(32.dp))
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
                     .padding(horizontal = 20.dp, vertical = 24.dp)
             ) {
                 TimelineBarChart(entries = timeline, metric = selectedMetric)
@@ -910,21 +980,25 @@ private fun CategoryMetricsSection(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = "Top categories",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Text(
-            text = "Compare how you listen across genres, artists, albums, and songs.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Column(
+            modifier = Modifier.padding(horizontal = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = "Top categories",
+                style = ExpTitleTypography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "Compare how you listen across genres, artists, albums, and songs.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
         FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(0.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             CategoryDimension.entries.reversed().forEach { dimension ->
                 val isSelected = dimension == selectedDimension
@@ -938,14 +1012,15 @@ private fun CategoryMetricsSection(
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
                     },
+                    shape = CircleShape,
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primary,
                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
                         labelColor = MaterialTheme.colorScheme.onSurface
                     ),
                     border = FilterChipDefaults.filterChipBorder(
-                        borderColor = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outlineVariant,
+                        borderColor = Color.Transparent,
                         selectedBorderColor = Color.Transparent,
                         enabled = true,
                         selected = isSelected
@@ -998,15 +1073,15 @@ private fun CategoryMetricsSection(
         }
 
         if (entries.isEmpty()) {
-            Text(
-                text = "Press play to surface your listening highlights in this view.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            StatsEmptyState(
+                icon = Icons.Outlined.MusicNote,
+                title = "No category data yet",
+                subtitle = "Press play to surface your listening highlights"
             )
         } else {
             Card(
-                shape = RoundedCornerShape(32.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                shape = RoundedCornerShape(28.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
             ) {
                 Column(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp),
@@ -1068,14 +1143,13 @@ private fun CategoryVerticalBarChart(
                             .fillMaxWidth()
                             .height(140.dp)
                             .clip(CircleShape)
-                            .background(Color.Transparent),//.background(MaterialTheme.colorScheme.surfaceContainerLowest),
+                            .background(MaterialTheme.colorScheme.surfaceContainerHighest), // Track
                         contentAlignment = Alignment.BottomCenter
                     ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .fillMaxHeight(progress)
-                                .clip(CircleShape)
                                 .clip(CircleShape)
                                 .background(
                                     if (isHighlight) {
@@ -1228,15 +1302,24 @@ private fun TimelineBarChart(
                 ) {
                    // Value Label (Optional, maybe only for max or on click? Leaving out for clean look like image)
                     
-                    // Bar
+                    // Bar container with track
                     Box(
                         modifier = Modifier
-                            .width(if (isScrollable) 24.dp else 16.dp) // Thicker bars if scrollable
-                            .weight(1f, fill = false) // Allow it to shrink
-                            .fillMaxHeight(if (isZero) 0.02f else progress) // Min height if zero? Or just 0.
+                            .width(if (isScrollable) 24.dp else 16.dp)
+                            .weight(1f) // Fill available height in the row
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary)
-                    )
+                            .background(MaterialTheme.colorScheme.surfaceContainerHighest) // Track color
+                    ) {
+                        // Progress Bar
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .fillMaxHeight(if (isZero) 0.0f else progress)
+                                .align(Alignment.BottomCenter) // Grow from bottom
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary)
+                        )
+                    }
 
                     // X-Axis Label
                     Text(
@@ -1259,8 +1342,8 @@ private fun TopArtistsCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(32.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+        shape = RoundedCornerShape(28.dp), // Consistent with Hero
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 24.dp),
@@ -1273,10 +1356,10 @@ private fun TopArtistsCard(
             )
             val artists = summary?.topArtists.orEmpty()
             if (artists.isEmpty()) {
-                Text(
-                    text = "Keep listening and your favorite artists will show up here.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                StatsEmptyState(
+                    icon = Icons.Outlined.MusicNote,
+                    title = "No top artists",
+                    subtitle = "Keep listening and your favorite artists will show up here."
                 )
             } else {
                 val maxDuration = artists.maxOf { it.totalDurationMs }.coerceAtLeast(1L)
@@ -1356,8 +1439,8 @@ private fun TopAlbumsCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(32.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+        shape = RoundedCornerShape(28.dp), // Consistent with Hero
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 24.dp),
@@ -1370,10 +1453,10 @@ private fun TopAlbumsCard(
             )
             val albums = summary?.topAlbums.orEmpty()
             if (albums.isEmpty()) {
-                Text(
-                    text = "Albums you revisit often will appear soon.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                StatsEmptyState(
+                    icon = Icons.Outlined.Album,
+                    title = "No top albums",
+                    subtitle = "Albums you revisit often will appear here."
                 )
             } else {
                 val maxDuration = albums.maxOf { it.totalDurationMs }.coerceAtLeast(1L)
@@ -1435,8 +1518,8 @@ private fun SongStatsCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(32.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+        shape = RoundedCornerShape(28.dp), // Consistent with Hero
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 24.dp),
@@ -1472,10 +1555,10 @@ private fun SongStatsCard(
             }
 
             if (songs.isEmpty()) {
-                Text(
-                    text = "Listen to your favorites to see them highlighted here.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                StatsEmptyState(
+                    icon = Icons.Outlined.MusicNote,
+                    title = "No top tracks",
+                    subtitle = "Listen to your favorites to see them highlighted here."
                 )
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {

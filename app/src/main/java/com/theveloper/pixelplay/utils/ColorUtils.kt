@@ -11,6 +11,19 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.min
 import androidx.core.graphics.createBitmap
+import androidx.core.graphics.ColorUtils as AndroidColorUtils
+
+/**
+ * Calculates the luminance of a color and returns either black or white,
+ * depending on which one provides better contrast.
+ *
+ * @param color The background color (Compose Color).
+ * @return White or Black (Compose Color).
+ */
+fun getContrastColor(color: Color): Color {
+    val luminance = AndroidColorUtils.calculateLuminance(color.toArgb())
+    return if (luminance > 0.5) Color.Black else Color.White
+}
 
 /**
  * Converts a hex color string to a Compose Color object.

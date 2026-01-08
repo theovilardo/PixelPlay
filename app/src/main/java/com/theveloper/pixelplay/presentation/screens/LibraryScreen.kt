@@ -168,13 +168,15 @@ import androidx.compose.material3.ripple
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.input.pointer.pointerInput
 import com.theveloper.pixelplay.presentation.components.AutoScrollingTextOnDemand
-import com.theveloper.pixelplay.presentation.components.CreatePlaylistDialogRedesigned
+import com.theveloper.pixelplay.presentation.screens.CreatePlaylistDialog
 import com.theveloper.pixelplay.presentation.components.PlaylistBottomSheet
 import com.theveloper.pixelplay.presentation.components.PlaylistContainer
 import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import java.util.Locale
-
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import com.theveloper.pixelplay.data.model.PlaylistShapeType
 val ListExtraBottomGap = 30.dp
 val PlayerSheetCollapsedCornerRadius = 32.dp
 
@@ -188,6 +190,7 @@ fun LibraryScreen(
     playlistViewModel: PlaylistViewModel = hiltViewModel()
 ) {
     // La recolección de estados de alto nivel se mantiene mínima.
+    val context = LocalContext.current // Added context
     val lastTabIndex by playerViewModel.lastLibraryTabIndexFlow.collectAsState()
     val favoriteIds by playerViewModel.favoriteSongIds.collectAsState() // Reintroducir favoriteIds aquí
     val scope = rememberCoroutineScope() // Mantener si se usa para acciones de UI
@@ -227,6 +230,16 @@ fun LibraryScreen(
     }
     LaunchedEffect(isSyncing) {
         isRefreshing = isSyncing
+    }
+    
+    // Feedback for Playlist Creation
+    LaunchedEffect(Unit) {
+        playlistViewModel.playlistCreationEvent.collect { success ->
+            if (success) {
+                showCreatePlaylistDialog = false
+                Toast.makeText(context, "Playlist created successfully", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
     // La lógica de carga diferida (lazy loading) se mantiene.
     LaunchedEffect(Unit) {
@@ -792,19 +805,34 @@ fun LibraryScreen(
         }
     }
 
-    if (showCreatePlaylistDialog) {
-        CreatePlaylistDialogRedesigned(
-            onDismiss = { showCreatePlaylistDialog = false },
-            onCreate = { name ->
-                playlistViewModel.createPlaylist(name) // Pass the actual name
-                showCreatePlaylistDialog = false
-            },
-            onGenerateClick = {
-                showCreatePlaylistDialog = false
-                playerViewModel.showAiPlaylistSheet()
-            }
-        )
-    }
+    val allSongs by playerViewModel.allSongsFlow.collectAsState(initial = emptyList())
+
+
+    CreatePlaylistDialog(
+        visible = showCreatePlaylistDialog,
+        allSongs = allSongs,
+        onDismiss = { showCreatePlaylistDialog = false },
+        onCreate = { name, imageUri, color, icon, songIds, cropScale, cropPanX, cropPanY, shapeType, d1, d2, d3, d4 ->
+            playlistViewModel.createPlaylist(
+                name = name,
+                coverImageUri = imageUri,
+                coverColor = color,
+                coverIcon = icon,
+                songIds = songIds,
+                cropScale = cropScale,
+                cropPanX = cropPanX,
+                cropPanY = cropPanY,
+                isAiGenerated = false,
+                isQueueGenerated = false,
+                coverShapeType = shapeType,
+                coverShapeDetail1 = d1,
+                coverShapeDetail2 = d2,
+                coverShapeDetail3 = d3,
+                coverShapeDetail4 = d4
+            )
+        }
+    )
+
 
     val showAiSheet by playerViewModel.showAiPlaylistSheet.collectAsState()
     val isGeneratingAiPlaylist by playerViewModel.isGeneratingAiPlaylist.collectAsState()

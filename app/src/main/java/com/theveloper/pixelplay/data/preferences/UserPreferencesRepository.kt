@@ -556,6 +556,14 @@ constructor(
             songIds: List<String> = emptyList(),
             isAiGenerated: Boolean = false,
             isQueueGenerated: Boolean = false,
+            coverImageUri: String? = null,
+            coverColorArgb: Int? = null,
+            coverIconName: String? = null,
+            coverShapeType: String? = null,
+            coverShapeDetail1: Float? = null,
+            coverShapeDetail2: Float? = null,
+            coverShapeDetail3: Float? = null,
+            coverShapeDetail4: Float? = null
     ): Playlist {
         val currentPlaylists = userPlaylistsFlow.first().toMutableList()
         val newPlaylist =
@@ -565,6 +573,14 @@ constructor(
                         songIds = songIds,
                         isAiGenerated = isAiGenerated,
                         isQueueGenerated = isQueueGenerated,
+                        coverImageUri = coverImageUri,
+                        coverColorArgb = coverColorArgb,
+                        coverIconName = coverIconName,
+                        coverShapeType = coverShapeType,
+                        coverShapeDetail1 = coverShapeDetail1,
+                        coverShapeDetail2 = coverShapeDetail2,
+                        coverShapeDetail3 = coverShapeDetail3,
+                        coverShapeDetail4 = coverShapeDetail4
                 )
         currentPlaylists.add(newPlaylist)
         savePlaylists(currentPlaylists)

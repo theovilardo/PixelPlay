@@ -64,7 +64,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextGeometricTransform
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.theveloper.pixelplay.R
@@ -178,6 +180,10 @@ fun ReorderPresetsSheet(
                                 Text(
                                     text = "Manage Presets",
                                     fontFamily = GoogleSansRounded,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontSize = 22.sp,
+                                        textGeometricTransform = TextGeometricTransform(scaleX = 1.2f),
+                                    ),
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
                             },

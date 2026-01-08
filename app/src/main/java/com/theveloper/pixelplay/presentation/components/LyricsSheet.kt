@@ -74,6 +74,7 @@ import java.io.File
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 
@@ -423,78 +424,95 @@ fun LyricsSheet(
                     // Quick offset controls for synced lyrics
                     if (lyrics?.synced != null) {
                         Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                //.padding(top = 6.dp)
+//                                .background(
+//                                    color = containerColor,
+//                                    shape = CircleShape
+//                                )
                         ) {
                             Row(
+                                modifier = Modifier
+                                    .align(Alignment.Center)
+                                    .background(
+                                        color = backgroundColor,
+                                        shape = CircleShape
+                                ),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                horizontalArrangement = Arrangement.Center
                             ) {
-                                // -0.5s button
-                                FilledTonalIconButton(
-                                    onClick = { onLyricsSyncOffsetChange(lyricsSyncOffset - 500) },
-                                    modifier = Modifier.size(32.dp),
-                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                        containerColor = backgroundColor.copy(alpha = 0.7f),
-                                        contentColor = onBackgroundColor
-                                    )
+                                Row(
+                                    modifier = Modifier.padding(4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Text("−.5", style = MaterialTheme.typography.labelSmall, fontSize = 9.sp)
-                                }
-                                // -0.1s button
-                                FilledTonalIconButton(
-                                    onClick = { onLyricsSyncOffsetChange(lyricsSyncOffset - 100) },
-                                    modifier = Modifier.size(32.dp),
-                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                        containerColor = backgroundColor.copy(alpha = 0.7f),
-                                        contentColor = onBackgroundColor
-                                    )
-                                ) {
-                                    Text("−.1", style = MaterialTheme.typography.labelSmall, fontSize = 9.sp)
-                                }
-                                // Current offset display / Reset button
-                                FilledTonalIconButton(
-                                    onClick = { onLyricsSyncOffsetChange(0) },
-                                    modifier = Modifier.width(48.dp).height(32.dp),
-                                    enabled = lyricsSyncOffset != 0,
-                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                        containerColor = if (lyricsSyncOffset != 0) accentColor.copy(alpha = 0.3f) else backgroundColor.copy(alpha = 0.7f),
-                                        contentColor = onBackgroundColor
-                                    )
-                                ) {
-                                    Text(
-                                        text = if (lyricsSyncOffset == 0) "0s" else String.format("%+.1fs", lyricsSyncOffset / 1000f),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                // +0.1s button
-                                FilledTonalIconButton(
-                                    onClick = { onLyricsSyncOffsetChange(lyricsSyncOffset + 100) },
-                                    modifier = Modifier.size(32.dp),
-                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                        containerColor = backgroundColor.copy(alpha = 0.7f),
-                                        contentColor = onBackgroundColor
-                                    )
-                                ) {
-                                    Text("+.1", style = MaterialTheme.typography.labelSmall, fontSize = 9.sp)
-                                }
-                                // +0.5s button
-                                FilledTonalIconButton(
-                                    onClick = { onLyricsSyncOffsetChange(lyricsSyncOffset + 500) },
-                                    modifier = Modifier.size(32.dp),
-                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                        containerColor = backgroundColor.copy(alpha = 0.7f),
-                                        contentColor = onBackgroundColor
-                                    )
-                                ) {
-                                    Text("+.5", style = MaterialTheme.typography.labelSmall, fontSize = 9.sp)
+                                    // -0.5s button
+                                    FilledTonalIconButton(
+                                        onClick = { onLyricsSyncOffsetChange(lyricsSyncOffset - 500) },
+                                        modifier = Modifier.size(32.dp),
+                                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                            containerColor = onAccentColor, //.copy(alpha = 0.5f),
+                                            contentColor = accentColor
+                                        )
+                                    ) {
+                                        Text("−.5", style = MaterialTheme.typography.labelSmall, fontSize = 9.sp)
+                                    }
+                                    // -0.1s button
+                                    FilledTonalIconButton(
+                                        onClick = { onLyricsSyncOffsetChange(lyricsSyncOffset - 100) },
+                                        modifier = Modifier.size(32.dp),
+                                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                            containerColor = onAccentColor, //.copy(alpha = 0.5f),
+                                            contentColor = accentColor
+                                        )
+                                    ) {
+                                        Text("−.1", style = MaterialTheme.typography.labelSmall, fontSize = 9.sp)
+                                    }
+                                    // Current offset display / Reset button
+                                    FilledTonalIconButton(
+                                        onClick = { onLyricsSyncOffsetChange(0) },
+                                        modifier = Modifier.width(48.dp).height(32.dp),
+                                        enabled = lyricsSyncOffset != 0,
+                                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                            containerColor = if (lyricsSyncOffset != 0) accentColor.copy(alpha = 0.3f) else backgroundColor.copy(alpha = 0.7f),
+                                            contentColor = onBackgroundColor
+                                        )
+                                    ) {
+                                        Text(
+                                            text = if (lyricsSyncOffset == 0) "0s" else String.format("%+.1fs", lyricsSyncOffset / 1000f),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    // +0.1s button
+                                    FilledTonalIconButton(
+                                        onClick = { onLyricsSyncOffsetChange(lyricsSyncOffset + 100) },
+                                        modifier = Modifier.size(32.dp),
+                                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                            containerColor = onAccentColor, //.copy(alpha = 0.5f),
+                                            contentColor = accentColor
+                                        )
+                                    ) {
+                                        Text("+.1", style = MaterialTheme.typography.labelSmall, fontSize = 9.sp)
+                                    }
+                                    // +0.5s button
+                                    FilledTonalIconButton(
+                                        onClick = { onLyricsSyncOffsetChange(lyricsSyncOffset + 500) },
+                                        modifier = Modifier.size(32.dp),
+                                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                            containerColor = onAccentColor, //.copy(alpha = 0.5f),
+                                            contentColor = accentColor
+                                        )
+                                    ) {
+                                        Text("+.5", style = MaterialTheme.typography.labelSmall, fontSize = 9.sp)
+                                    }
                                 }
                             }
                         }
+
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                 }

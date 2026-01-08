@@ -80,6 +80,7 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextGeometricTransform
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -195,6 +196,10 @@ fun FileExplorerContent(
                     Text(
                         text = title,
                         fontFamily = GoogleSansRounded,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontSize = 22.sp,
+                            textGeometricTransform = TextGeometricTransform(scaleX = 1.2f),
+                        ),
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                 },
