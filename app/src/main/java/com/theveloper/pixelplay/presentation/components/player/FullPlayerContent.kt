@@ -1486,8 +1486,8 @@ private fun BottomToggleRow(
             )
             val repeatActive = repeatMode != Player.REPEAT_MODE_OFF
             val repeatIcon = when (repeatMode) {
-                Player.REPEAT_MODE_ONE -> R.drawable.rounded_repeat_one_on_24
-                Player.REPEAT_MODE_ALL -> R.drawable.rounded_repeat_on_24
+                Player.REPEAT_MODE_ONE -> R.drawable.rounded_repeat_one_24
+                Player.REPEAT_MODE_ALL -> R.drawable.rounded_repeat_24
                 else -> R.drawable.rounded_repeat_24
             }
             ToggleSegmentButton(
