@@ -478,6 +478,59 @@ class SyncWorker @AssistedInject constructor(
     }
 
     /**
+     * Fetches a map of Song ID -> Genre Name using the MediaStore.Audio.Genres table.
+     * This is necessary because the GENRE column in MediaStore.Audio.Media is not reliably available
+     * or populated on all Android versions (especially pre-API 30).
+     */
+    private fun fetchGenreMap(): Map<Long, String> {
+        val genreMap = HashMap<Long, String>()
+        val genreProjection = arrayOf(MediaStore.Audio.Genres._ID, MediaStore.Audio.Genres.NAME)
+        
+        try {
+            contentResolver.query(
+                MediaStore.Audio.Genres.EXTERNAL_CONTENT_URI,
+                genreProjection,
+                null, null, null
+            )?.use { cursor ->
+                val idCol = cursor.getColumnIndex(MediaStore.Audio.Genres._ID)
+                val nameCol = cursor.getColumnIndex(MediaStore.Audio.Genres.NAME)
+                
+                if (idCol >= 0 && nameCol >= 0) {
+                    while (cursor.moveToNext()) {
+                        val genreId = cursor.getLong(idCol)
+                        val genreName = cursor.getString(nameCol)
+                        
+                        if (!genreName.isNullOrBlank() && !genreName.equals("unknown", ignoreCase = true)) {
+                            // For each genre, query its members
+                            val membersUri = MediaStore.Audio.Genres.Members.getContentUri("external", genreId)
+                            val membersProjection = arrayOf(MediaStore.Audio.Genres.Members.AUDIO_ID)
+                            
+                            contentResolver.query(
+                                membersUri,
+                                membersProjection,
+                                null, null, null
+                            )?.use { membersCursor ->
+                                val audioIdCol = membersCursor.getColumnIndex(MediaStore.Audio.Genres.Members.AUDIO_ID)
+                                if (audioIdCol >= 0) {
+                                    while (membersCursor.moveToNext()) {
+                                        val audioId = membersCursor.getLong(audioIdCol)
+                                        // If a song has multiple genres, the last one processed wins.
+                                        // This is acceptable as a primary genre for display.
+                                        genreMap[audioId] = genreName
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching genre map", e)
+        }
+        return genreMap
+    }
+
+    /**
      * Raw data extracted from cursor - lightweight class for fast iteration
      */
     private data class RawSongData(
@@ -505,6 +558,7 @@ class SyncWorker @AssistedInject constructor(
         
         val deepScan = forceMetadata
         val albumArtByAlbumId = if (!deepScan) fetchAlbumArtUrisByAlbumId() else emptyMap()
+        val genreMap = fetchGenreMap() // Load genres upfront
 
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
@@ -604,7 +658,7 @@ class SyncWorker @AssistedInject constructor(
             rawDataList.map { raw ->
                 async {
                     semaphore.withPermit {
-                        val song = processSongData(raw, albumArtByAlbumId, deepScan)
+                        val song = processSongData(raw, albumArtByAlbumId, genreMap, deepScan)
                         
                         // Report progress
                         val count = processedCount.incrementAndGet()
@@ -629,6 +683,7 @@ class SyncWorker @AssistedInject constructor(
     private suspend fun processSongData(
         raw: RawSongData,
         albumArtByAlbumId: Map<Long, String>,
+        genreMap: Map<Long, String>,
         deepScan: Boolean
     ): SongEntity {
         val parentDir = java.io.File(raw.filePath).parent ?: ""
@@ -648,7 +703,7 @@ class SyncWorker @AssistedInject constructor(
         var album = raw.album
         var trackNumber = raw.trackNumber
         var year = raw.year
-        var genre: String? = null
+        var genre: String? = genreMap[raw.id] // Use mapped genre as default
 
         val shouldAugmentMetadata = deepScan || raw.filePath.endsWith(".wav", true) ||
                 raw.filePath.endsWith(".opus", true) || raw.filePath.endsWith(".ogg", true) ||
