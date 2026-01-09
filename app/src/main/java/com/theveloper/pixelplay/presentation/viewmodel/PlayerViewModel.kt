@@ -3002,6 +3002,7 @@ class PlayerViewModel @Inject constructor(
                 }
                 if (playbackState == Player.STATE_ENDED) {
                     listeningStatsTracker.finalizeCurrentSession()
+                    _stablePlayerState.update { it.copy(isPlaying = false) }
                 }
                 if (playbackState == Player.STATE_IDLE && playerCtrl.mediaItemCount == 0) {
                     if (!_isCastConnecting.value && !_isRemotePlaybackActive.value) {
@@ -3721,7 +3722,13 @@ class PlayerViewModel @Inject constructor(
             .setMediaMetadata(buildMediaMetadataForSong(song))
             .build()
         if (controller.currentMediaItem?.mediaId == song.id) {
-            if (!controller.isPlaying) controller.play()
+            if (controller.playbackState == Player.STATE_ENDED) {
+                controller.seekToDefaultPosition(controller.currentMediaItemIndex)
+                controller.prepare()
+                controller.play()
+            } else if (!controller.isPlaying) {
+                controller.play()
+            }
         } else {
             controller.setMediaItem(mediaItem)
             controller.prepare()
@@ -4358,7 +4365,11 @@ class PlayerViewModel @Inject constructor(
                 if (controller.isPlaying) {
                     controller.pause()
                 } else {
-                    if (controller.currentMediaItem == null) {
+                    if (controller.playbackState == Player.STATE_ENDED) {
+                        controller.seekToDefaultPosition()
+                        controller.prepare()
+                        controller.play()
+                    } else if (controller.currentMediaItem == null) {
                         val currentQueue = _playerUiState.value.currentPlaybackQueue
                         val currentSong = _stablePlayerState.value.currentSong
                         when {
