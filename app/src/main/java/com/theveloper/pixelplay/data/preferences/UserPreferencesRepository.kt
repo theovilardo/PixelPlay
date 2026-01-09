@@ -501,12 +501,19 @@ constructor(
 
     val fullPlayerLoadingTweaksFlow: Flow<FullPlayerLoadingTweaks> = dataStore.data
         .map { preferences ->
+            val delayAlbum = preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALBUM] ?: true
+            val delayMetadata = preferences[PreferencesKeys.FULL_PLAYER_DELAY_METADATA] ?: true
+            val delayProgress = preferences[PreferencesKeys.FULL_PLAYER_DELAY_PROGRESS] ?: true
+            val delayControls = preferences[PreferencesKeys.FULL_PLAYER_DELAY_CONTROLS] ?: true
+            
+            val delayAll = delayAlbum && delayMetadata && delayProgress && delayControls
+
             FullPlayerLoadingTweaks(
-                delayAll = preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALL] ?: true,
-                delayAlbumCarousel = preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALBUM] ?: false,
-                delaySongMetadata = preferences[PreferencesKeys.FULL_PLAYER_DELAY_METADATA] ?: false,
-                delayProgressBar = preferences[PreferencesKeys.FULL_PLAYER_DELAY_PROGRESS] ?: false,
-                delayControls = preferences[PreferencesKeys.FULL_PLAYER_DELAY_CONTROLS] ?: false,
+                delayAll = delayAll,
+                delayAlbumCarousel = delayAlbum,
+                delaySongMetadata = delayMetadata,
+                delayProgressBar = delayProgress,
+                delayControls = delayControls,
                 showPlaceholders = preferences[PreferencesKeys.FULL_PLAYER_PLACEHOLDERS] ?: false,
                 transparentPlaceholders = preferences[PreferencesKeys.FULL_PLAYER_PLACEHOLDER_TRANSPARENT] ?: false,
                 contentAppearThresholdPercent = preferences[PreferencesKeys.FULL_PLAYER_DELAY_THRESHOLD] ?: 100
@@ -1058,12 +1065,11 @@ constructor(
     suspend fun setDelayAllFullPlayerContent(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALL] = enabled
-            if (enabled) {
-                preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALBUM] = true
-                preferences[PreferencesKeys.FULL_PLAYER_DELAY_METADATA] = true
-                preferences[PreferencesKeys.FULL_PLAYER_DELAY_PROGRESS] = true
-                preferences[PreferencesKeys.FULL_PLAYER_DELAY_CONTROLS] = true
-            }
+            
+            preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALBUM] = enabled
+            preferences[PreferencesKeys.FULL_PLAYER_DELAY_METADATA] = enabled
+            preferences[PreferencesKeys.FULL_PLAYER_DELAY_PROGRESS] = enabled
+            preferences[PreferencesKeys.FULL_PLAYER_DELAY_CONTROLS] = enabled
         }
     }
 

@@ -330,12 +330,6 @@ class SettingsViewModel @Inject constructor(
     fun setDelayAllFullPlayerContent(enabled: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.setDelayAllFullPlayerContent(enabled)
-            if (enabled) {
-                userPreferencesRepository.setDelayAlbumCarousel(true)
-                userPreferencesRepository.setDelaySongMetadata(true)
-                userPreferencesRepository.setDelayProgressBar(true)
-                userPreferencesRepository.setDelayControls(true)
-            }
         }
     }
 
