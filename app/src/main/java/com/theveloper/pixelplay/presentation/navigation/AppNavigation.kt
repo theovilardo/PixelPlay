@@ -33,6 +33,7 @@ import com.theveloper.pixelplay.presentation.screens.LibraryScreen
 import com.theveloper.pixelplay.presentation.screens.MashupScreen
 import com.theveloper.pixelplay.presentation.screens.NavBarCornerRadiusScreen
 import com.theveloper.pixelplay.presentation.screens.PlaylistDetailScreen
+
 import com.theveloper.pixelplay.presentation.screens.AboutScreen
 import com.theveloper.pixelplay.presentation.screens.SearchScreen
 import com.theveloper.pixelplay.presentation.screens.StatsScreen
@@ -194,6 +195,7 @@ fun AppNavigation(
                     )
                 }
             }
+
             composable(
                 Screen.DJSpace.route,
                 enterTransition = { enterTransition() },

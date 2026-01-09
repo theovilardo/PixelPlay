@@ -124,6 +124,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material.icons.rounded.Clear
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -177,6 +179,56 @@ fun CreatePlaylistDialog(
 }
 
 // Enum removed, using com.theveloper.pixelplay.data.model.PlaylistShapeType
+
+@Composable
+fun EditPlaylistDialog(
+    visible: Boolean,
+    currentName: String,
+    currentImageUri: String?,
+    currentColor: Int?,
+    currentIconName: String?,
+    currentShapeType: PlaylistShapeType?,
+    currentShapeDetail1: Float?,
+    currentShapeDetail2: Float?,
+    currentShapeDetail3: Float?,
+    currentShapeDetail4: Float?,
+    onDismiss: () -> Unit,
+    onSave: (String, String?, Int?, String?, Float, Float, Float, String?, Float?, Float?, Float?, Float?) -> Unit
+) {
+    val transitionState = remember { MutableTransitionState(false) }
+    transitionState.targetState = visible
+
+    if (transitionState.currentState || transitionState.targetState) {
+        Dialog(
+            onDismissRequest = onDismiss,
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
+            AnimatedVisibility(
+                visibleState = transitionState,
+                enter = slideInVertically(initialOffsetY = { it / 6 }) + fadeIn(animationSpec = tween(220)),
+                exit = slideOutVertically(targetOffsetY = { it / 6 }) + fadeOut(animationSpec = tween(200)),
+                label = "edit_playlist_dialog"
+            ) {
+                 EditPlaylistContent(
+                    initialName = currentName,
+                    initialImageUri = currentImageUri,
+                    initialColor = currentColor,
+                    initialIconName = currentIconName,
+                    initialShapeType = currentShapeType,
+                    initialShapeDetail1 = currentShapeDetail1,
+                    initialShapeDetail2 = currentShapeDetail2,
+                    initialShapeDetail3 = currentShapeDetail3,
+                    initialShapeDetail4 = currentShapeDetail4,
+                    onDismiss = onDismiss,
+                    onSave = onSave
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun CreatePlaylistContent(
@@ -371,583 +423,779 @@ private fun CreatePlaylistContent(
             label = "Step Transition"
         ) { step ->
             if (step == 0) {
-                // Step 1: Info (Name, Cover) - Split Layout
-                Column(modifier = Modifier
-                    .fillMaxSize()
-                    .imePadding()) {
-                    
-                     // FIXED PREVIEW SECTION
-                    AnimatedContent(
-                         targetState = selectedTab,
-                         transitionSpec = {
-                             fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(220))
-                         },
-                         label = "preview_transition",
-                         modifier = Modifier
-                             .fillMaxWidth()
-                             .padding(top = 8.dp, bottom = 4.dp)
-                    ) { targetTab ->
-                         Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(240.dp), // Reduced height
-                            contentAlignment = Alignment.Center
-                        ) {
-                            when (targetTab) {
-                                0 -> { // Default
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(180.dp)
-                                                .clip(RoundedCornerShape(32.dp))
-                                                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                             Icon(
-                                                Icons.Rounded.GridView,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(80.dp),
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                            )
-                                        }
-                                        Spacer(Modifier.height(16.dp))
-                                        Text(
-                                            "Auto-generated collage of first 4 songs",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                                1 -> { // Image
-                                     if (showCropUi && imageBitmap != null) {
-                                         // Crop UI
-                                         Box(modifier = Modifier
-                                             .size(240.dp)
-                                             .clip(RoundedCornerShape(24.dp))) {
-                                             ImageCropView(
-                                                 imageBitmap = imageBitmap!!,
-                                                 modifier = Modifier.fillMaxSize(),
-                                                 scale = cropScale,
-                                                 pan = cropOffset,
-                                                 enabled = true,
-                                                 onCrop = { scale, pan -> 
-                                                     cropScale = scale
-                                                     cropOffset = pan
-                                                 }
-                                             )
-                                             FilledIconButton(
-                                                onClick = { showCropUi = false },
-                                                modifier = Modifier
-                                                    .align(Alignment.BottomEnd)
-                                                    .padding(16.dp)
-                                            ) {
-                                                Icon(Icons.Rounded.Check, contentDescription = "Confirm Crop")
-                                            }
-                                         }
-                                     } else {
-                                         // Image Preview (Read Only)
-                                         if (imageBitmap != null) {
-                                             Box(
-                                                modifier = Modifier
-                                                    .size(180.dp)
-                                                    .clip(RoundedCornerShape(32.dp))
-                                                    .clickable { imagePickerLauncher.launch("image/*") }
-                                             ) {
-                                                 // Reuse ImageCropView in read-only mode for perfect visual match
-                                                 // Check if user has actually cropped. If not, default to standard CenterCrop to avoid distortion.
-                                                 if (cropScale == 1f && cropOffset == androidx.compose.ui.geometry.Offset.Zero) {
-                                                     AsyncImage(
-                                                         model = selectedImageUri,
-                                                         contentDescription = null,
-                                                         modifier = Modifier.fillMaxSize(),
-                                                         contentScale = ContentScale.Crop
-                                                     )
-                                                 } else {
-                                                     ImageCropView(
-                                                         imageBitmap = imageBitmap!!,
-                                                         modifier = Modifier.fillMaxSize(),
-                                                         scale = cropScale,
-                                                         pan = cropOffset, // Normalized
-                                                         enabled = false,
-                                                         onCrop = { _, _ -> }
-                                                     )
-                                                 }
-                                             }
-                                         } else {
-                                             Box(
-                                                modifier = Modifier
-                                                    .size(180.dp)
-                                                    .clip(RoundedCornerShape(32.dp))
-                                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                                                    .clickable { imagePickerLauncher.launch("image/*") },
-                                                contentAlignment = Alignment.Center
-                                             ) {
-                                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                     Icon(
-                                                         Icons.Rounded.AddPhotoAlternate,
-                                                         contentDescription = "Add Photo",
-                                                         modifier = Modifier.size(56.dp),
-                                                         tint = MaterialTheme.colorScheme.primary
-                                                     )
-                                                     Spacer(Modifier.height(12.dp))
-                                                     Text("Pick Image", style = MaterialTheme.typography.titleSmall)
-                                                 }
-                                             }
-                                         }
-                                     }
-                                }
-                                2 -> { // Icon / Custom Shape
-                                     AnimatedContent(
-                                         targetState = selectedShapeType,
-                                         transitionSpec = {
-                                             fadeIn(animationSpec = tween(300)) + scaleIn(initialScale = 0.8f) togetherWith 
-                                             fadeOut(animationSpec = tween(300)) + scaleOut(targetScale = 0.8f)
-                                         },
-                                         label = "shape_transition"
-                                     ) { currentShapeType ->
-                                         val currentShape: Shape = when(currentShapeType) {
-                                             PlaylistShapeType.Circle -> CircleShape
-                                             PlaylistShapeType.SmoothRect -> AbsoluteSmoothCornerShape(
-                                                 cornerRadiusTL = smoothRectCornerRadius.dp,
-                                                 smoothnessAsPercentTR = smoothRectSmoothness.toInt(),
-                                                 cornerRadiusTR = smoothRectCornerRadius.dp,
-                                                 smoothnessAsPercentTL = smoothRectSmoothness.toInt(),
-                                                 cornerRadiusBR = smoothRectCornerRadius.dp,
-                                                 smoothnessAsPercentBR = smoothRectSmoothness.toInt(),
-                                                 cornerRadiusBL = smoothRectCornerRadius.dp,
-                                                 smoothnessAsPercentBL = smoothRectSmoothness.toInt(),
-                                             )
-                                             PlaylistShapeType.RotatedPill -> {
-                                                 // Vertical Pill Shape (Narrower than container)
-                                                 androidx.compose.foundation.shape.GenericShape { size, _ ->
-                                                     val w = size.width
-                                                     val h = size.height
-                                                     val pillW = w * 0.75f // 75% width (Fat Pill)
-                                                     val offset = (w - pillW) / 2
-                                                     addRoundRect(RoundRect(offset, 0f, offset + pillW, h, CornerRadius(pillW/2, pillW/2)))
-                                                 }
-                                             }
-                                             PlaylistShapeType.Star -> RoundedStarShape(
-                                                 sides = starSides,
-                                                 curve = starCurve,
-                                                 rotation = starRotation
-                                             )
-                                         }
-                                         
-                                         val shapeMod = if(currentShapeType == PlaylistShapeType.RotatedPill) Modifier.graphicsLayer(rotationZ = 45f) else Modifier
-                                         val iconMod = if(currentShapeType == PlaylistShapeType.RotatedPill) Modifier.graphicsLayer(rotationZ = -45f) else Modifier
-                                         val scaleMod = if(currentShapeType == PlaylistShapeType.Star) Modifier.graphicsLayer(scaleX = starScale, scaleY = starScale) else Modifier
-    
-                                         Box(
-                                             modifier = Modifier
-                                                 .size(180.dp)
-                                                 .then(scaleMod)
-                                                 .then(shapeMod)
-                                                 .clip(currentShape)
-                                                 .background(selectedColor?.let { Color(it) }
-                                                     ?: MaterialTheme.colorScheme.primaryContainer),
-                                             contentAlignment = Alignment.Center
-                                         ) {
-                                             if (selectedIconName != null) {
-                                                 val icon = getIconByName(selectedIconName!!) ?: Icons.Rounded.MusicNote
-                                                 Icon(
-                                                     imageVector = icon,
-                                                     contentDescription = null,
-                                                     modifier = Modifier
-                                                         .size(80.dp)
-                                                         .then(iconMod),
-                                                     tint = selectedColor?.let { getThemeContentColor(it, MaterialTheme.colorScheme) } 
-                                                           ?: MaterialTheme.colorScheme.onPrimaryContainer
-                                                 )
-                                             }
-                                         }
-                                     }
-                                }
-                            }
-                        }
-                    }
+                 PlaylistFormContent(
+                     playlistName = playlistName,
+                     onNameChange = { playlistName = it },
+                     selectedTab = selectedTab,
+                     onTabChange = { selectedTab = it },
+                     selectedImageUri = selectedImageUri,
+                     showCropUi = showCropUi,
+                     onShowCropUiChange = { showCropUi = it },
+                     cropScale = cropScale,
+                     onCropScaleChange = { cropScale = it },
+                     cropOffset = cropOffset,
+                     onCropOffsetChange = { cropOffset = it },
+                     imageBitmap = imageBitmap,
+                     imagePickerLauncher = imagePickerLauncher,
+                     selectedColor = selectedColor,
+                     onColorChange = { selectedColor = it },
+                     selectedIconName = selectedIconName,
+                     onIconChange = { selectedIconName = it },
+                     selectedShapeType = selectedShapeType,
+                     onShapeTypeChange = { selectedShapeType = it },
+                     smoothRectCornerRadius = smoothRectCornerRadius,
+                     onSmoothRectCornerRadiusChange = { smoothRectCornerRadius = it },
+                     smoothRectSmoothness = smoothRectSmoothness,
+                     onSmoothRectSmoothnessChange = { smoothRectSmoothness = it },
+                     starSides = starSides,
+                     onStarSidesChange = { starSides = it },
+                     starCurve = starCurve,
+                     onStarCurveChange = { starCurve = it },
+                     starRotation = starRotation,
+                     onStarRotationChange = { starRotation = it },
+                     starScale = starScale,
+                     onStarScaleChange = { starScale = it }
+                 )
+            } else {
+                 val filteredSongs = remember(searchQuery, allSongs) {
+                      if (searchQuery.isBlank()) allSongs 
+                      else allSongs.filter { 
+                          it.title.contains(searchQuery, ignoreCase = true) || 
+                          it.artist.contains(searchQuery, ignoreCase = true) 
+                      }
+                 }
 
-                    // SCROLLABLE DETIALS
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f) // Take remaining space
-                            .verticalScroll(rememberScrollState()),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        
-                        // Name Input (Polished)
-                        OutlinedTextField(
-                            value = playlistName,
-                            onValueChange = { playlistName = it },
-                            label = { Text("Playlist Name") },
-                            placeholder = { Text("My awesome mix") },
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 22.dp),
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
+                 val animatedAlbumCornerRadius = 60.dp
+                 val albumShape = remember(animatedAlbumCornerRadius) {
+                     AbsoluteSmoothCornerShape(
+                         cornerRadiusTL = animatedAlbumCornerRadius,
+                         smoothnessAsPercentTR = 60,
+                         cornerRadiusTR = animatedAlbumCornerRadius,
+                         smoothnessAsPercentBR = 60,
+                         cornerRadiusBL = animatedAlbumCornerRadius,
+                         smoothnessAsPercentBL = 60,
+                         cornerRadiusBR = animatedAlbumCornerRadius,
+                         smoothnessAsPercentTL = 60
+                     )
+                 }
+                 
+                 Column(modifier = Modifier.fillMaxSize()) {
+                      OutlinedTextField(
+                           value = searchQuery,
+                           onValueChange = { searchQuery = it },
+                           modifier = Modifier
+                               .fillMaxWidth()
+                               .padding(16.dp),
+                           label = { Text("Search songs") },
+                           leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                           trailingIcon = if (searchQuery.isNotEmpty()) {
+                               { IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Rounded.Clear, null) } }
+                           } else null,
+                           singleLine = true,
+                           shape = RoundedCornerShape(16.dp),
+                           colors = OutlinedTextFieldDefaults.colors(
                                 focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                                 unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                                 disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                                 focusedBorderColor = Color.Transparent,
                                 unfocusedBorderColor = Color.Transparent
-                            )
-                        )
-    
-                        // Expressive Button Group
-                        val tabs = listOf("Default", "Image", "Icon")
-                        ExpressiveButtonGroup(
-                            items = tabs,
-                            selectedIndex = selectedTab,
-                            onItemClick = { selectedTab = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 22.dp)
-                        )
-                    
-                    
-                    // Tab Content controls (Colors/Icons)
-                    AnimatedVisibility(
-                         visible = selectedTab == 2,
-//                         enter = fadeIn() + slideInVertically(),
-//                         exit = fadeOut() + slideOutVertically()
-                    ) {
-                         Column(
-                             verticalArrangement = Arrangement.spacedBy(16.dp)
-                         ) {
-                             Text(
-                                 modifier = Modifier.padding(start = 22.dp),
-                                 text = "Background Color",
-                                 style = MaterialTheme.typography.titleSmall,
-                                 color = MaterialTheme.colorScheme.onSurfaceVariant
-                             )
-                             
-                             val colors = listOf( 
-                                 MaterialTheme.colorScheme.primary.toArgb(),
-                                 MaterialTheme.colorScheme.primaryContainer.toArgb(),
-                                 MaterialTheme.colorScheme.secondary.toArgb(),
-                                 MaterialTheme.colorScheme.secondaryContainer.toArgb(),
-                                 MaterialTheme.colorScheme.tertiary.toArgb(),
-                                 MaterialTheme.colorScheme.tertiaryContainer.toArgb(),
-                                 MaterialTheme.colorScheme.error.toArgb(),
-                                 MaterialTheme.colorScheme.errorContainer.toArgb(),
-                                 MaterialTheme.colorScheme.surfaceContainerHigh.toArgb(),
-                                 MaterialTheme.colorScheme.inverseSurface.toArgb()
-                             )
-                             
-                             FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 18.dp)
-                             ) {
-                                 colors.forEach { color ->
-                                     val isSelected = selectedColor == color
-                                     val cornerRadius by animateDpAsState(targetValue = if (isSelected) 12.dp else 24.dp, label = "CornerRadius")
-                                     
-                                     // Nested Box for separate border
-                                     Box(
-                                         modifier = Modifier
-                                             .size(52.dp) // Slightly larger container
-                                            .clip(RoundedCornerShape(cornerRadius))
-                                             .background(if (isSelected) Color(color) else Color.Transparent) // Use same color for border effect or transparent
-                                            .border(
-                                                width = if (isSelected) 3.dp else 0.dp,
-                                                color = if (isSelected) Color(color) else Color.Transparent,
-                                                shape = RoundedCornerShape(cornerRadius)
-                                            ),
-                                         contentAlignment = Alignment.Center
-                                     ) {
-                                          // Inner Solid
-                                          Box(
-                                             modifier = Modifier
-                                                 .size(if (isSelected) 42.dp else 48.dp) // Shrink when selected to create gap
-                                                .clip(RoundedCornerShape(if (isSelected) 8.dp else cornerRadius)) // Adjust inner radius
-                                                .background(Color(color))
-                                                 .clickable { selectedColor = color }
-                                          )
-                                     }
-                                 }
-                             }
-                             
-                             Spacer(Modifier.height(8.dp))
-
-                             Text(
-                                 modifier = Modifier.padding(start = 22.dp),
-                                 text = "Icon Symbol",
-                                 style = MaterialTheme.typography.titleSmall,
-                                 color = MaterialTheme.colorScheme.onSurfaceVariant
-                             )
-        
-                             val icons = listOf(
-                                "MusicNote", "Headphones", "Album", "Mic", "Speaker", "Favorite", "Piano", "Queue"
-                             )
-                             
-                             FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 18.dp)
-                             ) {
-                                 icons.forEach { iconName ->
-                                     val isSelected = selectedIconName == iconName
-                                     val cornerRadius by animateDpAsState(targetValue = if (isSelected) 12.dp else 24.dp, label = "CornerRadius")
-
-                                     Box(
-                                         modifier = Modifier
-                                             .size(52.dp)
-                                             .clip(RoundedCornerShape(cornerRadius))
-                                             .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer)
-                                             .clickable { selectedIconName = iconName },
-                                         contentAlignment = Alignment.Center
-                                     ) {
-                                         Icon(
-                                             imageVector = getIconByName(iconName) ?: Icons.Rounded.MusicNote,
-                                             contentDescription = null,
-                                             tint = if(isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                                         )
-                                     }
-                                 }
-                             }
-
-                             Spacer(Modifier.height(16.dp))
-
-                             Text(
-                                 modifier = Modifier.padding(start = 22.dp),
-                                 text = "Shape Style",
-                                 style = MaterialTheme.typography.titleSmall,
-                                 color = MaterialTheme.colorScheme.onSurfaceVariant
-                             )
-
-                             LazyRow(
-                                 modifier = Modifier
-                                     .fillMaxWidth()
-                                     .padding(vertical = 8.dp),
-                                 horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                 contentPadding = PaddingValues(horizontal = 16.dp)
-                             ) {
-                                 item {
-                                     PlaylistShapeType.entries.forEach { shapeType ->
-                                         val isSelected = selectedShapeType == shapeType
-                                         // Preview Shape for Selector
-                                         val previewShape = when(shapeType) {
-                                             PlaylistShapeType.Circle -> CircleShape
-                                             PlaylistShapeType.SmoothRect -> AbsoluteSmoothCornerShape(12.dp, 60, 12.dp, 60, 12.dp, 60, 12.dp, 60)
-                                             PlaylistShapeType.RotatedPill -> androidx.compose.foundation.shape.GenericShape { size, _ ->
-                                                 val w = size.width
-                                                 val h = size.height
-                                                 val pillW = w * 0.75f
-                                                 val offset = (w - pillW) / 2
-                                                 addRoundRect(RoundRect(offset, 0f, offset + pillW, h, CornerRadius(pillW/2, pillW/2)))
-                                             }
-                                             PlaylistShapeType.Star -> RoundedStarShape(5, 0.15, 0f)
-                                         }
-
-                                         val rotationM = if(shapeType == PlaylistShapeType.RotatedPill) Modifier.graphicsLayer(rotationZ = 45f) else Modifier
-                                         val cornerRadius by animateDpAsState(targetValue = if (isSelected) 12.dp else 24.dp, label = "CornerRadius")
-
-                                         Row(
-                                             modifier = Modifier.padding(2.dp)
-                                         ) {
-                                             Spacer(
-                                                 Modifier.width(2.dp)
-                                             )
-                                             Column(
-                                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                                 modifier = Modifier
-                                                     .clip(RoundedCornerShape(cornerRadius))
-                                                     .width(100.dp)
-                                                     .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer)
-                                                     .clickable { selectedShapeType = shapeType }
-                                                     .padding(12.dp) // Internal padding
-                                             ) {
-                                                 Box(
-                                                     modifier = Modifier
-                                                         .size(40.dp) // Slightly smaller inside
-                                                         .then(rotationM)
-                                                         .clip(previewShape)
-                                                         // Shape color: onSurface (dark) or Primary.
-                                                         .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant),
-                                                     contentAlignment = Alignment.Center
-                                                 ) {
-                                                 }
-                                                 Spacer(Modifier.height(8.dp))
-                                                 Text(
-                                                     text = shapeType.name,
-                                                     overflow = TextOverflow.Ellipsis,
-                                                     style = MaterialTheme.typography.labelSmall,
-                                                     color = if(isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                                                 )
-                                             }
-                                             Spacer(
-                                                 Modifier.width(2.dp)
-                                             )
-                                         }
-                                     }
-                                 }
-                             }
-                             
-                              // Shape Sliders
-                             AnimatedVisibility(visible = selectedShapeType == PlaylistShapeType.SmoothRect) {
-                                 Column(
-                                     modifier = Modifier
-                                         .fillMaxWidth()
-                                         .padding(horizontal = 22.dp)
-                                         .padding(top = 8.dp),
-                                     verticalArrangement = Arrangement.spacedBy(16.dp)
-                                 ) {
-                                     Text("Shape parameters", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                     
-                                     ShapeParameterCard(
-                                         title = "Corner Radius",
-                                         value = smoothRectCornerRadius,
-                                         valueRange = 0f..50f,
-                                         onValueChange = { smoothRectCornerRadius = it },
-                                         valueDisplay = { it.toInt().toString() }
-                                     )
-                                     
-                                     ShapeParameterCard(
-                                         title = "Smoothness",
-                                         value = smoothRectSmoothness,
-                                         valueRange = 0f..100f,
-                                         onValueChange = { smoothRectSmoothness = it },
-                                         valueDisplay = { "${it.toInt()}%" }
-                                     )
-                                 }
-                             }
-                             
-                             AnimatedVisibility(visible = selectedShapeType == PlaylistShapeType.Star) {
-                                 Column(
-                                     modifier = Modifier
-                                         .fillMaxWidth()
-                                         .padding(horizontal = 22.dp)
-                                         .padding(top = 8.dp),
-                                     verticalArrangement = Arrangement.spacedBy(16.dp)
-                                 ) {
-                                     Text("Shape parameters", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-                                     ShapeParameterCard(
-                                         title = "Sides",
-                                         value = starSides.toFloat(),
-                                         valueRange = 3f..20f,
-                                         onValueChange = { starSides = it.toInt() },
-                                         valueDisplay = { it.toInt().toString() },
-                                         steps = 17
-                                     )
-
-                                     ShapeParameterCard(
-                                         title = "Curve",
-                                         value = starCurve.toFloat(),
-                                         valueRange = 0f..0.5f,
-                                         onValueChange = { starCurve = it.toDouble() },
-                                         valueDisplay = { String.format("%.2f", it) }
-                                     )
-                                     
-                                     ShapeParameterCard(
-                                         title = "Rotation",
-                                         value = starRotation,
-                                         valueRange = 0f..360f,
-                                         onValueChange = { starRotation = it },
-                                         valueDisplay = { "${it.toInt()}°" }
-                                     )
-                                     
-                                     ShapeParameterCard(
-                                         title = "Scale",
-                                         value = starScale,
-                                         valueRange = 0.5f..1.5f,
-                                         onValueChange = { starScale = it },
-                                         valueDisplay = { String.format("%.1fx", it) }
-                                     )
-                                 }
-                             }
-                     
-                        }
-                    }
-                    
-                    Spacer(Modifier.height(100.dp)) 
-                } // End Scrollable Column
+                           )
+                      )
+                      
+                      SongPickerList(
+                          filteredSongs = filteredSongs,
+                          isLoading = false,
+                          selectedSongIds = selectedSongIds,
+                          albumShape = albumShape,
+                          modifier = Modifier
+                              .fillMaxSize()
+                              .imePadding()
+                      )
+                 }
             }
-            } else {
-                    // Step 2: Songs
-                    val filteredSongs = remember(searchQuery, allSongs) {
-                        if (searchQuery.isBlank()) allSongs
-                        else allSongs.filter {
-                            it.title.contains(searchQuery, true) || it.artist.contains(
-                                searchQuery,
-                                true
-                            )
-                        }
-                    }
+        }
+    }
+}
 
-                    val animatedAlbumCornerRadius = 60.dp
-                    val albumShape = remember(animatedAlbumCornerRadius) {
-                        AbsoluteSmoothCornerShape(
-                            cornerRadiusTL = animatedAlbumCornerRadius,
-                            smoothnessAsPercentTR = 60,
-                            cornerRadiusTR = animatedAlbumCornerRadius,
-                            smoothnessAsPercentBR = 60,
-                            cornerRadiusBL = animatedAlbumCornerRadius,
-                            smoothnessAsPercentBL = 60,
-                            cornerRadiusBR = animatedAlbumCornerRadius,
-                            smoothnessAsPercentTL = 60
+@Composable
+fun EditPlaylistContent(
+    initialName: String,
+    initialImageUri: String?,
+    initialColor: Int?,
+    initialIconName: String?,
+    initialShapeType: PlaylistShapeType?,
+    initialShapeDetail1: Float?,
+    initialShapeDetail2: Float?,
+    initialShapeDetail3: Float?,
+    initialShapeDetail4: Float?,
+    onDismiss: () -> Unit,
+    onSave: (String, String?, Int?, String?, Float, Float, Float, String?, Float?, Float?, Float?, Float?) -> Unit
+) {
+    val context = LocalContext.current
+    
+    // Initial State Setup
+    var playlistName by remember { mutableStateOf(initialName) }
+    
+    // Determine initial tab
+    // 0=Default, 1=Image, 2=Icon
+    // Logic: If imageUri present -> Image. If Color/Icon present -> Icon. Else Default.
+    // NOTE: existing playlist usually has one of these.
+    var selectedTab by remember { 
+        mutableStateOf(
+            when {
+                // If it's a file path or content URI
+                initialImageUri != null -> 1 
+                // If it has specific color/icon (and not just defaults potentially, though defaults are allowed)
+                // We check if image is null. If image is null, do we have custom icon?
+                initialColor != null || initialIconName != null -> 2
+                else -> 0
+            }
+        )
+    }
+
+    var selectedImageUri by remember { mutableStateOf<Uri?>(initialImageUri?.let { Uri.parse(it) }) }
+    var showCropUi by remember { mutableStateOf(false) }
+    var imageBitmap by remember(selectedImageUri) { mutableStateOf<ImageBitmap?>(null) }
+    
+    // Crop: We don't store crop params in DB currently for playlist updates properly unless we re-save image.
+    // But assuming we start with scale 1f if editing.
+    var cropScale by remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
+    var cropOffset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+
+    val defaultColor = MaterialTheme.colorScheme.primaryContainer.toArgb()
+    var selectedColor by remember { mutableStateOf(initialColor ?: defaultColor) }
+    var selectedIconName by remember { mutableStateOf(initialIconName ?: "MusicNote") }
+
+    var selectedShapeType by remember { mutableStateOf(initialShapeType ?: PlaylistShapeType.Circle) }
+    
+    // Shape Params
+    var smoothRectCornerRadius by remember { androidx.compose.runtime.mutableFloatStateOf(initialShapeDetail1 ?: 20f) }
+    var smoothRectSmoothness by remember { androidx.compose.runtime.mutableFloatStateOf(initialShapeDetail2 ?: 60f) }
+    
+    var starCurve by remember { androidx.compose.runtime.mutableDoubleStateOf(initialShapeDetail1?.toDouble() ?: 0.15) }
+    var starRotation by remember { androidx.compose.runtime.mutableFloatStateOf(initialShapeDetail2 ?: 0f) }
+    var starScale by remember { androidx.compose.runtime.mutableFloatStateOf(initialShapeDetail3 ?: 1f) }
+    var starSides by remember { androidx.compose.runtime.mutableIntStateOf(initialShapeDetail4?.toInt() ?: 5) }
+
+    // Constants needed for Form
+    val searchQuery = "" // Not used in Edit
+
+    // Image Loader
+    LaunchedEffect(selectedImageUri) {
+         if (selectedImageUri != null) {
+             val loader = ImageLoader(context)
+             val request = ImageRequest.Builder(context)
+                 .data(selectedImageUri)
+                 .allowHardware(false)
+                 .build()
+             val result = loader.execute(request)
+             val drawable = result.drawable
+             if (drawable is android.graphics.drawable.BitmapDrawable) {
+                 imageBitmap = drawable.bitmap.asImageBitmap()
+             }
+         } else {
+             imageBitmap = null
+             cropScale = 1f
+             cropOffset = androidx.compose.ui.geometry.Offset.Zero
+         }
+    }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            selectedImageUri = it
+            showCropUi = true
+            selectedTab = 1 // Force switch to image tab
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(
+                        "Edit Playlist",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontSize = 24.sp,
+                            textGeometricTransform = TextGeometricTransform(scaleX = 1.2f),
+                        ),
+                        fontFamily = GoogleSansRounded,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                navigationIcon = {
+                    FilledIconButton(
+                        modifier = Modifier.padding(start = 6.dp),
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        onClick = onDismiss
+                    ) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Close")
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
+            )
+        },
+        floatingActionButton = {
+            if (!showCropUi) {
+                MediumExtendedFloatingActionButton(
+                    text = { Text("Save") },
+                    icon = { Icon(Icons.Rounded.Check, contentDescription = null) },
+                    onClick = {
+                        val imageUriString = if(selectedTab == 1) selectedImageUri?.toString() else null
+                        val color = if(selectedTab == 2) selectedColor else null
+                        val icon = if(selectedTab == 2) selectedIconName else null
+                        
+                        val scale = if(selectedTab == 1) cropScale else 1f
+                        val panX = if(selectedTab == 1) cropOffset.x else 0f
+                        val panY = if(selectedTab == 1) cropOffset.y else 0f
+                        
+                        val shapeTypeForSave = if (selectedTab == 2) selectedShapeType.name else null
+                        val (d1, d2, d3, d4) = if (selectedTab == 2) {
+                            when (selectedShapeType) {
+                                PlaylistShapeType.SmoothRect -> Quadruple(smoothRectCornerRadius, smoothRectSmoothness, 0f, 0f)
+                                PlaylistShapeType.Star -> Quadruple(starCurve.toFloat(), starRotation, starScale, starSides.toFloat())
+                                else -> Quadruple(0f, 0f, 0f, 0f)
+                            }
+                        } else Quadruple(null, null, null, null)
+
+                        onSave(
+                            playlistName,
+                            imageUriString,
+                            color,
+                            icon,
+                            scale,
+                            panX,
+                            panY,
+                            shapeTypeForSave,
+                            d1, d2, d3, d4
                         )
-                    }
+                    },
+                    expanded = true,
+                    shape = CircleShape,
+                    modifier = Modifier
+                        .padding(bottom = 8.dp, end = 8.dp)
+                        .height(56.dp),
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                )
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.surface
+    ) { paddingValues ->
+         PlaylistFormContent(
+             modifier = Modifier.padding(top = paddingValues.calculateTopPadding()),
+             playlistName = playlistName,
+             onNameChange = { playlistName = it },
+             selectedTab = selectedTab,
+             onTabChange = { selectedTab = it },
+             selectedImageUri = selectedImageUri,
+             showCropUi = showCropUi,
+             onShowCropUiChange = { showCropUi = it },
+             cropScale = cropScale,
+             onCropScaleChange = { cropScale = it },
+             cropOffset = cropOffset,
+             onCropOffsetChange = { cropOffset = it },
+             imageBitmap = imageBitmap,
+             imagePickerLauncher = imagePickerLauncher,
+             selectedColor = selectedColor,
+             onColorChange = { selectedColor = it },
+             selectedIconName = selectedIconName,
+             onIconChange = { selectedIconName = it },
+             selectedShapeType = selectedShapeType,
+             onShapeTypeChange = { selectedShapeType = it },
+             smoothRectCornerRadius = smoothRectCornerRadius,
+             onSmoothRectCornerRadiusChange = { smoothRectCornerRadius = it },
+             smoothRectSmoothness = smoothRectSmoothness,
+             onSmoothRectSmoothnessChange = { smoothRectSmoothness = it },
+             starSides = starSides,
+             onStarSidesChange = { starSides = it },
+             starCurve = starCurve,
+             onStarCurveChange = { starCurve = it },
+             starRotation = starRotation,
+             onStarRotationChange = { starRotation = it },
+             starScale = starScale,
+             onStarScaleChange = { starScale = it }
+         )
+    }
+}
 
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        Column {
-                            // Search Bar (Polished)
-                            OutlinedTextField(
-                                value = searchQuery,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                    focusedBorderColor = Color.Transparent,
-                                    unfocusedBorderColor = Color.Transparent,
-                                ),
-                                onValueChange = { searchQuery = it },
-                                label = { Text("Search for songs...") },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                shape = CircleShape,
-                                singleLine = true,
-                                trailingIcon = {
-                                    if (searchQuery.isNotEmpty()) IconButton(onClick = {
-                                        searchQuery = ""
-                                    }) { Icon(Icons.Rounded.Close, null) }
-                                }
-                            )
 
-                            // Song List
-                            SongPickerList(
-                                filteredSongs = filteredSongs,
-                                isLoading = false,
-                                selectedSongIds = selectedSongIds,
-                                albumShape = albumShape,
+@Composable
+private fun PlaylistFormContent(
+    modifier: Modifier = Modifier,
+    playlistName: String,
+    onNameChange: (String) -> Unit,
+    selectedTab: Int,
+    onTabChange: (Int) -> Unit,
+    selectedImageUri: Uri?,
+    showCropUi: Boolean,
+    onShowCropUiChange: (Boolean) -> Unit,
+    cropScale: Float,
+    onCropScaleChange: (Float) -> Unit,
+    cropOffset: androidx.compose.ui.geometry.Offset,
+    onCropOffsetChange: (androidx.compose.ui.geometry.Offset) -> Unit,
+    imageBitmap: ImageBitmap?,
+    imagePickerLauncher: androidx.activity.result.ActivityResultLauncher<String>,
+    selectedColor: Int?,
+    onColorChange: (Int) -> Unit,
+    selectedIconName: String?,
+    onIconChange: (String) -> Unit,
+    selectedShapeType: PlaylistShapeType,
+    onShapeTypeChange: (PlaylistShapeType) -> Unit,
+    smoothRectCornerRadius: Float,
+    onSmoothRectCornerRadiusChange: (Float) -> Unit,
+    smoothRectSmoothness: Float,
+    onSmoothRectSmoothnessChange: (Float) -> Unit,
+    starSides: Int,
+    onStarSidesChange: (Int) -> Unit,
+    starCurve: Double,
+    onStarCurveChange: (Double) -> Unit,
+    starRotation: Float,
+    onStarRotationChange: (Float) -> Unit,
+    starScale: Float,
+    onStarScaleChange: (Float) -> Unit,
+) {
+    if (showCropUi && imageBitmap != null) {
+         // Fullscreen Crop UI overrides normal content
+         Box(modifier = modifier.fillMaxSize().padding(16.dp).clip(RoundedCornerShape(24.dp))) {
+             ImageCropView(
+                 imageBitmap = imageBitmap,
+                 modifier = Modifier.fillMaxSize(),
+                 scale = cropScale,
+                 pan = cropOffset,
+                 enabled = true,
+                 onCrop = { scale, pan -> 
+                     onCropScaleChange(scale)
+                     onCropOffsetChange(pan)
+                 }
+             )
+             FilledIconButton(
+                onClick = { onShowCropUiChange(false) },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+            ) {
+                Icon(Icons.Rounded.Check, contentDescription = "Confirm Crop")
+            }
+         }
+         return
+    }
+
+    Column(modifier = modifier
+        .fillMaxSize()
+        .imePadding()) {
+        
+         // PREVIEW SECTION
+        AnimatedContent(
+             targetState = selectedTab,
+             transitionSpec = {
+                 fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(220))
+             },
+             label = "preview_transition",
+             modifier = Modifier
+                 .fillMaxWidth()
+                 .padding(top = 8.dp, bottom = 4.dp)
+        ) { targetTab ->
+             Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(240.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                when (targetTab) {
+                    0 -> { // Default
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .imePadding(),
-                                contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                    bottom = 120.dp,
-                                    top = 8.dp
-                                ) // More padding for FAB
+                                    .size(180.dp)
+                                    .clip(RoundedCornerShape(32.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                 Icon(
+                                    Icons.Rounded.GridView,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(80.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                )
+                            }
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                "Auto-generated collage",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                    }
+                    1 -> { // Image
+                         // Image Preview (Read Only)
+                         if (imageBitmap != null) {
+                             Box(
+                                modifier = Modifier
+                                    .size(180.dp)
+                                    .clip(RoundedCornerShape(32.dp))
+                                    .clickable { imagePickerLauncher.launch("image/*") }
+                             ) {
+                                 if (cropScale == 1f && cropOffset == androidx.compose.ui.geometry.Offset.Zero) {
+                                     AsyncImage(
+                                         model = selectedImageUri,
+                                         contentDescription = null,
+                                         modifier = Modifier.fillMaxSize(),
+                                         contentScale = ContentScale.Crop
+                                     )
+                                 } else {
+                                     ImageCropView(
+                                         imageBitmap = imageBitmap,
+                                         modifier = Modifier.fillMaxSize(),
+                                         scale = cropScale,
+                                         pan = cropOffset,
+                                         enabled = false,
+                                         onCrop = { _, _ -> }
+                                     )
+                                 }
+                             }
+                         } else {
+                             Box(
+                                modifier = Modifier
+                                    .size(180.dp)
+                                    .clip(RoundedCornerShape(32.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                    .clickable { imagePickerLauncher.launch("image/*") },
+                                contentAlignment = Alignment.Center
+                             ) {
+                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                     Icon(
+                                         Icons.Rounded.AddPhotoAlternate,
+                                         contentDescription = "Add Photo",
+                                         modifier = Modifier.size(56.dp),
+                                         tint = MaterialTheme.colorScheme.primary
+                                     )
+                                     Spacer(Modifier.height(12.dp))
+                                     Text("Pick Image", style = MaterialTheme.typography.titleSmall)
+                                 }
+                             }
+                         }
+                    }
+                    2 -> { // Icon / Custom Shape
+                         AnimatedContent(
+                             targetState = selectedShapeType,
+                             transitionSpec = {
+                                 fadeIn(animationSpec = tween(300)) + scaleIn(initialScale = 0.8f) togetherWith 
+                                 fadeOut(animationSpec = tween(300)) + scaleOut(targetScale = 0.8f)
+                             },
+                             label = "shape_transition"
+                         ) { currentShapeType ->
+                             val currentShape: Shape = when(currentShapeType) {
+                                 PlaylistShapeType.Circle -> CircleShape
+                                 PlaylistShapeType.SmoothRect -> AbsoluteSmoothCornerShape(
+                                     cornerRadiusTL = smoothRectCornerRadius.dp,
+                                     smoothnessAsPercentTR = smoothRectSmoothness.toInt(),
+                                     cornerRadiusTR = smoothRectCornerRadius.dp,
+                                     smoothnessAsPercentTL = smoothRectSmoothness.toInt(),
+                                     cornerRadiusBR = smoothRectCornerRadius.dp,
+                                     smoothnessAsPercentBR = smoothRectSmoothness.toInt(),
+                                     cornerRadiusBL = smoothRectCornerRadius.dp,
+                                     smoothnessAsPercentBL = smoothRectSmoothness.toInt(),
+                                 )
+                                 PlaylistShapeType.RotatedPill -> {
+                                     androidx.compose.foundation.shape.GenericShape { size, _ ->
+                                         val w = size.width
+                                         val h = size.height
+                                         val pillW = w * 0.75f
+                                         val offset = (w - pillW) / 2
+                                         addRoundRect(RoundRect(offset, 0f, offset + pillW, h, CornerRadius(pillW/2, pillW/2)))
+                                     }
+                                 }
+                                 PlaylistShapeType.Star -> RoundedStarShape(
+                                     sides = starSides,
+                                     curve = starCurve,
+                                     rotation = starRotation
+                                 )
+                             }
+                             
+                             val shapeMod = if(currentShapeType == PlaylistShapeType.RotatedPill) Modifier.graphicsLayer(rotationZ = 45f) else Modifier
+                             val iconMod = if(currentShapeType == PlaylistShapeType.RotatedPill) Modifier.graphicsLayer(rotationZ = -45f) else Modifier
+                             val scaleMod = if(currentShapeType == PlaylistShapeType.Star) Modifier.graphicsLayer(scaleX = starScale, scaleY = starScale) else Modifier
+
+                             Box(
+                                 modifier = Modifier
+                                     .size(180.dp)
+                                     .then(scaleMod)
+                                     .then(shapeMod)
+                                     .clip(currentShape)
+                                     .background(selectedColor?.let { Color(it) }
+                                         ?: MaterialTheme.colorScheme.primaryContainer),
+                                 contentAlignment = Alignment.Center
+                             ) {
+                                 if (selectedIconName != null) {
+                                     val icon = getIconByName(selectedIconName!!) ?: Icons.Rounded.MusicNote
+                                     Icon(
+                                         imageVector = icon,
+                                         contentDescription = null,
+                                         modifier = Modifier
+                                             .size(80.dp)
+                                             .then(iconMod),
+                                         tint = selectedColor?.let { getThemeContentColor(it, MaterialTheme.colorScheme) } 
+                                               ?: MaterialTheme.colorScheme.onPrimaryContainer
+                                     )
+                                 }
+                             }
+                         }
                     }
                 }
+            }
+        }
+
+        // CONTROL SECTION
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            
+            OutlinedTextField(
+                value = playlistName,
+                onValueChange = onNameChange,
+                label = { Text("Playlist Name") },
+                placeholder = { Text("My awesome mix") },
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 22.dp),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent
+                )
+            )
+
+            val tabs = listOf("Default", "Image", "Icon")
+            ExpressiveButtonGroup(
+                items = tabs,
+                selectedIndex = selectedTab,
+                onItemClick = onTabChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 22.dp)
+            )
+        
+            AnimatedVisibility(visible = selectedTab == 2) {
+                 Column(
+                     modifier = Modifier.padding(top = 14.dp),
+                     verticalArrangement = Arrangement.spacedBy(16.dp)
+                 ) {
+                     // Colors
+                     Text(
+                         modifier = Modifier.padding(start = 22.dp),
+                         text = "Background Color",
+                         style = MaterialTheme.typography.titleSmall,
+                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                     )
+                     
+                     val colors = listOf( 
+                         MaterialTheme.colorScheme.primary.toArgb(),
+                         MaterialTheme.colorScheme.primaryContainer.toArgb(),
+                         MaterialTheme.colorScheme.secondary.toArgb(),
+                         MaterialTheme.colorScheme.secondaryContainer.toArgb(),
+                         MaterialTheme.colorScheme.tertiary.toArgb(),
+                         MaterialTheme.colorScheme.tertiaryContainer.toArgb(),
+                         MaterialTheme.colorScheme.error.toArgb(),
+                         MaterialTheme.colorScheme.errorContainer.toArgb(),
+                         MaterialTheme.colorScheme.surfaceContainerHigh.toArgb(),
+                         MaterialTheme.colorScheme.inverseSurface.toArgb()
+                     )
+                     
+                     FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp)
+                     ) {
+                         colors.forEach { color ->
+                             val isSelected = selectedColor == color
+                             val cornerRadius by animateDpAsState(targetValue = if (isSelected) 12.dp else 24.dp, label = "CornerRadius")
+                             
+                             Box(
+                                 modifier = Modifier
+                                     .size(52.dp)
+                                    .clip(RoundedCornerShape(cornerRadius))
+                                     .background(if (isSelected) Color(color) else Color.Transparent)
+                                    .border(
+                                        width = if (isSelected) 3.dp else 0.dp,
+                                        color = if (isSelected) Color(color) else Color.Transparent,
+                                        shape = RoundedCornerShape(cornerRadius)
+                                    ),
+                                 contentAlignment = Alignment.Center
+                             ) {
+                                  Box(
+                                     modifier = Modifier
+                                         .size(if (isSelected) 42.dp else 48.dp)
+                                        .clip(RoundedCornerShape(if (isSelected) 8.dp else cornerRadius))
+                                        .background(Color(color))
+                                         .clickable { onColorChange(color) }
+                                  )
+                             }
+                         }
+                     }
+                     
+                     Spacer(Modifier.height(8.dp))
+
+                     // Icons
+                     Text(
+                         modifier = Modifier.padding(start = 22.dp),
+                         text = "Icon Symbol",
+                         style = MaterialTheme.typography.titleSmall,
+                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                     )
+
+                     val icons = listOf(
+                        "MusicNote", "Headphones", "Album", "Mic", "Speaker", "Favorite", "Piano", "Queue"
+                     )
+                     
+                     FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp)
+                     ) {
+                         icons.forEach { iconName ->
+                             val isSelected = selectedIconName == iconName
+                             val cornerRadius by animateDpAsState(targetValue = if (isSelected) 12.dp else 24.dp, label = "CornerRadius")
+
+                             Box(
+                                 modifier = Modifier
+                                     .size(52.dp)
+                                     .clip(RoundedCornerShape(cornerRadius))
+                                     .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer)
+                                     .clickable { onIconChange(iconName) },
+                                 contentAlignment = Alignment.Center
+                             ) {
+                                 Icon(
+                                     imageVector = getIconByName(iconName) ?: Icons.Rounded.MusicNote,
+                                     contentDescription = null,
+                                     tint = if(isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                 )
+                             }
+                         }
+                     }
+
+                     Spacer(Modifier.height(16.dp))
+
+                     // Shapes
+                     Text(
+                         modifier = Modifier.padding(start = 22.dp),
+                         text = "Shape Style",
+                         style = MaterialTheme.typography.titleSmall,
+                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                     )
+
+                     LazyRow(
+                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                         horizontalArrangement = Arrangement.spacedBy(2.dp),
+                         contentPadding = PaddingValues(horizontal = 16.dp)
+                     ) {
+                         item {
+                             PlaylistShapeType.entries.forEach { shapeType ->
+                                 val isSelected = selectedShapeType == shapeType
+                                 val previewShape = when(shapeType) {
+                                     PlaylistShapeType.Circle -> CircleShape
+                                     PlaylistShapeType.SmoothRect -> AbsoluteSmoothCornerShape(12.dp, 60, 12.dp, 60, 12.dp, 60, 12.dp, 60)
+                                     PlaylistShapeType.RotatedPill -> androidx.compose.foundation.shape.GenericShape { size, _ ->
+                                         val w = size.width
+                                         val h = size.height
+                                         val pillW = w * 0.75f
+                                         val offset = (w - pillW) / 2
+                                         addRoundRect(RoundRect(offset, 0f, offset + pillW, h, CornerRadius(pillW/2, pillW/2)))
+                                     }
+                                     PlaylistShapeType.Star -> RoundedStarShape(5, 0.15, 0f)
+                                 }
+
+                                 val rotationM = if(shapeType == PlaylistShapeType.RotatedPill) Modifier.graphicsLayer(rotationZ = 45f) else Modifier
+                                 val cornerRadius by animateDpAsState(targetValue = if (isSelected) 12.dp else 24.dp, label = "CornerRadius")
+
+                                 Row(modifier = Modifier.padding(2.dp)) {
+                                     Spacer(Modifier.width(2.dp))
+                                     Column(
+                                         horizontalAlignment = Alignment.CenterHorizontally,
+                                         modifier = Modifier
+                                             .clip(RoundedCornerShape(cornerRadius))
+//                                             .width(80.dp)
+//                                             .height(80.dp)
+                                             .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer)
+                                             .clickable { onShapeTypeChange(shapeType) }
+                                             .padding(12.dp)
+                                     ) {
+                                         Box(
+                                             modifier = Modifier
+                                                 .size(50.dp)
+                                                 .then(rotationM)
+                                                 .clip(previewShape)
+                                                 .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant),
+                                             contentAlignment = Alignment.Center
+                                         ) {}
+//                                         Spacer(Modifier.height(8.dp))
+//                                         Text(
+//                                             text = shapeType.name,
+//                                             overflow = TextOverflow.Ellipsis,
+//                                             style = MaterialTheme.typography.labelSmall,
+//                                             color = if(isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+//                                         )
+                                     }
+                                     Spacer(Modifier.width(2.dp))
+                                 }
+                             }
+                         }
+                     }
+                     
+                     // Params
+                     AnimatedVisibility(visible = selectedShapeType == PlaylistShapeType.SmoothRect) {
+                         Column(
+                             modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 8.dp),
+                             verticalArrangement = Arrangement.spacedBy(16.dp)
+                         ) {
+                             Text("Shape parameters", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                             ShapeParameterCard("Corner Radius", smoothRectCornerRadius, 0f..50f, onSmoothRectCornerRadiusChange, { it.toInt().toString() })
+                             ShapeParameterCard("Smoothness", smoothRectSmoothness, 0f..100f, onSmoothRectSmoothnessChange, { "${it.toInt()}%" })
+                         }
+                     }
+                     
+                     AnimatedVisibility(visible = selectedShapeType == PlaylistShapeType.Star) {
+                         Column(
+                             modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 8.dp),
+                             verticalArrangement = Arrangement.spacedBy(16.dp)
+                         ) {
+                             Text("Shape parameters", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                             ShapeParameterCard("Sides", starSides.toFloat(), 3f..20f, { onStarSidesChange(it.toInt()) }, { it.toInt().toString() }, steps = 17)
+                             ShapeParameterCard("Curve", starCurve.toFloat(), 0f..0.5f, { onStarCurveChange(it.toDouble()) }, { String.format("%.2f", it) })
+                             ShapeParameterCard("Rotation", starRotation, 0f..360f, onStarRotationChange, { "${it.toInt()}°" })
+                             ShapeParameterCard("Scale", starScale, 0.5f..1.5f, onStarScaleChange, { String.format("%.1fx", it) })
+                         }
+                     }
+                 }
+            }
+            Spacer(Modifier.height(100.dp))
         }
     }
 }
 
 
 
-private fun getIconByName(name: String?): ImageVector? {
+
+fun getIconByName(name: String?): ImageVector? {
     return when (name) {
         "MusicNote" -> Icons.Rounded.MusicNote
         "Headphones" -> Icons.Rounded.Headphones
@@ -1104,7 +1352,7 @@ fun ThickSlider(
 }
 
 
-private fun getThemeContentColor(colorArgb: Int, scheme: androidx.compose.material3.ColorScheme): Color {
+fun getThemeContentColor(colorArgb: Int, scheme: androidx.compose.material3.ColorScheme): Color {
     return when (colorArgb) {
         scheme.primary.toArgb() -> scheme.onPrimary
         scheme.primaryContainer.toArgb() -> scheme.onPrimaryContainer

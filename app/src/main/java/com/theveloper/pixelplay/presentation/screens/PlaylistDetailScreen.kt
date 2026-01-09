@@ -124,6 +124,7 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import com.theveloper.pixelplay.presentation.components.LibrarySortBottomSheet
 import com.theveloper.pixelplay.data.model.SortOption
+import com.theveloper.pixelplay.data.model.PlaylistShapeType
 import kotlinx.coroutines.launch
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -157,11 +158,12 @@ fun PlaylistDetailScreen(
     }
 
     var showAddSongsSheet by remember { mutableStateOf(false) }
-    var showRenameDialog by remember { mutableStateOf(false) }
+
     var isReorderModeEnabled by remember { mutableStateOf(false) }
     var isRemoveModeEnabled by remember { mutableStateOf(false) }
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var showPlaylistOptionsSheet by remember { mutableStateOf(false) }
+    var showEditPlaylistDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
 
     val m3uExportLauncher = rememberLauncherForActivityResult(
@@ -681,10 +683,10 @@ fun PlaylistDetailScreen(
                 }
                 PlaylistActionItem(
                     icon = painterResource(R.drawable.rounded_edit_24),
-                    label = "Rename playlist",
+                    label = "Edit playlist",
                     onClick = {
                         showPlaylistOptionsSheet = false
-                        showRenameDialog = true
+                        showEditPlaylistDialog = true
                     }
                 )
                 PlaylistActionItem(
@@ -714,6 +716,46 @@ fun PlaylistDetailScreen(
             }
         }
     }
+    
+    if (showEditPlaylistDialog && currentPlaylist != null) {
+        val initialShapeType = try {
+            currentPlaylist.coverShapeType?.let { PlaylistShapeType.valueOf(it) } ?: PlaylistShapeType.Circle
+        } catch (e: Exception) {
+            PlaylistShapeType.Circle
+        }
+        
+        EditPlaylistDialog(
+            visible = showEditPlaylistDialog,
+            currentName = currentPlaylist.name,
+            currentImageUri = currentPlaylist.coverImageUri,
+            currentColor = currentPlaylist.coverColorArgb,
+            currentIconName = currentPlaylist.coverIconName,
+            currentShapeType = initialShapeType,
+            currentShapeDetail1 = currentPlaylist.coverShapeDetail1,
+            currentShapeDetail2 = currentPlaylist.coverShapeDetail2,
+            currentShapeDetail3 = currentPlaylist.coverShapeDetail3,
+            currentShapeDetail4 = currentPlaylist.coverShapeDetail4,
+            onDismiss = { showEditPlaylistDialog = false },
+            onSave = { name, imageUri, color, icon, scale, panX, panY, shapeType, d1, d2, d3, d4 ->
+                playlistViewModel.updatePlaylistParameters(
+                    playlistId = currentPlaylist.id,
+                    name = name,
+                    coverImageUri = imageUri,
+                    coverColor = color,
+                    coverIcon = icon,
+                    cropScale = scale,
+                    cropPanX = panX,
+                    cropPanY = panY,
+                    coverShapeType = shapeType,
+                    coverShapeDetail1 = d1,
+                    coverShapeDetail2 = d2,
+                    coverShapeDetail3 = d3,
+                    coverShapeDetail4 = d4
+                )
+                showEditPlaylistDialog = false
+            }
+        )
+    }
     if (showDeleteConfirmation && currentPlaylist != null) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
@@ -739,16 +781,7 @@ fun PlaylistDetailScreen(
             }
         )
     }
-    if (showRenameDialog && currentPlaylist != null) {
-        RenamePlaylistDialog(
-            currentName = currentPlaylist.name,
-            onDismiss = { showRenameDialog = false },
-            onRename = { newName ->
-                playlistViewModel.renamePlaylist(currentPlaylist.id, newName)
-                showRenameDialog = false
-            }
-        )
-    }
+
     if (showSongInfoBottomSheet && selectedSongForInfo != null) {
         val currentSong = selectedSongForInfo
         val isFavorite = remember(currentSong?.id, favoriteIds) {

@@ -369,7 +369,7 @@ class PlaylistViewModel @Inject constructor(
     }
 
 
-    private suspend fun saveCoverImageToInternalStorage(
+    suspend fun saveCoverImageToInternalStorage(
         uri: Uri, 
         uniqueId: String,
         cropScale: Float,
@@ -506,6 +506,96 @@ class PlaylistViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    fun updatePlaylistParameters(
+        playlistId: String,
+        name: String,
+        coverImageUri: String?,
+        coverColor: Int?,
+        coverIcon: String?,
+        cropScale: Float,
+        cropPanX: Float,
+        cropPanY: Float,
+        coverShapeType: String?,
+        coverShapeDetail1: Float?,
+        coverShapeDetail2: Float?,
+        coverShapeDetail3: Float?,
+        coverShapeDetail4: Float?
+    ) {
+        if (isFolderPlaylistId(playlistId)) return
+        val currentPlaylist = _uiState.value.currentPlaylistDetails ?: return
+        if (currentPlaylist.id != playlistId) return
+
+        viewModelScope.launch {
+            var savedCoverPath: String? = currentPlaylist.coverImageUri
+
+            // If a new URI is provided and it's different from the existing one (and not null)
+            // Or if we need to re-save because crop params changed?
+            // For simplicity, if coverImageUri is passed and it's a content URI, we save it.
+            // If it's the same string as savedCoverPath, we assume it's unchanged unless we want to force re-crop.
+            // The UI will pass the Uri string. If it's a local file path, it's likely already saved.
+            // But if the user selected a new image, it will be a content content:// uri.
+
+            if (coverImageUri != null && coverImageUri != currentPlaylist.coverImageUri) {
+                 // Check if it is a content URI or a file path that is NOT the existing saved path
+                 if (coverImageUri.startsWith("content://") || (coverImageUri.startsWith("/") && coverImageUri != currentPlaylist.coverImageUri)) {
+                     val imageId = UUID.randomUUID().toString()
+                     val newPath = saveCoverImageToInternalStorage(
+                         Uri.parse(coverImageUri),
+                         imageId,
+                         cropScale,
+                         cropPanX,
+                         cropPanY
+                     )
+                     if (newPath != null) {
+                         savedCoverPath = newPath
+                     }
+                 }
+            } else if (coverImageUri == null) {
+                // If passed null, it might mean remove cover? Or just no change?
+                // For this implementation let's assume if the user cleared it, the UI passes null.
+                // But we need to distinguish "no change" vs "remove".
+                // In CreatePlaylist we have "selectedImageUri".
+                // Let's assume the UI sends the desired final state.
+                // NOTE: If the user didn't change the image, the UI might send the existing coverImageUri (which is a file path).
+                // Or if they removed it, they send null.
+                
+                // However, we also have crop parameters. If image is unchanged but crop changed, we should re-save (re-crop)
+                // if we have the original source. But we don't have the original source for the existing cover (we only have the cropped result).
+                // So, we can only re-crop if we have a source URI.
+                // This limitation implies: We can only update crop if we pick an image.
+                // So if coverImageUri is the existing path, we ignore crop params.
+                savedCoverPath = null // If explicit null passed, we remove it.
+            }
+            // Logic correction: 
+            // If the UI passes the EXISTING file path, implies NO CHANGE to image.
+            // If the UI passes a NEW content URI, implies NEW IMAGE (and we use crop params).
+            // If the UI passes NULL, implies REMOVE IMAGE.
+            if (coverImageUri == currentPlaylist.coverImageUri) {
+                savedCoverPath = currentPlaylist.coverImageUri
+            }
+
+
+            val updatedPlaylist = currentPlaylist.copy(
+                name = name,
+                coverImageUri = savedCoverPath,
+                coverColorArgb = coverColor,
+                coverIconName = coverIcon,
+                coverShapeType = coverShapeType,
+                coverShapeDetail1 = coverShapeDetail1,
+                coverShapeDetail2 = coverShapeDetail2,
+                coverShapeDetail3 = coverShapeDetail3,
+                coverShapeDetail4 = coverShapeDetail4
+            )
+
+            // Optimistic update
+            _uiState.update {
+                it.copy(currentPlaylistDetails = updatedPlaylist)
+            }
+
+            userPreferencesRepository.updatePlaylist(updatedPlaylist)
         }
     }
 

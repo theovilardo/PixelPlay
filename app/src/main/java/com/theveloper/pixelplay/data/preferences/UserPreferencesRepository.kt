@@ -614,6 +614,15 @@ constructor(
         }
     }
 
+    suspend fun updatePlaylist(playlist: Playlist) {
+        val currentPlaylists = userPlaylistsFlow.first().toMutableList()
+        val index = currentPlaylists.indexOfFirst { it.id == playlist.id }
+        if (index != -1) {
+            currentPlaylists[index] = playlist.copy(lastModified = System.currentTimeMillis())
+            savePlaylists(currentPlaylists)
+        }
+    }
+
     suspend fun addSongsToPlaylist(playlistId: String, songIdsToAdd: List<String>) {
         val currentPlaylists = userPlaylistsFlow.first().toMutableList()
         val index = currentPlaylists.indexOfFirst { it.id == playlistId }
