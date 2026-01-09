@@ -245,16 +245,36 @@ class SyncWorker @AssistedInject constructor(
      * Efficiently fetches ONLY the IDs of all songs in MediaStore.
      * Used for fast deletion detection.
      */
+    private fun getBaseSelection(): Pair<String, Array<String>> {
+        val selectionBuilder = StringBuilder()
+        val selectionArgsList = mutableListOf<String>()
+
+        selectionBuilder.append("((${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?) ")
+        selectionArgsList.add("10000")
+
+        selectionBuilder.append("OR ${MediaStore.Audio.Media.DATA} LIKE '%.m4a' ")
+        selectionBuilder.append("OR ${MediaStore.Audio.Media.DATA} LIKE '%.flac' ")
+        selectionBuilder.append("OR ${MediaStore.Audio.Media.DATA} LIKE '%.wav' ")
+        selectionBuilder.append("OR ${MediaStore.Audio.Media.DATA} LIKE '%.opus' ")
+        selectionBuilder.append("OR ${MediaStore.Audio.Media.DATA} LIKE '%.ogg')")
+
+        return Pair(selectionBuilder.toString(), selectionArgsList.toTypedArray())
+    }
+
+    /**
+     * Efficiently fetches ONLY the IDs of all songs in MediaStore.
+     * Used for fast deletion detection.
+     */
     private fun fetchMediaStoreIds(): Set<Long> {
         val ids = HashSet<Long>()
         val projection = arrayOf(MediaStore.Audio.Media._ID)
-        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= 10000"
+        val (selection, selectionArgs) = getBaseSelection()
         
         contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
             projection,
             selection,
-            null,
+            selectionArgs,
             null
         )?.use { cursor ->
             val idCol = cursor.getColumnIndex(MediaStore.Audio.Media._ID)
@@ -575,22 +595,16 @@ class SyncWorker @AssistedInject constructor(
             MediaStore.Audio.Media.DATE_MODIFIED
         )
         
-        val selectionBuilder = StringBuilder()
-        val selectionArgsList = mutableListOf<String>()
+
         
-        // Base selection: Music files with duration > 10s OR valid extensions
-        selectionBuilder.append("((${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?) ")
-        selectionArgsList.add("10000")
-        
-        selectionBuilder.append("OR ${MediaStore.Audio.Media.DATA} LIKE '%.m4a' ")
-        selectionBuilder.append("OR ${MediaStore.Audio.Media.DATA} LIKE '%.flac' ")
-        selectionBuilder.append("OR ${MediaStore.Audio.Media.DATA} LIKE '%.wav' ")
-        selectionBuilder.append("OR ${MediaStore.Audio.Media.DATA} LIKE '%.opus' ")
-        selectionBuilder.append("OR ${MediaStore.Audio.Media.DATA} LIKE '%.ogg')")
+        val (baseSelection, baseArgs) = getBaseSelection()
+        val selectionBuilder = StringBuilder(baseSelection)
+        val selectionArgsList = baseArgs.toMutableList()
         
         // Incremental selection
         if (sinceTimestamp > 0) {
-            selectionBuilder.append(" AND ${MediaStore.Audio.Media.DATE_MODIFIED} > ?")
+            selectionBuilder.append(" AND (${MediaStore.Audio.Media.DATE_MODIFIED} > ? OR ${MediaStore.Audio.Media.DATE_ADDED} > ?)")
+            selectionArgsList.add(sinceTimestamp.toString())
             selectionArgsList.add(sinceTimestamp.toString())
         }
 
