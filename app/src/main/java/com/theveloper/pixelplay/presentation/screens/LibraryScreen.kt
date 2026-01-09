@@ -177,6 +177,8 @@ import java.util.Locale
 import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import com.theveloper.pixelplay.data.model.PlaylistShapeType
+import kotlinx.coroutines.flow.first
+
 val ListExtraBottomGap = 30.dp
 val PlayerSheetCollapsedCornerRadius = 32.dp
 
@@ -225,11 +227,36 @@ fun LibraryScreen(
         }
     }
     // Pull-to-refresh uses incremental sync for speed
+    // We enforce a minimum duration of 3.5s for the animation as requested by the user.
+    var isMinDelayActive by remember { mutableStateOf(false) }
+
     val onRefresh: () -> Unit = remember {
-        { syncManager.incrementalSync() }
+        {
+            isMinDelayActive = true
+            isRefreshing = true
+            syncManager.incrementalSync()
+            scope.launch {
+                kotlinx.coroutines.delay(3500)
+                isMinDelayActive = false
+                // If sync finished during the delay, the LaunchedEffect blocked the update.
+                // We must manually check and turn it off if needed.
+                val currentlySyncing = syncManager.isSyncing.first()
+                if (!currentlySyncing) {
+                    isRefreshing = false
+                }
+            }
+        }
     }
+
     LaunchedEffect(isSyncing) {
-        isRefreshing = isSyncing
+        if (isSyncing) {
+            isRefreshing = true
+        } else {
+            // Only hide refresh indicator if the minimum delay has passed
+            if (!isMinDelayActive) {
+                isRefreshing = false
+            }
+        }
     }
     
     // Feedback for Playlist Creation
