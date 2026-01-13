@@ -1133,8 +1133,6 @@ private fun PlaylistFormContent(
                                          horizontalAlignment = Alignment.CenterHorizontally,
                                          modifier = Modifier
                                              .clip(RoundedCornerShape(cornerRadius))
-//                                             .width(80.dp)
-//                                             .height(80.dp)
                                              .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer)
                                              .clickable { onShapeTypeChange(shapeType) }
                                              .padding(12.dp)
@@ -1147,13 +1145,6 @@ private fun PlaylistFormContent(
                                                  .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant),
                                              contentAlignment = Alignment.Center
                                          ) {}
-//                                         Spacer(Modifier.height(8.dp))
-//                                         Text(
-//                                             text = shapeType.name,
-//                                             overflow = TextOverflow.Ellipsis,
-//                                             style = MaterialTheme.typography.labelSmall,
-//                                             color = if(isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-//                                         )
                                      }
                                      Spacer(Modifier.width(2.dp))
                                  }

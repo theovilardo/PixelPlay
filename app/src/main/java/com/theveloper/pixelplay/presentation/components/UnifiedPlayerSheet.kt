@@ -788,6 +788,7 @@ fun UnifiedPlayerSheet(
     }
 
     var internalIsKeyboardVisible by remember { mutableStateOf(false) }
+    var selectedSongForInfo by remember { mutableStateOf<Song?>(null) } // State for the selected song info
 
     val imeInsets = WindowInsets.ime
     LaunchedEffect(imeInsets, density) {
@@ -800,7 +801,7 @@ fun UnifiedPlayerSheet(
             }
     }
 
-    val actuallyShowSheetContent = shouldShowSheet && (!internalIsKeyboardVisible || pendingSaveQueueOverlay != null)
+    val actuallyShowSheetContent = shouldShowSheet && (!internalIsKeyboardVisible || pendingSaveQueueOverlay != null || selectedSongForInfo != null)
 
     // val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState() // Replaced by activePlayerColorSchemePair
     val activePlayerSchemePair by playerViewModel.activePlayerColorSchemePair.collectAsState()
@@ -1297,9 +1298,9 @@ fun UnifiedPlayerSheet(
                 }
 
 
-                var selectedSongForInfo by remember { mutableStateOf<Song?>(null) } // State for the selected song info
 
-                if (!internalIsKeyboardVisible) {
+
+                if (!internalIsKeyboardVisible || selectedSongForInfo != null) {
                     CompositionLocalProvider(
                         LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
                     ) {
@@ -1395,24 +1396,31 @@ fun UnifiedPlayerSheet(
                             )
 
                             // Show SongInfoBottomSheet when a song is selected
-                            selectedSongForInfo?.let { song ->
+                            selectedSongForInfo?.let { staticSong ->
+                                // Find the most up-to-date version of this song to resolve isFavorite state
+                                val liveSong = if (stablePlayerState.currentSong?.id == staticSong.id) {
+                                    stablePlayerState.currentSong!!
+                                } else {
+                                    currentPlaybackQueue.find { it.id == staticSong.id } ?: staticSong
+                                }
+
                                 SongInfoBottomSheet(
-                                    song = song,
-                                    isFavorite = song.isFavorite,
+                                    song = liveSong,
+                                    isFavorite = liveSong.isFavorite,
                                     
-                                    onToggleFavorite = { playerViewModel.toggleFavoriteSpecificSong(song) },
+                                    onToggleFavorite = { playerViewModel.toggleFavoriteSpecificSong(liveSong) },
                                     onDismiss = { selectedSongForInfo = null },
                                     onPlaySong = { 
-                                        playerViewModel.playSongs(currentPlaybackQueue, song, currentQueueSourceName) 
+                                        playerViewModel.playSongs(currentPlaybackQueue, liveSong, currentQueueSourceName)
                                         selectedSongForInfo = null
                                     },
                                     onAddToQueue = { 
-                                        playerViewModel.addSongToQueue(song)
+                                        playerViewModel.addSongToQueue(liveSong)
                                         selectedSongForInfo = null
                                         Toast.makeText(context, "Added to queue", Toast.LENGTH_SHORT).show()
                                     },
                                     onAddNextToQueue = { 
-                                        playerViewModel.addSongNextToQueue(song)
+                                        playerViewModel.addSongNextToQueue(liveSong)
                                         selectedSongForInfo = null
                                          Toast.makeText(context, "Playing next", Toast.LENGTH_SHORT).show()
                                     },
@@ -1423,7 +1431,7 @@ fun UnifiedPlayerSheet(
                                         // Maybe we can skip this or implement if simple.
                                         // SongInfoBottomSheet usually handles the UI for it? No, it has onAddToPlayList callback.
                                         // Let's leave it empty or log for now if we don't have a ready handler
-                                        Log.d("UnifiedPlayerSheet", "Add to playlist clicked for ${song.title}")
+                                        Log.d("UnifiedPlayerSheet", "Add to playlist clicked for ${liveSong.title}")
                                          selectedSongForInfo = null
                                     },
                                     onDeleteFromDevice = { activity, songToDelete, onResult ->
@@ -1439,28 +1447,28 @@ fun UnifiedPlayerSheet(
                                         // song.albumId is a Long.
                                          // Check Screen.AlbumDetail route format.
                                          // Assume standard createRoute(id).
-                                         if (song.albumId != -1L) {
-                                            navController.navigate(Screen.AlbumDetail.createRoute(song.albumId))
+                                         if (liveSong.albumId != -1L) {
+                                            navController.navigate(Screen.AlbumDetail.createRoute(liveSong.albumId))
                                          }
                                     },
                                     onNavigateToArtist = {
                                         playerViewModel.collapsePlayerSheet()
                                         animateQueueSheet(false)
                                         selectedSongForInfo = null
-                                        if (song.artistId != -1L) {
-                                            navController.navigate(Screen.ArtistDetail.createRoute(song.artistId))
+                                        if (liveSong.artistId != -1L) {
+                                            navController.navigate(Screen.ArtistDetail.createRoute(liveSong.artistId))
                                         }
                                     },
                                     onEditSong = { title, artist, album, genre, lyrics, trackNumber, coverArtUpdate ->
-                                        playerViewModel.editSongMetadata(song, title, artist, album, genre, lyrics, trackNumber, coverArtUpdate)
+                                        playerViewModel.editSongMetadata(liveSong, title, artist, album, genre, lyrics, trackNumber, coverArtUpdate)
                                          selectedSongForInfo = null
                                     },
-                                    generateAiMetadata = { fields -> playerViewModel.generateAiMetadata(song, fields) },
+                                    generateAiMetadata = { fields -> playerViewModel.generateAiMetadata(liveSong, fields) },
                                     removeFromListTrigger = {
                                          // This is usually used to remove from a specific list (like 'Favorites').
                                          // In Queue, we have specific 'Remove' button. 
                                          // But maybe the user wants to remove from queue via this menu?
-                                         playerViewModel.removeSongFromQueue(song.id)
+                                         playerViewModel.removeSongFromQueue(liveSong.id)
                                          selectedSongForInfo = null
                                     }
                                 )

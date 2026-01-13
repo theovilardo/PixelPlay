@@ -133,7 +133,11 @@ fun SongInfoBottomSheet(
 
 
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            if (!showEditSheet) {
+                onDismiss()
+            }
+        },
         sheetState = sheetState,
         //contentWindowInsets = { BottomSheetDefaults.windowInsets } // Manejo de insets como el teclado
     ) {
@@ -457,15 +461,14 @@ fun SongInfoBottomSheet(
         }
     }
 
-    if (showEditSheet) {
-        EditSongSheet(
-            song = song,
-            onDismiss = { showEditSheet = false },
-            onSave = { title, artist, album, genre, lyrics, trackNumber, coverArt ->
-                onEditSong(title, artist, album, genre, lyrics, trackNumber, coverArt)
-                showEditSheet = false
-            },
-            generateAiMetadata = generateAiMetadata
-        )
-    }
+    EditSongSheet(
+        visible = showEditSheet,
+        song = song,
+        onDismiss = { showEditSheet = false },
+        onSave = { title, artist, album, genre, lyrics, trackNumber, coverArt ->
+            onEditSong(title, artist, album, genre, lyrics, trackNumber, coverArt)
+            showEditSheet = false
+        },
+        generateAiMetadata = generateAiMetadata
+    )
 }

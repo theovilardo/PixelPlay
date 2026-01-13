@@ -9,10 +9,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.rounded.Album
@@ -42,6 +42,13 @@ import android.content.Intent
 import android.net.Uri
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
@@ -66,9 +73,12 @@ import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.focus.focusModifier
 import androidx.compose.ui.text.font.FontWeight
 import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.media3.common.Player
 import com.theveloper.pixelplay.data.media.CoverArtUpdate
 import dev.shreyaspatil.capturable.controller.rememberCaptureController
@@ -76,7 +86,44 @@ import java.io.ByteArrayOutputStream
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
+
 fun EditSongSheet(
+    visible: Boolean,
+    song: Song,
+    onDismiss: () -> Unit,
+    onSave: (title: String, artist: String, album: String, genre: String, lyrics: String, trackNumber: Int, coverArtUpdate: CoverArtUpdate?) -> Unit,
+    generateAiMetadata: suspend (List<String>) -> Result<com.theveloper.pixelplay.data.ai.SongMetadata>
+) {
+    val transitionState = remember { MutableTransitionState(false) }
+    transitionState.targetState = visible
+
+    if (transitionState.currentState || transitionState.targetState) {
+        Dialog(
+            onDismissRequest = onDismiss,
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
+            AnimatedVisibility(
+                visibleState = transitionState,
+                enter = slideInVertically(initialOffsetY = { it / 6 }) + fadeIn(animationSpec = tween(220)),
+                exit = slideOutVertically(targetOffsetY = { it / 6 }) + fadeOut(animationSpec = tween(200))
+            ) {
+                EditSongContent(
+                    song = song,
+                    onDismiss = onDismiss,
+                    onSave = onSave,
+                    generateAiMetadata = generateAiMetadata
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun EditSongContent(
     song: Song,
     onDismiss: () -> Unit,
     onSave: (title: String, artist: String, album: String, genre: String, lyrics: String, trackNumber: Int, coverArtUpdate: CoverArtUpdate?) -> Unit,
@@ -169,11 +216,6 @@ fun EditSongSheet(
         )
     }
 
-    val sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true,
-        confirmValueChange = { true } // Permite cerrar el BottomSheet
-    )
-
     // Definición de colores para los TextFields
     val textFieldColors = TextFieldDefaults.colors(
         focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -215,33 +257,24 @@ fun EditSongSheet(
         )
     }
 
-    ModalBottomSheet(
-        sheetState = sheetState,
-        onDismissRequest = onDismiss,
-        //contentWindowInsets = { WindowInsets.ime.add(WindowInsets(bottom = 16.dp)) }
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .padding(end = 16.dp, start = 16.dp, top = 8.dp)
-                    .verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // --- Cabecera con Título y Botón de Información ---
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
+    val density = LocalDensity.current
+    val imeInsets = WindowInsets.ime
+    val isKeyboardVisible by remember { derivedStateOf { imeInsets.getBottom(density) > 0 } }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
                     Text(
+                        modifier = Modifier.padding(start = 10.dp),
                         text = "Edit Song",
                         fontFamily = GoogleSansRounded,
                         style = MaterialTheme.typography.displaySmall
                     )
+                },
+                actions = {
                     Row(
+                        modifier = Modifier.padding(end = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -277,9 +310,28 @@ fun EditSongSheet(
                         }
                     }
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets.statusBars
+    ) { innerPadding ->
+        val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        Box(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .imePadding(),
+                contentPadding = PaddingValues(
+                    top = innerPadding.calculateTopPadding() + 8.dp,
+                    bottom = if (isKeyboardVisible) 8.dp else (navBarBottom + 100.dp),
+                    start = 16.dp,
+                    end = 16.dp
+                ),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
                 CoverArtEditorCard(
                     modifier = Modifier.fillMaxWidth(),
                     albumArtUri = song.albumArtUriString,
@@ -294,8 +346,10 @@ fun EditSongSheet(
                         editedCoverArt = null
                     }
                 )
+            }
 
-                // --- Campo de Título ---
+            // --- Campo de Título ---
+            item {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -316,7 +370,9 @@ fun EditSongSheet(
                         singleLine = true
                     )
                 }
+            }
 
+            item {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -338,8 +394,10 @@ fun EditSongSheet(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
                 }
+            }
 
-                // --- Campo de Artista ---
+            // --- Campo de Artista ---
+            item {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -360,8 +418,10 @@ fun EditSongSheet(
                         singleLine = true
                     )
                 }
+            }
 
-                // --- Campo de Álbum ---
+            // --- Campo de Álbum ---
+            item {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -382,8 +442,10 @@ fun EditSongSheet(
                         singleLine = true
                     )
                 }
+            }
 
-                // --- Campo de Género ---
+            // --- Campo de Género ---
+            item {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -404,8 +466,10 @@ fun EditSongSheet(
                         singleLine = true
                     )
                 }
+            }
 
-                // --- Campo de Letra ---
+            // --- Campo de Letra ---
+            item {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -447,110 +511,59 @@ fun EditSongSheet(
                         }
                     }
                 }
+            }
+        }
 
-                // --- Botones de acción ---
-//                Row(
-//                    modifier = Modifier
-//                        .fillMaxWidth()
-//                        .padding(top = 8.dp, end = 4.dp),
-//                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-//                    verticalAlignment = Alignment.CenterVertically
-//                ) {
-//                    FilledTonalButton(
-//                        onClick = onDismiss,
-//                        modifier = Modifier.height(48.dp),
-//                        colors = ButtonDefaults.filledTonalButtonColors(
-//                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-//                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-//                        )
-//                    ) {
-//                        Text("Cancel")
-//                    }
-//                    Button(
-//                        onClick = {
-//                            val resolvedTrackNumber = trackNumber.toIntOrNull() ?: song.trackNumber
-//                            onSave(
-//                                title.trim(),
-//                                artist.trim(),
-//                                album.trim(),
-//                                genre.trim(),
-//                                lyrics,
-//                                resolvedTrackNumber,
-//                                editedCoverArt
-//                            )
-//                        },
-//                        modifier = Modifier.height(48.dp)
-//                    ) {
-//                        Text("Save")
-//                    }
-//                }
-
-                Spacer(
-                    modifier = Modifier.height(86.dp)
+            AnimatedVisibility(
+                visible = !isKeyboardVisible,
+                enter = slideInVertically { it } + fadeIn(),
+                exit = slideOutVertically { it } + fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = innerPadding.calculateBottomPadding() + 24.dp)
+            ) {
+                HorizontalFloatingToolbar(
+                    expandedShadowElevation = 0.dp,
+                    colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
+                        toolbarContainerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    ),
+                    expanded = true,
+                    scrollBehavior = scrollBehavior,
+                    content = {
+                        FilledTonalButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.height(48.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        ) {
+                            Text("Cancel")
+                        }
+                        Spacer(
+                            modifier = Modifier.width(8.dp)
+                        )
+                        Button(
+                            onClick = {
+                                val resolvedTrackNumber = trackNumber.toIntOrNull() ?: song.trackNumber
+                                onSave(
+                                    title.trim(),
+                                    artist.trim(),
+                                    album.trim(),
+                                    genre.trim(),
+                                    lyrics,
+                                    resolvedTrackNumber,
+                                    editedCoverArt
+                                )
+                            },
+                            modifier = Modifier.height(48.dp)
+                        ) {
+                            Text("Save")
+                        }
+                    }
                 )
             }
 
-            HorizontalFloatingToolbar(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp),
-                expandedShadowElevation = 0.dp,
-                colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
-                    toolbarContainerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                ),
-                expanded = true,
-                scrollBehavior = scrollBehavior,
-                content = {
-                    FilledTonalButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.height(48.dp),
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    ) {
-                        Text("Cancel")
-                    }
-                    Spacer(
-                        modifier = Modifier.width(8.dp)
-                    )
-                    Button(
-                        onClick = {
-                            val resolvedTrackNumber = trackNumber.toIntOrNull() ?: song.trackNumber
-                            onSave(
-                                title.trim(),
-                                artist.trim(),
-                                album.trim(),
-                                genre.trim(),
-                                lyrics,
-                                resolvedTrackNumber,
-                                editedCoverArt
-                            )
-                        },
-                        modifier = Modifier.height(48.dp)
-                    ) {
-                        Text("Save")
-                    }
-                }
-            )
-
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(30.dp)
-                    .background(
-                        brush = Brush.verticalGradient(
-                            listOf(
-                                Color.Transparent,
-                                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f),
-                                MaterialTheme.colorScheme.surfaceContainerLow
-                            )
-                        )
-                    )
-            ) {
-
-            }
         }
     }
 }
