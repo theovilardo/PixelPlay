@@ -57,11 +57,9 @@ fun ScreenWrapper(
     // Stack Check (for Dimming)
     // We compare indices to determine if we are strictly BEHIND the active screen.
     val backStack by navController.currentBackStack.collectAsState()
-    val currentEntry by navController.currentBackStackEntryFlow.collectAsState(initial = null)
-    
     val myEntry = lifecycleOwner as? androidx.navigation.NavBackStackEntry
     val myIndex = backStack.indexOfFirst { it.id == myEntry?.id }
-    val topIndex = if (currentEntry != null) backStack.indexOfFirst { it.id == currentEntry?.id } else -1
+    val topIndex = backStack.lastIndex
     
     // Dim Logic:
     // If I am BACKGROUND (myIndex < topIndex) -> Dim.
