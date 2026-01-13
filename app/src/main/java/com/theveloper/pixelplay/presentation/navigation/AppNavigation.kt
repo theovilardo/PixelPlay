@@ -43,6 +43,7 @@ import com.theveloper.pixelplay.presentation.screens.EqualizerScreen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import kotlinx.coroutines.flow.first
+import com.theveloper.pixelplay.presentation.components.ScreenWrapper
 
 @OptIn(UnstableApi::class)
 @SuppressLint("UnrememberedGetBackStackEntry")
@@ -72,127 +73,145 @@ fun AppNavigation(
                 Screen.Home.route,
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
             ) {
-                HomeScreen(
-                    navController = navController, 
-                    paddingValuesParent = paddingValues, 
-                    playerViewModel = playerViewModel,
-                    onOpenSidebar = onOpenSidebar
-                )
+                ScreenWrapper(navController = navController) {
+                    HomeScreen(
+                        navController = navController, 
+                        paddingValuesParent = paddingValues, 
+                        playerViewModel = playerViewModel,
+                        onOpenSidebar = onOpenSidebar
+                    )
+                }
             }
             composable(
                 Screen.Search.route,
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
             ) {
-                SearchScreen(
-                    paddingValues = paddingValues,
-                    playerViewModel = playerViewModel,
-                    navController = navController,
-                    onSearchBarActiveChange = onSearchBarActiveChange
-                )
+                ScreenWrapper(navController = navController) {
+                    SearchScreen(
+                        paddingValues = paddingValues,
+                        playerViewModel = playerViewModel,
+                        navController = navController,
+                        onSearchBarActiveChange = onSearchBarActiveChange
+                    )
+                }
             }
             composable(
                 Screen.Library.route,
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
             ) {
-                LibraryScreen(navController = navController, playerViewModel = playerViewModel)
+                ScreenWrapper(navController = navController) {
+                    LibraryScreen(navController = navController, playerViewModel = playerViewModel)
+                }
             }
             composable(
                 Screen.Settings.route,
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
             ) {
-                SettingsScreen(
-                    navController = navController,
-                    playerViewModel = playerViewModel,
-                    onNavigationIconClick = {
-                        navController.popBackStack()
-                    }
-                )
+                ScreenWrapper(navController = navController) {
+                    SettingsScreen(
+                        navController = navController,
+                        playerViewModel = playerViewModel,
+                        onNavigationIconClick = {
+                            navController.popBackStack()
+                        }
+                    )
+                }
             }
             composable(
                 route = Screen.SettingsCategory.route,
                 arguments = listOf(navArgument("categoryId") { type = NavType.StringType }),
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
             ) { backStackEntry ->
-                val categoryId = backStackEntry.arguments?.getString("categoryId")
-                if (categoryId != null) {
-                    SettingsCategoryScreen(
-                        categoryId = categoryId,
-                        navController = navController,
-                        playerViewModel = playerViewModel,
-                        onBackClick = { navController.popBackStack() }
-                    )
+                ScreenWrapper(navController = navController) {
+                    val categoryId = backStackEntry.arguments?.getString("categoryId")
+                    if (categoryId != null) {
+                        SettingsCategoryScreen(
+                            categoryId = categoryId,
+                            navController = navController,
+                            playerViewModel = playerViewModel,
+                            onBackClick = { navController.popBackStack() }
+                        )
+                    }
                 }
             }
             composable(
                 Screen.Experimental.route,
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
             ) {
-                ExperimentalSettingsScreen(
-                    navController = navController,
-                    playerViewModel = playerViewModel,
-                    onNavigationIconClick = { navController.popBackStack() }
-                )
+                ScreenWrapper(navController = navController) {
+                    ExperimentalSettingsScreen(
+                        navController = navController,
+                        playerViewModel = playerViewModel,
+                        onNavigationIconClick = { navController.popBackStack() }
+                    )
+                }
             }
             composable(
                 Screen.DailyMixScreen.route,
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
             ) {
-                DailyMixScreen(
-                    playerViewModel = playerViewModel,
-                    navController = navController
-                )
+                ScreenWrapper(navController = navController) {
+                    DailyMixScreen(
+                        playerViewModel = playerViewModel,
+                        navController = navController
+                    )
+                }
             }
             composable(
                 Screen.Stats.route,
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
             ) {
-                StatsScreen(
-                    navController = navController
-                )
+                ScreenWrapper(navController = navController) {
+                    StatsScreen(
+                        navController = navController
+                    )
+                }
             }
             composable(
                 route = Screen.PlaylistDetail.route,
                 arguments = listOf(navArgument("playlistId") { type = NavType.StringType }),
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
             ) { backStackEntry ->
                 val playlistId = backStackEntry.arguments?.getString("playlistId")
                 val playlistViewModel: PlaylistViewModel = hiltViewModel()
                 if (playlistId != null) {
-                    PlaylistDetailScreen(
-                        playlistId = playlistId,
-                        playerViewModel = playerViewModel,
-                        playlistViewModel = playlistViewModel,
-                        onBackClick = { navController.popBackStack() },
-                        onDeletePlayListClick = { navController.popBackStack() },
-                        navController = navController
-                    )
+                    ScreenWrapper(navController = navController) {
+                        PlaylistDetailScreen(
+                            playlistId = playlistId,
+                            playerViewModel = playerViewModel,
+                            playlistViewModel = playlistViewModel,
+                            onBackClick = { navController.popBackStack() },
+                            onDeletePlayListClick = { navController.popBackStack() },
+                            navController = navController
+                        )
+                    }
                 }
             }
 
@@ -200,26 +219,30 @@ fun AppNavigation(
                 Screen.DJSpace.route,
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
             ) {
-                MashupScreen()
+                ScreenWrapper(navController = navController) {
+                    MashupScreen()
+                }
             }
             composable(
                 route = Screen.GenreDetail.route,
                 arguments = listOf(navArgument("genreId") { type = NavType.StringType }),
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
             ) { backStackEntry ->
                 val genreId = backStackEntry.arguments?.getString("genreId")
                 if (genreId != null) {
-                    GenreDetailScreen(
-                        navController = navController,
-                        genreId = genreId,
-                        playerViewModel = playerViewModel
-                    )
+                    ScreenWrapper(navController = navController) {
+                        GenreDetailScreen(
+                            navController = navController,
+                            genreId = genreId,
+                            playerViewModel = playerViewModel
+                        )
+                    }
                 } else {
                     Text("Error: Genre ID missing", modifier = Modifier)
                 }
@@ -229,16 +252,18 @@ fun AppNavigation(
                 arguments = listOf(navArgument("albumId") { type = NavType.StringType }),
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
             ) { backStackEntry ->
                 val albumId = backStackEntry.arguments?.getString("albumId")
                 if (albumId != null) {
-                    AlbumDetailScreen(
-                        albumId = albumId,
-                        navController = navController,
-                        playerViewModel = playerViewModel
-                    )
+                    ScreenWrapper(navController = navController) {
+                        AlbumDetailScreen(
+                            albumId = albumId,
+                            navController = navController,
+                            playerViewModel = playerViewModel
+                        )
+                    }
                 }
             }
             composable(
@@ -246,26 +271,30 @@ fun AppNavigation(
                 arguments = listOf(navArgument("artistId") { type = NavType.StringType }),
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
             ) { backStackEntry ->
                 val artistId = backStackEntry.arguments?.getString("artistId")
                 if (artistId != null) {
-                    ArtistDetailScreen(
-                        artistId = artistId,
-                        navController = navController,
-                        playerViewModel = playerViewModel
-                    )
+                    ScreenWrapper(navController = navController) {
+                        ArtistDetailScreen(
+                            artistId = artistId,
+                            navController = navController,
+                            playerViewModel = playerViewModel
+                        )
+                    }
                 }
             }
             composable(
                 "nav_bar_corner_radius",
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
             ) {
-                NavBarCornerRadiusScreen(navController)
+                ScreenWrapper(navController = navController) {
+                    NavBarCornerRadiusScreen(navController)
+                }
             }
             composable(
                 route = Screen.EditTransition.route,
@@ -275,53 +304,63 @@ fun AppNavigation(
                 }),
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
             ) {
-                EditTransitionScreen(navController = navController)
+                ScreenWrapper(navController = navController) {
+                    EditTransitionScreen(navController = navController)
+                }
             }
             composable(
                 Screen.About.route,
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
             ) {
-                AboutScreen(
-                    navController = navController,
-                    viewModel = playerViewModel,
-                    onNavigationIconClick = { navController.popBackStack() }
-                )
+                ScreenWrapper(navController = navController) {
+                    AboutScreen(
+                        navController = navController,
+                        viewModel = playerViewModel,
+                        onNavigationIconClick = { navController.popBackStack() }
+                    )
+                }
             }
             composable(
                 Screen.ArtistSettings.route,
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
             ) {
-                ArtistSettingsScreen(navController = navController)
+                ScreenWrapper(navController = navController) {
+                    ArtistSettingsScreen(navController = navController)
+                }
             }
             composable(
                 Screen.DelimiterConfig.route,
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
             ) {
-                DelimiterConfigScreen(navController = navController)
+                ScreenWrapper(navController = navController) {
+                    DelimiterConfigScreen(navController = navController)
+                }
             }
             composable(
                 Screen.Equalizer.route,
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
             ) {
-                EqualizerScreen(
-                    navController = navController,
-                    playerViewModel = playerViewModel
-                )
+                ScreenWrapper(navController = navController) {
+                    EqualizerScreen(
+                        navController = navController,
+                        playerViewModel = playerViewModel
+                    )
+                }
             }
         }
     }

@@ -725,10 +725,17 @@ fun SetupBottomBar(
         label = "Rotation"
     )
 
+    val shape = RoundedCornerShape(
+        topEnd = 24.dp,
+        topStart = 24.dp,
+        bottomEnd = 0.dp,
+        bottomStart = 0.dp
+    )
+
     Surface(
         modifier = modifier
             //.padding(horizontal = 24.dp, vertical = 16.dp)
-            .shadow(elevation = 8.dp, shape = RoundedCornerShape(24.dp), clip = true),
+            .shadow(elevation = 8.dp, shape = shape, clip = true),
         color = MaterialTheme.colorScheme.surfaceContainer,
         shape = AbsoluteSmoothCornerShape(
             cornerRadiusTR = 36.dp,
