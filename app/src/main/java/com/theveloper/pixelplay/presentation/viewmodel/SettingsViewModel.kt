@@ -494,4 +494,10 @@ class SettingsViewModel @Inject constructor(
     fun triggerTestCrash() {
         throw RuntimeException("Test crash triggered from Developer Options - This is intentional for testing the crash reporting system")
     }
+
+    fun resetSetupFlow() {
+        viewModelScope.launch {
+            userPreferencesRepository.setInitialSetupDone(false)
+        }
+    }
 }

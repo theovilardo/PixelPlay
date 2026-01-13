@@ -546,6 +546,15 @@ fun SettingsCategoryScreen(
                             )
                             Spacer(Modifier.height(4.dp))
                             SettingsItem(
+                                title = "Test Setup Flow",
+                                subtitle = "Launch the onboarding setup screen for testing.",
+                                leadingIcon = { Icon(Icons.Rounded.Science, null, tint = MaterialTheme.colorScheme.tertiary) },
+                                onClick = {
+                                    settingsViewModel.resetSetupFlow()
+                                }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            SettingsItem(
                                 title = "Trigger Test Crash",
                                 subtitle = "Simulate a crash to test the crash reporting system.",
                                 leadingIcon = { Icon(Icons.Outlined.Warning, null, tint = MaterialTheme.colorScheme.error) },

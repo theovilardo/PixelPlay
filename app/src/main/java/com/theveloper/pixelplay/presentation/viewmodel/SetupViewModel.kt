@@ -25,7 +25,8 @@ data class SetupUiState(
     val notificationsPermissionGranted: Boolean = false,
     val allFilesAccessGranted: Boolean = false,
     val isLoadingDirectories: Boolean = false,
-    val blockedDirectories: Set<String> = emptySet()
+    val blockedDirectories: Set<String> = emptySet(),
+    val libraryNavigationMode: String = "tab_row"
 ) {
     val allPermissionsGranted: Boolean
         get() {
@@ -65,6 +66,12 @@ class SetupViewModel @Inject constructor(
         viewModelScope.launch {
             fileExplorerStateHolder.isLoading.collect { loading ->
                 _uiState.update { it.copy(isLoadingDirectories = loading) }
+            }
+        }
+
+        viewModelScope.launch {
+            userPreferencesRepository.libraryNavigationModeFlow.collect { mode ->
+                _uiState.update { it.copy(libraryNavigationMode = mode) }
             }
         }
     }
@@ -140,6 +147,12 @@ class SetupViewModel @Inject constructor(
     fun isAtRoot(): Boolean = fileExplorerStateHolder.isAtRoot()
 
     fun explorerRoot(): File = fileExplorerStateHolder.rootDirectory()
+
+    fun setLibraryNavigationMode(mode: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setLibraryNavigationMode(mode)
+        }
+    }
 
     fun setSetupComplete() {
         viewModelScope.launch {

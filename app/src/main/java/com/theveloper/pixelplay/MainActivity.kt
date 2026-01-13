@@ -207,9 +207,7 @@ class MainActivity : ComponentActivity() {
             var crashLogData by remember { mutableStateOf<CrashLogData?>(null) }
 
             LaunchedEffect(isSetupComplete) {
-                if (showSetupScreen == null) {
-                    showSetupScreen = if (isBenchmarkMode) false else !isSetupComplete
-                }
+                showSetupScreen = if (isBenchmarkMode) false else !isSetupComplete
             }
             
             // Check for crash log when app starts
