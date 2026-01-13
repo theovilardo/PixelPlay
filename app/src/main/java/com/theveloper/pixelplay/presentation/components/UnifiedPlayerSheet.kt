@@ -1397,12 +1397,13 @@ fun UnifiedPlayerSheet(
 
                             // Show SongInfoBottomSheet when a song is selected
                             selectedSongForInfo?.let { staticSong ->
-                                // Find the most up-to-date version of this song to resolve isFavorite state
-                                val liveSong = if (stablePlayerState.currentSong?.id == staticSong.id) {
-                                    stablePlayerState.currentSong!!
-                                } else {
-                                    currentPlaybackQueue.find { it.id == staticSong.id } ?: staticSong
-                                }
+                                // Observar cambios en la canción (metadata o favorite status) reactivamente
+                                val liveSongState by remember(staticSong.id) {
+                                    playerViewModel.observeSong(staticSong.id)
+                                        .map { it ?: staticSong } // Si no está en la librería, usar la estática como fallback
+                                }.collectAsState(initial = staticSong)
+
+                                val liveSong = liveSongState ?: staticSong
 
                                 SongInfoBottomSheet(
                                     song = liveSong,
@@ -1439,19 +1440,27 @@ fun UnifiedPlayerSheet(
                                          selectedSongForInfo = null
                                     },
                                     onNavigateToAlbum = {
+                                        scope.launch {
+                                            sheetAnimationMutex.mutate {
+                                                currentSheetTranslationY.snapTo(sheetCollapsedTargetY)
+                                                playerContentExpansionFraction.snapTo(0f)
+                                            }
+                                        }
                                         playerViewModel.collapsePlayerSheet()
                                         animateQueueSheet(false)
                                         selectedSongForInfo = null
-                                        // We need navigation logic here.
-                                        // navController.navigate(Screen.AlbumDetail.createRoute(song.albumId))
-                                        // song.albumId is a Long.
-                                         // Check Screen.AlbumDetail route format.
-                                         // Assume standard createRoute(id).
+
                                          if (liveSong.albumId != -1L) {
                                             navController.navigate(Screen.AlbumDetail.createRoute(liveSong.albumId))
                                          }
                                     },
                                     onNavigateToArtist = {
+                                        scope.launch {
+                                            sheetAnimationMutex.mutate {
+                                                currentSheetTranslationY.snapTo(sheetCollapsedTargetY)
+                                                playerContentExpansionFraction.snapTo(0f)
+                                            }
+                                        }
                                         playerViewModel.collapsePlayerSheet()
                                         animateQueueSheet(false)
                                         selectedSongForInfo = null

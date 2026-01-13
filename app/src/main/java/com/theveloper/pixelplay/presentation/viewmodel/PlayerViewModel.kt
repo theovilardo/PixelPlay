@@ -792,6 +792,18 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Observes a song by ID, combining the latest metadata from [allSongsFlow]
+     * with the latest favorite status from [favoriteSongIds].
+     * Returns null if the song is not found in the library.
+     */
+    fun observeSong(songId: String?): Flow<Song?> {
+        if (songId == null) return flowOf(null)
+        return combine(allSongsFlow, favoriteSongIds) { songs, favorites ->
+            songs.find { it.id == songId }?.copy(isFavorite = favorites.contains(songId))
+        }.distinctUntilChanged()
+    }
+
     private fun updateDailyMix() {
         // Cancel any previous job to avoid multiple updates running
         dailyMixJob?.cancel()
