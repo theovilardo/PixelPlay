@@ -99,6 +99,7 @@ fun SettingsCategoryScreen(
     navController: NavController,
     playerViewModel: PlayerViewModel,
     settingsViewModel: SettingsViewModel = hiltViewModel(),
+    statsViewModel: com.theveloper.pixelplay.presentation.viewmodel.StatsViewModel = hiltViewModel(),
     onBackClick: () -> Unit
 ) {
     val category = SettingsCategory.fromId(categoryId) ?: return
@@ -125,6 +126,8 @@ fun SettingsCategoryScreen(
     var refreshRequested by remember { mutableStateOf(false) }
     var showClearLyricsDialog by remember { mutableStateOf(false) }
     var showRebuildDatabaseWarning by remember { mutableStateOf(false) }
+    var showRegenerateDailyMixDialog by remember { mutableStateOf(false) }
+    var showRegenerateStatsDialog by remember { mutableStateOf(false) }
 
     // Fetch models on page load when API key exists and models are not already loaded
     LaunchedEffect(category, geminiApiKey) {
@@ -526,11 +529,20 @@ fun SettingsCategoryScreen(
                                 onClick = { navController.navigate(Screen.Experimental.route) }
                             )
                             Spacer(Modifier.height(4.dp))
-                            SettingsItem(
+                            ActionSettingsItem(
                                 title = "Force Daily Mix Regeneration",
                                 subtitle = "Re-creates the daily mix playlist immediately.",
-                                leadingIcon = { Icon(painterResource(R.drawable.rounded_instant_mix_24), null, tint = MaterialTheme.colorScheme.secondary) },
-                                onClick = { playerViewModel.forceUpdateDailyMix() }
+                                icon = { Icon(painterResource(R.drawable.rounded_instant_mix_24), null, tint = MaterialTheme.colorScheme.secondary) },
+                                primaryActionLabel = "Regenerate Daily Mix",
+                                onPrimaryAction = { showRegenerateDailyMixDialog = true }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            ActionSettingsItem(
+                                title = "Force Stats Regeneration",
+                                subtitle = "Clears cache and recalculates playback statistics.",
+                                icon = { Icon(painterResource(R.drawable.rounded_monitoring_24), null, tint = MaterialTheme.colorScheme.secondary) },
+                                primaryActionLabel = "Regenerate Stats",
+                                onPrimaryAction = { showRegenerateStatsDialog = true }
                             )
                             Spacer(Modifier.height(4.dp))
                             SettingsItem(
@@ -648,6 +660,48 @@ fun SettingsCategoryScreen(
                 } 
             },
             dismissButton = { TextButton(onClick = { showRebuildDatabaseWarning = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (showRegenerateDailyMixDialog) {
+        AlertDialog(
+            icon = { Icon(painterResource(R.drawable.rounded_instant_mix_24), null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Regenerate Daily Mix?") },
+            text = { Text("This will discard the current mix and generate a new one based on recent listening habits.") },
+            onDismissRequest = { showRegenerateDailyMixDialog = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showRegenerateDailyMixDialog = false
+                        playerViewModel.forceUpdateDailyMix()
+                        Toast.makeText(context, "Daily Mix regeneration started", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Regenerate")
+                }
+            },
+            dismissButton = { TextButton(onClick = { showRegenerateDailyMixDialog = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (showRegenerateStatsDialog) {
+        AlertDialog(
+            icon = { Icon(painterResource(R.drawable.rounded_monitoring_24), null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Regenerate Stats?") },
+            text = { Text("This will clear the statistics cache and force a recalculation from the database history.") },
+            onDismissRequest = { showRegenerateStatsDialog = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showRegenerateStatsDialog = false
+                        statsViewModel.forceRegenerateStats()
+                        Toast.makeText(context, "Stats regeneration started", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Regenerate")
+                }
+            },
+            dismissButton = { TextButton(onClick = { showRegenerateStatsDialog = false }) { Text("Cancel") } }
         )
     }
 }

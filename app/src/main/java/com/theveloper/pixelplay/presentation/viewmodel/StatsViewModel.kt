@@ -89,6 +89,12 @@ class StatsViewModel @Inject constructor(
         }
     }
 
+    fun forceRegenerateStats() {
+        cachedSongs = null
+        refreshWeeklyOverview()
+        refreshRange(_uiState.value.selectedRange)
+    }
+
     private suspend fun loadSongs(): List<Song> {
         cachedSongs?.let { existing ->
             if (existing.isNotEmpty()) return existing

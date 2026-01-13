@@ -563,6 +563,76 @@ fun RefreshLyricsItem(
 }
 
 @Composable
+fun ActionSettingsItem(
+    title: String,
+    subtitle: String,
+    icon: @Composable () -> Unit,
+    primaryActionLabel: String,
+    onPrimaryAction: () -> Unit,
+    secondaryActionLabel: String? = null,
+    onSecondaryAction: (() -> Unit)? = null,
+    enabled: Boolean = true
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier.padding(end = 16.dp).size(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    icon()
+                }
+
+                Column(
+                    modifier = Modifier.weight(1f).padding(end = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Primary Action
+            FilledTonalButton(
+                onClick = onPrimaryAction,
+                enabled = enabled,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(primaryActionLabel)
+            }
+
+            // Secondary Action (Optional)
+            if (secondaryActionLabel != null && onSecondaryAction != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = onSecondaryAction,
+                    enabled = enabled,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(secondaryActionLabel)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun GeminiApiKeyItem(
     apiKey: String,
     onApiKeySave: (String) -> Unit,
