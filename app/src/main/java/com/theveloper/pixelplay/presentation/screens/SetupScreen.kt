@@ -509,6 +509,7 @@ fun MediaPermissionPage(uiState: SetupUiState) {
         granted = isGranted,
         description = "PixelPlayer needs access to your audio files to build your music library.",
         buttonText = if (isGranted) "Permission Granted" else "Grant Media Permission",
+        buttonEnabled = !isGranted,
         icons = mediaIcons,
         onGrantClicked = {
             if (!isGranted) {
@@ -540,6 +541,7 @@ fun NotificationsPermissionPage(uiState: SetupUiState) {
         granted = isGranted,
         description = "Enable notifications to control your music from the lock screen and notification shade.",
         buttonText = if (isGranted) "Permission Granted" else "Enable Notifications",
+        buttonEnabled = !isGranted,
         icons = notificationIcons,
         onGrantClicked = {
             if (!isGranted) {
@@ -567,6 +569,7 @@ fun AllFilesPermissionPage(uiState: SetupUiState) {
         granted = isGranted,
         description = "For some Android versions, PixelPlayer needs broader file access to find all your music.",
         buttonText = if(isGranted) "Permission Granted" else "Go to Settings",
+        buttonEnabled = !isGranted,
         icons = fileIcons,
         onGrantClicked = {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !isGranted) {
@@ -696,6 +699,7 @@ fun LibraryLayoutPage(
 fun LibraryHeaderPreview(isCompact: Boolean) {
     val gradientColors = listOf(
         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
         Color.Transparent
     )
     
@@ -709,19 +713,9 @@ fun LibraryHeaderPreview(isCompact: Boolean) {
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        //elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier
             .fillMaxWidth()
-//            .shadow(
-//                elevation = 6.dp,
-//                shape = RoundedCornerShape(
-//                    topStart = 24.dp,
-//                    topEnd = 24.dp,
-//                    bottomStart = 0.dp,
-//                    bottomEnd = 0.dp
-//                ),
-//                spotColor = MaterialTheme.colorScheme.primary.copy(alpha=0.1f)
-//            )
     ) {
         Box(
             modifier = Modifier
@@ -907,6 +901,7 @@ fun BatteryOptimizationPage(
         granted = isIgnoringBatteryOptimizations,
         description = "Some Android devices aggressively kill background apps. Disable battery optimization for PixelPlayer to prevent unexpected playback interruptions.",
         buttonText = if (isIgnoringBatteryOptimizations) "Permission Granted" else "Disable Optimization",
+        buttonEnabled = !isIgnoringBatteryOptimizations,
         icons = batteryIcons,
         onGrantClicked = {
             if (!isIgnoringBatteryOptimizations) {
