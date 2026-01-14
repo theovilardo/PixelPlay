@@ -7,27 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.4.5-beta] - 2025-12-22
+## [0.5.0-beta] - 2026-01-14
 
 ### Added
-- New blacklist method for music directory selection
-- Added Multi artist separation (thanks to [@lostf1sh](https://github.com/lostf1sh))
-- Improved animation performance (check experimental features in settings)
-- Added new navigation method for the library screen
-- New more efficient shuffle method
-- Improved animations across the app
-- Improved lyrics fetch function
+- Implemented 10-band Equalizer and effects suite (feat: @theovilardo)
+- Added M3U playlist import/export support (feat/fix: @lostf1sh, @theovilardo)
+- Integrated Deezer API for artist images (feat: @lostf1sh)
+- Added Gemini AI model selection, system prompt settings, and AI playlist entry point (feat: @lostf1sh, @theovilardo)
+- Added sync offset support for lyrics and multi-strategy remote search (feat/fix: @lostf1sh, @theovilardo)
+- Added Baseline Profiles for improved performance (feat/fix: @theovilardo, @google-labs-julesbot)
+- Added support for custom playlist covers
+
+### Changed
+- **Material 3 Expressive UI**: Modernized Settings, Stats, Player, Bottom Sheets, and dialogs (refactor: @theovilardo, @lostf1sh)
+- **Library Sync**: Rebuilt initial sync flow with phase-based progress reporting and linear indicators (feat: @lostf1sh)
+- **Settings Architecture**: Introduced category sub-screens and improved navigation handling (refactor/fix: @theovilardo)
+- **Queue & Player**: Decoupled queue updates from scroll animations, added animated queue scrolling (feat/fix: @lostf1sh, @theovilardo)
+- Improved widget previews and case-insensitive sorting logic (feat/fix: @lostf1sh, @google-labs-julesbot)
 
 ### Fixed
-- Fixed long loading times for library preparation
-- Fixed cast issues
-- Fixed RepeatOne mode + Crossfade/Cast
-- Fixed playlist sorting/reordering issues
-- Fixed some metadata editing issues
-- Fixed lyrics issues
-- Fixed queue crash when using "Play Next" with duplicate songs
-- Fixed MP3 file corruption after metadata/cover art editing
-- Fixed crossfade duration slider stepping behavior
+- Fixed casting stability, queue transitions, and reduced latency (fix: @theovilardo)
+- Fixed delayed content rendering and unwanted collapses in Player Sheet (fix/refactor: @theovilardo)
+- Fixed reordering issues in queue
+- General crash fixes and minor UX improvements (fix: @lostf1sh, @theovilardo)
 
 ## [0.4.0-beta] - 2025-12-15
 

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -33,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -53,260 +55,284 @@ fun BetaInfoBottomSheet(modifier: Modifier = Modifier) {
 
     val fabCornerRadius = 18.dp
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp),
-        contentPadding = PaddingValues(top = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+    Box(
+        modifier = Modifier.fillMaxSize()
     ) {
-        item(key = "header") {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "Beta 4.5",
-                    fontFamily = GoogleSansRounded,
-                    style = ExpTitleTypography.displaySmall,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                SineWaveLine(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(26.dp)
-                        .padding(horizontal = 8.dp),
-                    animate = true,
-                    color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.75f),
-                    alpha = 0.95f,
-                    strokeWidth = 4.dp,
-                    amplitude = 4.dp,
-                    waves = 7.6f,
-                    phase = 0f
-                )
-            }
-        }
-
-        item(key = "welcome") {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = AbsoluteSmoothCornerShape(
-                    cornerRadiusTR = fabCornerRadius,
-                    cornerRadiusTL = fabCornerRadius,
-                    cornerRadiusBL = fabCornerRadius,
-                    cornerRadiusBR = fabCornerRadius,
-                    smoothnessAsPercentTR = 60,
-                    smoothnessAsPercentTL = 60,
-                    smoothnessAsPercentBL = 60,
-                    smoothnessAsPercentBR = 60
-                ),
-                tonalElevation = 2.dp,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Box(
+        LazyColumn(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            contentPadding = PaddingValues(top = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item(key = "header") {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Beta 0.5.0",
+                        fontFamily = GoogleSansRounded,
+                        style = ExpTitleTypography.displaySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SineWaveLine(
                         modifier = Modifier
-                            .size(42.dp)
-                            .background(
-                                brush = Brush.linearGradient(
-                                    listOf(
-                                        MaterialTheme.colorScheme.primary,
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
-                                    )
+                            .fillMaxWidth()
+                            .height(26.dp)
+                            .padding(horizontal = 8.dp),
+                        animate = true,
+                        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.75f),
+                        alpha = 0.95f,
+                        strokeWidth = 4.dp,
+                        amplitude = 4.dp,
+                        waves = 7.6f,
+                        phase = 0f
+                    )
+                }
+            }
+
+            item(key = "welcome") {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = AbsoluteSmoothCornerShape(
+                        cornerRadiusTR = fabCornerRadius,
+                        cornerRadiusTL = fabCornerRadius,
+                        cornerRadiusBL = fabCornerRadius,
+                        cornerRadiusBR = fabCornerRadius,
+                        smoothnessAsPercentTR = 60,
+                        smoothnessAsPercentTL = 60,
+                        smoothnessAsPercentBL = 60,
+                        smoothnessAsPercentBR = 60
+                    ),
+                    //tonalElevation = 2.dp,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .background(
+                                    brush = Brush.linearGradient(
+                                        listOf(
+                                            MaterialTheme.colorScheme.primary,
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
+                                        )
+                                    ),
+                                    shape = CircleShape
                                 ),
-                                shape = CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "β",
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = "Welcome to the fifth beta!",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "This build focuses on smoother navigation, faster scans, and better lyrics handling.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
-
-        item(key = "what-to-expect") {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = AbsoluteSmoothCornerShape(
-                    cornerRadiusTR = fabCornerRadius,
-                    cornerRadiusTL = fabCornerRadius,
-                    cornerRadiusBL = fabCornerRadius,
-                    cornerRadiusBR = fabCornerRadius,
-                    smoothnessAsPercentTR = 60,
-                    smoothnessAsPercentTL = 60,
-                    smoothnessAsPercentBL = 60,
-                    smoothnessAsPercentBR = 60
-                ),
-                tonalElevation = 2.dp,
-                color = MaterialTheme.colorScheme.surfaceContainerLow
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Rounded.Info,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "What to expect",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                        Text(
-                            text = "Library prep now loads faster and includes a directory blacklist option.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "Navigation, shuffle, animations, and playlist tools were refined for this beta.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    Text(
-                        text = "Lyrics fetching and casting got fixes, plus RepeatOne works correctly with Crossfade/Cast.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "Fixed queue crash when using Play Next and metadata editing corruption.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-
-        item(key = "report-issue") {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = AbsoluteSmoothCornerShape(
-                    cornerRadiusTR = fabCornerRadius,
-                    cornerRadiusTL = fabCornerRadius,
-                    cornerRadiusBL = fabCornerRadius,
-                    cornerRadiusBR = fabCornerRadius,
-                    smoothnessAsPercentTR = 60,
-                    smoothnessAsPercentTL = 60,
-                    smoothnessAsPercentBL = 60,
-                    smoothnessAsPercentBR = 60
-                ),
-                tonalElevation = 2.dp,
-                color = MaterialTheme.colorScheme.surfaceContainerHighest
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Rounded.BugReport,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Report an issue",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    Text(
-                        text = "Share steps to reproduce, what you expected, what happened, and your device/OS. A quick clip or screenshot helps a ton.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Button(
-                            onClick = { launchUrl(context, issuesUrl) },
-                            // Eliminamos height fija y usamos contentPadding
-                            modifier = Modifier.fillMaxWidth(),
-                            contentPadding = PaddingValues(vertical = 16.dp),
-                            shape = AbsoluteSmoothCornerShape(
-                                cornerRadiusTR = fabCornerRadius,
-                                cornerRadiusTL = fabCornerRadius,
-                                cornerRadiusBL = fabCornerRadius,
-                                cornerRadiusBR = fabCornerRadius,
-                                smoothnessAsPercentTR = 60,
-                                smoothnessAsPercentTL = 60,
-                                smoothnessAsPercentBL = 60,
-                                smoothnessAsPercentBR = 60
-                            ),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
+                            contentAlignment = Alignment.Center
                         ) {
+                            Text(
+                                text = "β",
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "Welcome to the first 0.5.0 beta!",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "This huge update brings a complete UI overhaul, 10-band Equalizer, and AI powers.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            item(key = "what-to-expect") {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = AbsoluteSmoothCornerShape(
+                        cornerRadiusTR = fabCornerRadius,
+                        cornerRadiusTL = fabCornerRadius,
+                        cornerRadiusBL = fabCornerRadius,
+                        cornerRadiusBR = fabCornerRadius,
+                        smoothnessAsPercentTR = 60,
+                        smoothnessAsPercentTL = 60,
+                        smoothnessAsPercentBL = 60,
+                        smoothnessAsPercentBR = 60
+                    ),
+                    tonalElevation = 2.dp,
+                    color = MaterialTheme.colorScheme.surfaceContainerLow
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                painter = painterResource(id = R.drawable.github),
+                                imageVector = Icons.Rounded.Info,
                                 contentDescription = null,
-                                modifier = Modifier.size(18.dp)
+                                tint = MaterialTheme.colorScheme.secondary
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = "Open GitHub issues")
+                            Text(
+                                text = "What to expect",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
-                        FilledTonalButton(
-                            onClick = { launchUrl(context, reportUrl) },
-                            // Eliminamos height fija y usamos contentPadding
-                            modifier = Modifier.fillMaxWidth(),
-                            contentPadding = PaddingValues(vertical = 16.dp),
-                            shape = AbsoluteSmoothCornerShape(
-                                cornerRadiusTR = fabCornerRadius,
-                                cornerRadiusTL = fabCornerRadius,
-                                cornerRadiusBL = fabCornerRadius,
-                                cornerRadiusBR = fabCornerRadius,
-                                smoothnessAsPercentTR = 60,
-                                smoothnessAsPercentTL = 60,
-                                smoothnessAsPercentBL = 60,
-                                smoothnessAsPercentBR = 60
-                            )
-                        ) {
+                        Text(
+                            text = "Material 3 Expressive UI refresh across Settings, Player, and Bottom Sheets.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "New 10-band Equalizer with effects, plus AI integration for smarter playlists.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Rebuilt Library Sync for reliability and linear progress reporting.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Major fixes for Casting, Queue stability, and lyrics synchronization.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            item(key = "report-issue") {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = AbsoluteSmoothCornerShape(
+                        cornerRadiusTR = fabCornerRadius,
+                        cornerRadiusTL = fabCornerRadius,
+                        cornerRadiusBL = fabCornerRadius,
+                        cornerRadiusBR = fabCornerRadius,
+                        smoothnessAsPercentTR = 60,
+                        smoothnessAsPercentTL = 60,
+                        smoothnessAsPercentBL = 60,
+                        smoothnessAsPercentBR = 60
+                    ),
+                    tonalElevation = 2.dp,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = Icons.Rounded.AutoAwesome,
+                                imageVector = Icons.Rounded.BugReport,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = MaterialTheme.colorScheme.error
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = "Report a bug")
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Report an issue",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Text(
+                            text = "Share steps to reproduce, what you expected, what happened, and your device/OS. A quick clip or screenshot helps a ton.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Button(
+                                onClick = { launchUrl(context, issuesUrl) },
+                                // Eliminamos height fija y usamos contentPadding
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(vertical = 16.dp),
+                                shape = AbsoluteSmoothCornerShape(
+                                    cornerRadiusTR = fabCornerRadius,
+                                    cornerRadiusTL = fabCornerRadius,
+                                    cornerRadiusBL = fabCornerRadius,
+                                    cornerRadiusBR = fabCornerRadius,
+                                    smoothnessAsPercentTR = 60,
+                                    smoothnessAsPercentTL = 60,
+                                    smoothnessAsPercentBL = 60,
+                                    smoothnessAsPercentBR = 60
+                                ),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.github),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(text = "Open GitHub issues")
+                            }
+                            FilledTonalButton(
+                                onClick = { launchUrl(context, reportUrl) },
+                                // Eliminamos height fija y usamos contentPadding
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(vertical = 16.dp),
+                                shape = AbsoluteSmoothCornerShape(
+                                    cornerRadiusTR = fabCornerRadius,
+                                    cornerRadiusTL = fabCornerRadius,
+                                    cornerRadiusBL = fabCornerRadius,
+                                    cornerRadiusBR = fabCornerRadius,
+                                    smoothnessAsPercentTR = 60,
+                                    smoothnessAsPercentTL = 60,
+                                    smoothnessAsPercentBL = 60,
+                                    smoothnessAsPercentBR = 60
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "Report a bug")
+                            }
                         }
                     }
                 }
             }
+
+            item {
+                Spacer(modifier = Modifier.height(38.dp))
+            }
+        }
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(30.dp)
+                .background(
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color.Transparent,
+                            MaterialTheme.colorScheme.surfaceContainerLow
+                        )
+                    )
+                )
+        ) {
+
         }
     }
 }

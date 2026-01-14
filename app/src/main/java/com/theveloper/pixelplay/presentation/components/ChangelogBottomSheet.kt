@@ -61,33 +61,36 @@ data class ChangelogVersion(
 // The changelog data
 val changelog = listOf(
     ChangelogVersion(
-        version = "0.4.5-beta",
-        date = "2025-12-22",
+        version = "0.5.0-beta",
+        date = "2026-01-14",
         sections = listOf(
             ChangelogSection(
                 title = "Highlights",
                 items = listOf(
-                    "New blacklist method for music directory selection",
-                    "Added multi-artist separation (thanks to @lostf1sh)",
-                    "Improved animation performance (see experimental settings)",
-                    "Added new navigation method for the library screen",
-                    "New, more efficient shuffle method",
-                    "Improved animations across the app",
-                    "Improved lyrics fetch function"
+                    "Material 3 Expressive UI Update",
+                    "10-band Equalizer & Effects",
+                    "New Library Sync Flow",
+                    "AI Integration (Gemini Models)",
+                    "M3U Playlist Import/Export",
+                    "Deezer Artist Artwork Integration",
+                    "Custom Playlist Covers"
+                )
+            ),
+            ChangelogSection(
+                title = "Improvements",
+                items = listOf(
+                    "Settings Architecture Refactor",
+                    "Queue & Player Animations",
+                    "Baseline Profiles & Performance",
+                    "Better Lyrics System with Sync Offset"
                 )
             ),
             ChangelogSection(
                 title = "Fixes",
                 items = listOf(
-                    "Fixed long loading times for library preparation",
-                    "Fixed cast issues",
-                    "Fixed RepeatOne mode with Crossfade/Cast enabled",
-                    "Fixed playlist sorting and reordering issues",
-                    "Fixed metadata editing issues",
-                    "Fixed lyrics issues",
-                    "Fixed queue crash when using Play Next with duplicate songs",
-                    "Fixed MP3 file corruption after metadata/cover art editing",
-                    "Fixed crossfade duration slider stepping behavior"
+                    "Casting Stability Improvements",
+                    "Player Sheet Stability",
+                    "General Bug Fixes & Cleanup"
                 )
             )
         )

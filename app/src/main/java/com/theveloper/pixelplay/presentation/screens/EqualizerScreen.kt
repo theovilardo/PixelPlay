@@ -299,15 +299,8 @@ fun EqualizerScreen(
                 
                 PresetTabsRow(
                     presets = visiblePresets,
-                    selectedPreset = uiState.currentPreset, // PresetTabsRow handles highlighting logic
-                    onPresetSelected = { 
-                        // If it's the "Custom" placeholder, what do we do?
-                        // If user clicks "Custom" tab, we should probably switch to the LAST used custom preset?
-                        // Or just stay if already custom?
-                        // Currently: onPresetSelected takes a preset.
-                        // If user selects "Custom" tab, we pass the placeholder. 
-                        // ViewModel needs to handle logic. 
-                        // However, simpler: if user clicks "Custom", maybe just ensure we represent "custom" state.
+                    selectedPreset = uiState.currentPreset,
+                    onPresetSelected = {
                         equalizerViewModel.selectPreset(it) 
                     },
                     onEditClick = { showReorderSheet = true }
@@ -516,6 +509,7 @@ private fun PresetTabsRow(
             TabAnimation(
                 index = index,
                 title = preset.name,
+                unselectedColor = MaterialTheme.colorScheme.surfaceContainerLowest,
                 selectedIndex = selectedIndex,
                 onClick = { onPresetSelected(preset) }
             ) {
@@ -546,6 +540,7 @@ private fun PresetTabsRow(
         TabAnimation(
             index = -1,
             title = "Edit",
+            unselectedColor = MaterialTheme.colorScheme.surfaceContainerLowest,
             selectedIndex = selectedIndex,
             onClick = onEditClick 
         ) {
