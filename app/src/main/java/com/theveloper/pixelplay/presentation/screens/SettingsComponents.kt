@@ -708,3 +708,72 @@ fun GeminiSystemPromptItem(
         }
     }
 }
+
+@Composable
+fun PipedInstanceUrlItem(
+    instanceUrl: String,
+    onUrlSave: (String) -> Unit,
+    title: String,
+    subtitle: String
+) {
+    var localUrl by remember(instanceUrl) { mutableStateOf(instanceUrl) }
+    val hasChanges = localUrl != instanceUrl
+    var showSaved by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showSaved) {
+        if (showSaved) {
+            kotlinx.coroutines.delay(2000)
+            showSaved = false
+        }
+    }
+
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = localUrl,
+                onValueChange = { localUrl = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("https://pipedapi.kavin.rocks") },
+                singleLine = true
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FilledTonalButton(
+                    onClick = {
+                        onUrlSave(localUrl)
+                        showSaved = true
+                    },
+                    enabled = hasChanges
+                ) {
+                    Text("Save")
+                }
+                if (showSaved) {
+                    Text(
+                        text = "Saved!",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}

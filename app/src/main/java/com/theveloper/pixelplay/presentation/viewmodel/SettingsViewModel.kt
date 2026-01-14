@@ -92,6 +92,9 @@ class SettingsViewModel @Inject constructor(
     val geminiSystemPrompt: StateFlow<String> = userPreferencesRepository.geminiSystemPrompt
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferencesRepository.DEFAULT_SYSTEM_PROMPT)
 
+    val pipedInstanceUrl: StateFlow<String> = userPreferencesRepository.pipedInstanceUrl
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "https://pipedapi.kavin.rocks")
+
     private val fileExplorerStateHolder = FileExplorerStateHolder(userPreferencesRepository, viewModelScope, context)
 
     val currentPath = fileExplorerStateHolder.currentPath
@@ -482,6 +485,12 @@ class SettingsViewModel @Inject constructor(
     fun resetGeminiSystemPrompt() {
         viewModelScope.launch {
             userPreferencesRepository.resetGeminiSystemPrompt()
+        }
+    }
+
+    fun onPipedInstanceUrlChange(url: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setPipedInstanceUrl(url)
         }
     }
 

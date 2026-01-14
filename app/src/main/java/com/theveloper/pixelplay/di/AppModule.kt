@@ -21,6 +21,8 @@ import com.theveloper.pixelplay.data.preferences.dataStore
 import com.theveloper.pixelplay.data.media.SongMetadataEditor
 import com.theveloper.pixelplay.data.network.deezer.DeezerApiService
 import com.theveloper.pixelplay.data.network.lyrics.LrcLibApiService
+import com.theveloper.pixelplay.data.network.piped.PipedApiService
+import com.theveloper.pixelplay.data.network.youtube.YouTubeExtractorService
 import com.theveloper.pixelplay.data.repository.ArtistImageRepository
 import com.theveloper.pixelplay.data.repository.LyricsRepository
 import com.theveloper.pixelplay.data.repository.LyricsRepositoryImpl
@@ -353,5 +355,39 @@ object AppModule {
         musicDao: MusicDao
     ): ArtistImageRepository {
         return ArtistImageRepository(deezerApiService, musicDao)
+    }
+
+    /**
+     * Provee una instancia de Retrofit para la API de Piped.
+     * Uses default URL, but the service can be recreated with custom URLs as needed.
+     */
+    @Provides
+    @Singleton
+    @PipedRetrofit
+    fun providePipedRetrofit(@FastOkHttpClient okHttpClient: OkHttpClient): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl("https://pipedapi-libre.kavin.rocks/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+
+    /**
+     * Provee el servicio de la API de Piped.
+     * Note: For custom instance URLs, create a new Retrofit instance with the desired base URL.
+     */
+    @Provides
+    @Singleton
+    fun providePipedApiService(@PipedRetrofit retrofit: Retrofit): PipedApiService {
+        return retrofit.create(PipedApiService::class.java)
+    }
+
+    /**
+     * Provee el servicio de extracción de YouTube usando NewPipe Extractor.
+     */
+    @Provides
+    @Singleton
+    fun provideYouTubeExtractorService(): YouTubeExtractorService {
+        return YouTubeExtractorService()
     }
 }

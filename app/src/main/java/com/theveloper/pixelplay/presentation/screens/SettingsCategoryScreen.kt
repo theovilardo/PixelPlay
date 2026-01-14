@@ -107,6 +107,7 @@ fun SettingsCategoryScreen(
     // State Collection (Duplicated from SettingsScreen for now to ensure functionality)
     val uiState by settingsViewModel.uiState.collectAsState()
     val geminiApiKey by settingsViewModel.geminiApiKey.collectAsState()
+    val pipedInstanceUrl by settingsViewModel.pipedInstanceUrl.collectAsState()
     val geminiModel by settingsViewModel.geminiModel.collectAsState()
     val geminiSystemPrompt by settingsViewModel.geminiSystemPrompt.collectAsState()
     val currentPath by settingsViewModel.currentPath.collectAsState()
@@ -446,6 +447,13 @@ fun SettingsCategoryScreen(
                                     }
                                 },
                                 leadingIcon = { Icon(painterResource(R.drawable.rounded_all_inclusive_24), null, tint = MaterialTheme.colorScheme.secondary) }
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            PipedInstanceUrlItem(
+                                instanceUrl = pipedInstanceUrl,
+                                onUrlSave = { settingsViewModel.onPipedInstanceUrlChange(it) },
+                                title = "Piped Instance URL",
+                                subtitle = "Custom Piped instance URL for streaming music. Default: https://pipedapi.kavin.rocks"
                             )
                         }
                         SettingsCategory.AI_INTEGRATION -> {

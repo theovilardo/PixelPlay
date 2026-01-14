@@ -67,6 +67,7 @@ import com.theveloper.pixelplay.data.model.Playlist
 import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
+import com.theveloper.pixelplay.data.model.SearchMode
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
@@ -86,6 +87,8 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.media3.common.util.UnstableApi
@@ -122,6 +125,7 @@ fun SearchScreen(
     var showPlaylistBottomSheet by remember { mutableStateOf(false) }
     val uiState by playerViewModel.playerUiState.collectAsState()
     val currentFilter by remember { derivedStateOf { uiState.selectedSearchFilter } }
+    val searchMode = uiState.searchMode
     val searchHistory = uiState.searchHistory
     val genres by playerViewModel.genres.collectAsState()
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
@@ -129,8 +133,8 @@ fun SearchScreen(
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var selectedSongForInfo by remember { mutableStateOf<Song?>(null) }
 
-    // Perform search whenever searchQuery, active state, or filter changes
-    LaunchedEffect(searchQuery, active, currentFilter) {
+    // Perform search whenever searchQuery, active state, filter, or search mode changes
+    LaunchedEffect(searchQuery, active, currentFilter, searchMode) {
         if (searchQuery.isNotBlank()) {
             playerViewModel.performSearch(searchQuery)
         } else if (active) {
@@ -279,6 +283,8 @@ fun SearchScreen(
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp)
                         ) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
                             // Filter chips
                             FlowRow(
                                 modifier = Modifier
@@ -386,6 +392,9 @@ fun SearchScreen(
                     }
                 } else {
                     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        // Filter chips
                         FlowRow(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -399,6 +408,7 @@ fun SearchScreen(
                             SearchFilterChip(SearchFilterType.ARTISTS, currentFilter, playerViewModel)
                             SearchFilterChip(SearchFilterType.PLAYLISTS, currentFilter, playerViewModel)
                         }
+                        
                         SearchResultsList(
                             results = searchResults,
                             playerViewModel = playerViewModel,

@@ -15,3 +15,10 @@ annotation class DeezerRetrofit
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class FastOkHttpClient
+
+/**
+ * Qualifier for Piped Retrofit instance.
+ */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class PipedRetrofit

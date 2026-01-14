@@ -110,3 +110,94 @@
 -dontwarn org.eclipse.jetty.npn.NextProtoNego$Provider
 -dontwarn org.eclipse.jetty.npn.NextProtoNego$ServerProvider
 -dontwarn org.eclipse.jetty.npn.NextProtoNego
+
+# Keep all model classes
+-keep class com.theveloper.pixelplay.data.model.** { *; }
+-keep class com.theveloper.pixelplay.data.database.** { *; }
+
+# Keep Hilt generated classes
+-keep class dagger.hilt.** { *; }
+-keep class * extends dagger.hilt.android.lifecycle.HiltViewModel { *; }
+-keepclasseswithmembers class * {
+    @dagger.hilt.android.AndroidEntryPoint <methods>;
+}
+-keepclasseswithmembers class * {
+    @dagger.hilt.android.AndroidEntryPoint <fields>;
+}
+
+# Keep Compose classes
+-keep class androidx.compose.** { *; }
+-dontwarn androidx.compose.**
+
+# Keep Media3 classes
+-keep class androidx.media3.** { *; }
+-keep interface androidx.media3.** { *; }
+-dontwarn androidx.media3.**
+
+# Keep Room classes
+-keep class androidx.room.** { *; }
+-keep interface androidx.room.** { *; }
+-dontwarn androidx.room.**
+
+# Keep Kotlin coroutines
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+-keepclassmembernames class kotlinx.** {
+    volatile <fields>;
+}
+
+# Keep NewPipe Extractor classes
+-keep class org.schabi.newpipe.extractor.** { *; }
+-keep interface org.schabi.newpipe.extractor.** { *; }
+-dontwarn org.schabi.newpipe.**
+
+# Keep Retrofit/OkHttp classes
+-keepattributes Signature, InnerClasses, EnclosingMethod
+-keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations
+-keepclassmembers,allowshrinking,allowobfuscation interface * {
+    @retrofit2.http.* <methods>;
+}
+-dontwarn retrofit2.**
+-keep class retrofit2.** { *; }
+-keep class okhttp3.** { *; }
+-dontwarn okhttp3.**
+
+# Keep Gson classes
+-keepattributes Signature
+-keepattributes *Annotation*
+-dontwarn sun.misc.**
+-keep class com.google.gson.** { *; }
+-keep class * implements com.google.gson.TypeAdapterFactory
+-keep class * implements com.google.gson.JsonSerializer
+-keep class * implements com.google.gson.JsonDeserializer
+
+# Keep Coil image loading
+-keep class coil.** { *; }
+-dontwarn coil.**
+
+# Keep Ktor server classes
+-keep class io.ktor.** { *; }
+-keep class io.netty.** { *; }
+-dontwarn io.ktor.**
+-dontwarn io.netty.**
+
+# Keep TagLib classes
+-keep class com.kyant.taglib.** { *; }
+-keep class org.jaudiotagger.** { *; }
+-dontwarn com.kyant.taglib.**
+-dontwarn org.jaudiotagger.**
+
+# Keep VorbisJava classes
+-keep class org.vorbis.** { *; }
+-dontwarn org.vorbis.**
+
+# Keep Amplituda classes
+-keep class com.github.psambit9.** { *; }
+-dontwarn com.github.psambit9.**
+
+# Keep Checker framework
+-keep class dev.icerock.** { *; }
+-dontwarn dev.icerock.**
+
+# Keep Timber logging
+-dontwarn timber.log.**

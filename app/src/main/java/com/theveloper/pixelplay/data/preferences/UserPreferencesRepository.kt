@@ -56,6 +56,7 @@ constructor(
         val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
         val GEMINI_MODEL = stringPreferencesKey("gemini_model")
         val GEMINI_SYSTEM_PROMPT = stringPreferencesKey("gemini_system_prompt")
+        val PIPED_INSTANCE_URL = stringPreferencesKey("piped_instance_url")
         val ALLOWED_DIRECTORIES = stringSetPreferencesKey("allowed_directories")
         val BLOCKED_DIRECTORIES = stringSetPreferencesKey("blocked_directories")
         val INITIAL_SETUP_DONE = booleanPreferencesKey("initial_setup_done")
@@ -991,6 +992,17 @@ constructor(
                 "You are a helpful AI assistant integrated into a music player app. You help users create perfect playlists based on their request."
 
         /** Default delimiters for splitting multi-artist tags */
+        val PIPED_INSTANCES = listOf(
+            "https://pipedapi-libre.kavin.rocks",
+            "https://pipedapi.leptons.xyz",
+            "https://pipedapi.drgns.space",
+            "https://pipedapi.owo.si",
+            "https://pipedapi.ducks.party",
+            "https://pipedapi.reallyaweso.me",
+            "https://pipedapi.orangenet.cc",
+            "https://pipedapi.kavin.rocks" // Original as last resort
+        )
+
         val DEFAULT_ARTIST_DELIMITERS = listOf("/", ";", ",", "+", "&")
     }
 
@@ -998,6 +1010,37 @@ constructor(
             dataStore.data.map { preferences ->
                 preferences[PreferencesKeys.GEMINI_SYSTEM_PROMPT] ?: DEFAULT_SYSTEM_PROMPT
             }
+
+    val pipedInstanceUrl: Flow<String> =
+            dataStore.data.map { preferences ->
+                preferences[PreferencesKeys.PIPED_INSTANCE_URL] ?: "https://pipedapi-libre.kavin.rocks"
+            }
+
+    suspend fun setPipedInstanceUrl(url: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.PIPED_INSTANCE_URL] = url.trim()
+        }
+    }
+
+    suspend fun testPipedInstance(url: String): Boolean {
+        return try {
+            val testUrl = url.trim().let {
+                if (!it.endsWith("/")) "$it/" else it
+            } + "search?q=test"
+            
+            // Simple HTTP request to test if instance is reachable
+            val connection = java.net.URL(testUrl).openConnection() as java.net.HttpURLConnection
+            connection.requestMethod = "HEAD"
+            connection.connectTimeout = 5000
+            connection.readTimeout = 5000
+            val responseCode = connection.responseCode
+            connection.disconnect()
+            
+            responseCode in 200..299
+        } catch (e: Exception) {
+            false
+        }
+    }
 
     suspend fun setGeminiSystemPrompt(prompt: String) {
         dataStore.edit { preferences -> preferences[PreferencesKeys.GEMINI_SYSTEM_PROMPT] = prompt }

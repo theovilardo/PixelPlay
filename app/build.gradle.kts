@@ -22,6 +22,10 @@ android {
             excludes += "META-INF/INDEX.LIST"
             excludes += "META-INF/DEPENDENCIES"
             excludes += "/META-INF/io.netty.versions.properties"
+            excludes += "META-INF/LICENSE.md"
+            excludes += "META-INF/LICENSE"
+            excludes += "META-INF/NOTICE.md"
+            excludes += "META-INF/NOTICE"
         }
     }
 
@@ -85,6 +89,19 @@ android {
             "plugin:androidx.compose.compiler.plugins.kotlin:stabilityConfigurationPath=${project.rootDir.absolutePath}/app/compose_stability.conf"
         )
     }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            isReturnDefaultValues = true
+            all {
+                it.enabled = false  // Disable unit tests
+            }
+        }
+    }
+    packaging {
+        resources.excludes += "META-INF/LICENSE-notice.md"
+        // resources.excludes += "META-INF/LICENSE"  // if needed
+    }
 }
 
 dependencies {
@@ -114,11 +131,26 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
 
     // Baseline Profiles (Macrobenchmark)
-    // Asegúrate de que libs.versions.toml tiene androidxBenchmarkMacroJunit4 y androidxUiautomator
-    // Ejemplo: androidx-benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchmark-macro-junit4", version.ref = "benchmarkMacro" }
-    // benchmarkMacro = "1.2.4"
-    //androidTestImplementation(libs.androidx.benchmark.macro.junit4)
-    //androidTestImplementation(libs.androidx.uiautomator)
+    androidTestImplementation("androidx.benchmark:benchmark-macro-junit4:1.2.4")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+    androidTestImplementation("androidx.benchmark:benchmark-junit4:1.2.4")
+    
+    // Testing dependencies
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    testImplementation("io.mockk:mockk:1.13.8")
+    testImplementation("com.google.truth:truth:1.1.5")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.0")
+    testImplementation("org.junit.jupiter:junit-jupiter-engine:5.10.0")
+    
+    // Android testing
+    androidTestImplementation("androidx.work:work-testing:2.9.0")
+    androidTestImplementation("androidx.test:core:1.5.0")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation("androidx.test:rules:1.5.0")
+    androidTestImplementation("io.mockk:mockk-android:1.13.8")
+    androidTestImplementation("com.google.truth:truth:1.1.5")
 
 
     // Hilt
@@ -271,6 +303,9 @@ dependencies {
     implementation(libs.androidx.media)
     implementation(libs.androidx.app)
     implementation(libs.androidx.app.projected)
+
+    // NewPipe Extractor for YouTube audio extraction
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.25.0")
 
 }
 

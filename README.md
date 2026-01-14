@@ -1,11 +1,11 @@
-# PixelPlayer 🎵
+# PixelPlayer+ 🎵
 
 <p align="center">
   <img src="assets/icon.png" alt="App Icon" width="128"/>
 </p>
 
 <p align="center">
-  <strong>A beautiful, feature-rich music player for Android</strong><br>
+  <strong>Enhanced music player with online streaming capabilities</strong><br>
   Built with Jetpack Compose and Material Design 3
 </p>
 
@@ -17,11 +17,11 @@
 </p>
 
 <p align="center">
-    <a href="https://github.com/theovilardo/PixelPlayer/releases/latest">
-        <img src="https://img.shields.io/github/v/release/theovilardo/PixelPlayer?include_prereleases&logo=github&style=for-the-badge&label=Latest%20Release" alt="Latest Release">
+    <a href="https://github.com/YOUR_USERNAME/PixelPlayer/releases/latest">
+        <img src="https://img.shields.io/github/v/release/YOUR_USERNAME/PixelPlayer?include_prereleases&logo=github&style=for-the-badge&label=Latest%20Release" alt="Latest Release">
     </a>
-    <a href="https://github.com/theovilardo/PixelPlayer/releases">
-        <img src="https://img.shields.io/github/downloads/theovilardo/PixelPlayer/total?logo=github&style=for-the-badge" alt="Total Downloads">
+    <a href="https://github.com/YOUR_USERNAME/PixelPlayer/releases">
+        <img src="https://img.shields.io/github/downloads/YOUR_USERNAME/PixelPlayer/total?logo=github&style=for-the-badge" alt="Total Downloads">
     </a>
     <img src="https://img.shields.io/badge/Android-10%2B-green?style=for-the-badge&logo=android" alt="Android 10+">
     <img src="https://img.shields.io/badge/Kotlin-100%25-purple?style=for-the-badge&logo=kotlin" alt="Kotlin">
@@ -29,8 +29,28 @@
 
 ---
 
+## 🌟 What's New in This Enhanced Version
+
+This is an enhanced fork of the original PixelPlayer with powerful online music streaming capabilities:
+
+### 🌐 **Online Music Integration**
+- **YouTube Search & Stream** - Search and play millions of songs via NewPipe extractor
+- **Piped API Support** - Privacy-friendly YouTube frontend integration
+- **Enhanced Deezer Integration** - Improved artist images and metadata
+- **Online Discovery** - Find new music without leaving the app
+
+### ⚡ **Performance Optimizations**
+- **Faster Startup** - Optimized initialization with staggered loading
+- **Reduced Memory Usage** - Efficient image caching and processing
+- **Smooth UI** - Eliminated frame drops during startup
+- **Background Processing** - Non-blocking operations for better UX
+
+---
+
 ## ‼️ DISCLAIMER
-- No fork of this project will recieve support, if you use a fork, ask the forker to support you.
+- This is an enhanced fork of the original PixelPlayer by theovilardo
+- Support for this version is provided by the fork maintainer
+- Online features require internet connection and may have usage limitations
 
 ---
 
@@ -43,13 +63,15 @@
 - **Dark/Light Theme** - Automatic or manual theme switching
 - **Album Art Colors** - Dynamic color extraction from album artwork
 
-### 🎵 Powerful Playback
+### 🎵 Powerful Playback (Local + Online)
 - **Media3 ExoPlayer** - Industry-leading audio engine with FFmpeg support
 - **Background Playback** - Full media session integration
 - **Queue Management** - Drag-and-drop reordering
 - **Shuffle & Repeat** - All playback modes supported
 - **Gapless Playback** - Seamless transitions between tracks
 - **Custom Transitions** - Configure crossfades between songs
+- **Online Streaming** - Play YouTube videos as audio
+- **Mixed Playlists** - Combine local and online tracks
 
 ### 📚 Library Management
 - **Multi-format Support** - MP3, FLAC, AAC, OGG, WAV, and more
@@ -60,8 +82,9 @@
 
 ### 🔍 Discovery & Organization
 - **Full-text Search** - Search across your entire library
+- **YouTube Integration** - Search millions of songs online
 - **Daily Mix** - AI-powered personalized playlist based on listening habits
-- **Playlists** - Create and manage custom playlists
+- **Playlists** - Create and manage custom playlists with online content
 - **Statistics** - Track your listening history and habits
 
 ### 🎤 Lyrics
@@ -70,9 +93,15 @@
 - **Scrolling Display** - Follow along as you listen
 
 ### 🖼️ Artist Artwork
-- **Deezer Integration** - Automatic artist images from Deezer API
+- **Enhanced Deezer Integration** - Improved artist images from Deezer API
 - **Smart Caching** - Memory (LRU) + database caching for offline access
 - **Fallback Icons** - Beautiful placeholders when images unavailable
+
+### 🌐 Online Services
+- **YouTube Search** - Find and stream any song on YouTube
+- **Piped Integration** - Privacy-friendly YouTube streaming
+- **NewPipe Extractor** - Reliable audio stream extraction
+- **Online Metadata** - Automatic metadata fetching for online content
 
 ### 📲 Connectivity
 - **Chromecast** - Stream to your TV or smart speakers
@@ -83,6 +112,7 @@
 - **Tag Editor** - Edit metadata with TagLib (MP3, FLAC, M4A support)
 - **AI Playlists** - Generate playlists with Gemini AI
 - **Audio Waveforms** - Visual representation with Amplituda (Soon)
+- **Performance Optimizations** - Faster startup and smoother operation
 
 ---
 
@@ -98,6 +128,7 @@
 | **DI** | [Hilt](https://dagger.dev/hilt/) |
 | **Database** | [Room](https://developer.android.com/training/data-storage/room) |
 | **Networking** | [Retrofit](https://square.github.io/retrofit/) + OkHttp |
+| **Online Services** | [NewPipe](https://github.com/TeamNewPipe/NewPipe), [Piped](https://piped.video/) |
 | **Image Loading** | [Coil](https://coil-kt.github.io/coil/) |
 | **Async** | Kotlin Coroutines & Flow |
 | **Background Tasks** | WorkManager |
@@ -110,6 +141,8 @@
 
 - **Android 11** (API 30) or higher
 - **4GB RAM** recommended for smooth performance
+- **Internet Connection** for online features
+- **Storage Space** for caching online content
 
 ---
 
@@ -119,25 +152,29 @@
 
 - Android Studio Ladybug | 2024.2.1 or newer
 - Android SDK 29+
-- JDK 11+
+- JDK 17 (recommended)
 
 ### Installation
 
-1. **Clone the repository**
+1. **Clone repository**
    ```sh
-   git clone https://github.com/theovilardo/PixelPlayer.git
+   git clone https://github.com/Aaryan1101/PixelPlayer.git
    ```
 
 2. **Open in Android Studio**
    - Open Android Studio
    - Select "Open an Existing Project"
-   - Navigate to the cloned directory
+   - Navigate to cloned directory
 
 3. **Sync and Build**
    - Wait for Gradle to sync dependencies
-   - Build the project (Build → Make Project)
+   - Build project (Build → Make Project)
 
-4. **Run**
+4. **Configure API Keys** (if needed)
+   - Add any required API keys to `local.properties`
+   - Update API endpoints in network modules
+
+5. **Run**
    - Connect a device or start an emulator
    - Click Run (▶️)
 
@@ -146,14 +183,8 @@
 ## ⬇️ Download
 
 <p align="center">
-  <a href="https://github.com/theovilardo/PixelPlayer/releases/latest">
+  <a href="https://github.com/Aaryan1101/PixelPlayer/releases/latest">
     <img src="https://raw.githubusercontent.com/Kunzisoft/Github-badge/main/get-it-on-github.png" alt="Get it on GitHub" height="60">
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.theveloper.pixelplay%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Ftheovilardo%2FPixelPlayer%22%2C%22author%22%3A%22theovilardo%22%2C%22name%22%3A%22PixelPlayer%22%2C%22supportFixedAPKURL%22%3Afalse%7D">
-    <img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="50">
   </a>
 </p>
 
@@ -166,7 +197,11 @@ app/src/main/java/com/theveloper/pixelplay/
 ├── data/
 │   ├── database/       # Room entities, DAOs, migrations
 │   ├── model/          # Domain models (Song, Album, Artist, etc.)
-│   ├── network/        # API services (LRCLIB, Deezer)
+│   ├── network/        # API services (LRCLIB, Deezer, YouTube, Piped)
+│   │   ├── deezer/    # Deezer API integration
+│   │   ├── youtube/   # YouTube/NewPipe extraction
+│   │   ├── piped/     # Piped API integration
+│   │   └── lyrics/    # LRCLIB lyrics service
 │   ├── preferences/    # DataStore preferences
 │   ├── repository/     # Data repositories
 │   ├── service/        # MusicService, HTTP server
@@ -183,26 +218,46 @@ app/src/main/java/com/theveloper/pixelplay/
 └── utils/              # Extensions and utilities
 ```
 
----
+## 🌐 Online Features
 
-## 🤝 Contributing
+### YouTube Integration
+- Search millions of songs
+- Stream high-quality audio
+- Extract metadata automatically
+- Cache for offline playback
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+### Piped API
+- Privacy-friendly YouTube access
+- No tracking or ads
+- Multiple quality options
+- Reliable streaming
 
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+### Enhanced Metadata
+- Automatic artist images
+- Album artwork fetching
+- Rich song information
+- Cross-service metadata
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under MIT License - see [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- **Original PixelPlayer** by [theovilardo](https://github.com/theovilardo)
+- **NewPipe** for YouTube extraction
+- **Piped** for privacy-friendly streaming
+- **Deezer** for artist images and metadata
+- All contributors and testers
 
 ---
 
 <p align="center">
-  Made with ❤️ by <a href="https://github.com/theovilardo">theovilardo</a>
+  Enhanced with ❤️ by <a href="https://github.com/Aaryan1101">Aaryan</a>
+  <br>
+  <small>Forked from <a href="https://github.com/theovilardo/PixelPlayer">PixelPlayer by theovilardo</a></small>
 </p>
