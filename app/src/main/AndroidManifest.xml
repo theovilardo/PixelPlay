@@ -24,6 +24,7 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <!-- For disabling battery optimization -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <application
         android:name=".PixelPlayApplication"
@@ -109,6 +110,8 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/pixelplay_glance_widget_info" />
         </receiver>
+
+        <receiver android:name=".data.service.SleepTimerReceiver" android:exported="false" />
 
         <!-- *** AÑADE ESTE BLOQUE PARA DESHABILITAR EL INICIALIZADOR POR DEFECTO *** -->
         <provider

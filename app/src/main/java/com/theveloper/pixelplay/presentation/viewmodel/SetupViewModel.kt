@@ -28,14 +28,16 @@ data class SetupUiState(
     val blockedDirectories: Set<String> = emptySet(),
     val libraryNavigationMode: String = "tab_row",
     val navBarStyle: String = "default",
-    val navBarCornerRadius: Int = 28
+    val navBarCornerRadius: Int = 28,
+    val alarmsPermissionGranted: Boolean = false
 ) {
     val allPermissionsGranted: Boolean
         get() {
             val mediaOk = mediaPermissionGranted
             val notificationsOk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) notificationsPermissionGranted else true
             val allFilesOk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) allFilesAccessGranted else true
-            return mediaOk && notificationsOk && allFilesOk
+            val alarmsOk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) alarmsPermissionGranted else true
+            return mediaOk && notificationsOk && allFilesOk && alarmsOk
         }
 }
 
@@ -109,11 +111,19 @@ class SetupViewModel @Inject constructor(
             true // Not required before Android 11 (R)
         }
 
+        val alarmsPermissionGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+            alarmManager.canScheduleExactAlarms()
+        } else {
+            true
+        }
+
         _uiState.update {
             it.copy(
                 mediaPermissionGranted = mediaPermissionGranted,
                 notificationsPermissionGranted = notificationsPermissionGranted,
-                allFilesAccessGranted = allFilesAccessGranted
+                allFilesAccessGranted = allFilesAccessGranted,
+                alarmsPermissionGranted = alarmsPermissionGranted
             )
         }
     }

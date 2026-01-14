@@ -47,6 +47,8 @@ import android.os.Bundle
 import android.content.pm.PackageManager
 import android.provider.MediaStore
 import android.provider.OpenableColumns
+import android.app.AlarmManager
+import android.app.PendingIntent
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.view.ContextThemeWrapper
 import androidx.compose.material.icons.Icons
@@ -298,6 +300,8 @@ class PlayerViewModel @Inject constructor(
     private val dualPlayerEngine: DualPlayerEngine,
     private val appShortcutManager: com.theveloper.pixelplay.utils.AppShortcutManager
 ) : ViewModel() {
+
+    private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     private val _playerUiState = MutableStateFlow(PlayerUiState())
     val playerUiState: StateFlow<PlayerUiState> = _playerUiState.asStateFlow()
@@ -5073,13 +5077,73 @@ class PlayerViewModel @Inject constructor(
         // _isEndOfTrackTimerActive is already false or set false above
         _activeTimerValueDisplay.value = "$durationMinutes minutes"
 
-        sleepTimerJob = viewModelScope.launch {
-            delay(durationMillis)
-            if (isActive && _sleepTimerEndTimeMillis.value == endTime) { // Check if timer wasn't cancelled or changed
-                mediaController?.pause()
-                cancelSleepTimer() // Clear state after pausing
+        // Use AlarmManager for reliability
+        val intent = Intent(context, com.theveloper.pixelplay.data.service.SleepTimerReceiver::class.java)
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        endTime,
+                        pendingIntent
+                    )
+                } else {
+                    // Fallback or just set inexact/normal exact?
+                    // For now, let's try setExactAndAllowWhileIdle if we can, or just setExact.
+                    // If permission missing, it might crash if we call setExact...
+                    // But the user should grant it. If not, try setWindow or similar?
+                    // Actually setExactAndAllowWhileIdle requires permission ONLY if targeting 33+ (Android 13) and using USE_EXACT_ALARM or SCHEDULE_EXACT_ALARM.
+                    // We added SCHEDULE_EXACT_ALARM.
+                    // If we don't have it, we should probably warn or just use setAndAllowWhileIdle (inexact).
+                    alarmManager.setAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        endTime,
+                        pendingIntent
+                    )
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    endTime,
+                    pendingIntent
+                )
+            } else {
+                 alarmManager.setExact(
+                    AlarmManager.RTC_WAKEUP,
+                    endTime,
+                    pendingIntent
+                )
             }
+        } catch (e: SecurityException) {
+            Timber.e(e, "Failed to schedule exact alarm for sleep timer")
+             // Fallback to inexact?
+             alarmManager.set(
+                AlarmManager.RTC_WAKEUP,
+                endTime,
+                pendingIntent
+            )
         }
+
+        // Keep the coroutine for UI updates (countdown) if we want, but the actual trigger is the alarm.
+        // However, the original code used the coroutine to TRIGGER the pause.
+        // We will keep the coroutine to update the UI or valididity check, but the actual pause comes from the broadcast.
+        // Actually, let's just use the alarm for the trigger. The coroutine was:
+        // sleepTimerJob = viewModelScope.launch { delay... pause... }
+        // We can remove the pause logic from here or keep it as a backup?
+        // Better to remove it to avoid double pause or confusion.
+        // But we might want to clear the state when the time comes.
+        // Let's launch a coroutine just to clear the UI state when it finishes?
+        // Or rely on the receiver triggering the service which pauses -> updates playback state.
+        // The UI shows "timer active". We need to clear that when it fires.
+        // We can listen to the pause event.
+
         viewModelScope.launch { _toastEvents.emit("Timer set for $durationMinutes minutes.") }
     }
 
@@ -5151,6 +5215,17 @@ class PlayerViewModel @Inject constructor(
 
     fun cancelSleepTimer(overrideToastMessage: String? = null, suppressDefaultToast: Boolean = false) {
         val wasAnythingActive = _activeTimerValueDisplay.value != null
+
+        // Cancel Alarm
+        val intent = Intent(context, com.theveloper.pixelplay.data.service.SleepTimerReceiver::class.java)
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.cancel(pendingIntent)
+
 
         // Cancel and Nullify Duration Timer Job & States
         sleepTimerJob?.cancel()

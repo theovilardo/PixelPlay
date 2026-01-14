@@ -175,6 +175,10 @@ fun SetupScreen(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             list.add(SetupPage.NotificationsPermission)
         }
+        // Add exact alarms permission for Android 12+ (S)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            list.add(SetupPage.AlarmsPermission)
+        }
         // Add Library Layout page
         list.add(SetupPage.LibraryLayout)
         // Add NavBar Layout page
@@ -267,6 +271,7 @@ fun SetupScreen(
                         onStorageSelected = setupViewModel::selectStorage
                     )
                     SetupPage.NotificationsPermission -> NotificationsPermissionPage(uiState)
+                    SetupPage.AlarmsPermission -> AlarmsPermissionPage(uiState)
                     SetupPage.AllFilesPermission -> AllFilesPermissionPage(uiState)
                     SetupPage.BatteryOptimization -> BatteryOptimizationPage(
                         onSkip = {
@@ -398,6 +403,7 @@ sealed class SetupPage {
     object MediaPermission : SetupPage()
     object DirectorySelection : SetupPage()
     object NotificationsPermission : SetupPage()
+    object AlarmsPermission : SetupPage()
     object AllFilesPermission : SetupPage()
     object LibraryLayout : SetupPage()
     object NavBarLayout : SetupPage()
@@ -584,6 +590,39 @@ fun NotificationsPermissionPage(uiState: SetupUiState) {
         onGrantClicked = {
             if (!isGranted) {
                 permissionState.launchMultiplePermissionRequest()
+            }
+        }
+    )
+}
+
+@Composable
+fun AlarmsPermissionPage(uiState: SetupUiState) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+
+    val context = LocalContext.current
+    val icons = persistentListOf(
+        R.drawable.rounded_alarm_24,
+        R.drawable.rounded_schedule_24,
+        R.drawable.rounded_timer_24,
+        R.drawable.rounded_hourglass_empty_24,
+        R.drawable.rounded_notifications_active_24
+    )
+
+    val isGranted = uiState.alarmsPermissionGranted
+
+    PermissionPageLayout(
+        title = "Alarms & Reminders",
+        granted = isGranted,
+        description = "To ensure the Sleep Timer works reliably and pauses music exactly when you want, PixelPlayer needs permission to schedule exact alarms.",
+        buttonText = if (isGranted) "Permission Granted" else "Grant Permission",
+        buttonEnabled = !isGranted,
+        icons = icons,
+        onGrantClicked = {
+            if (!isGranted) {
+                val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                val uri = "package:${context.packageName}".toUri()
+                intent.data = uri
+                context.startActivity(intent)
             }
         }
     )

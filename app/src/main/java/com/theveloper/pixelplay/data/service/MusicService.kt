@@ -92,6 +92,7 @@ class MusicService : MediaSessionService() {
     companion object {
         private const val TAG = "MusicService_PixelPlay"
         const val NOTIFICATION_ID = 101
+        const val ACTION_SLEEP_TIMER_EXPIRED = "com.theveloper.pixelplay.ACTION_SLEEP_TIMER_EXPIRED"
     }
 
     override fun onCreate() {
@@ -266,6 +267,10 @@ class MusicService : MediaSessionService() {
                             }
                         }
                     }
+                }
+                ACTION_SLEEP_TIMER_EXPIRED -> {
+                    Timber.tag(TAG).d("Sleep timer expired action received. Pausing player.")
+                    player.pause()
                 }
             }
         }
