@@ -24,6 +24,8 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -61,11 +63,15 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.RoundedCorner
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
+
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -137,6 +143,8 @@ fun SetupScreen(
     val directoryChildren by setupViewModel.currentDirectoryChildren.collectAsState()
     val availableStorages by setupViewModel.availableStorages.collectAsState()
     val selectedStorageIndex by setupViewModel.selectedStorageIndex.collectAsState()
+    
+    var showCornerRadiusOverlay by remember { mutableStateOf(false) }
 
     // Re-check permissions when the screen is resumed
     DisposableEffect(lifecycleOwner) {
@@ -169,6 +177,8 @@ fun SetupScreen(
         }
         // Add Library Layout page
         list.add(SetupPage.LibraryLayout)
+        // Add NavBar Layout page
+        list.add(SetupPage.NavBarLayout)
         // Add battery optimization page (optional step)
         list.add(SetupPage.BatteryOptimization)
         list.add(SetupPage.Finish)
@@ -275,9 +285,36 @@ fun SetupScreen(
                             }
                         }
                     )
+                    SetupPage.NavBarLayout -> NavBarLayoutPage(
+                        uiState = uiState,
+                        onModeSelected = setupViewModel::setNavBarStyle,
+                        onCustomizeRadius = { showCornerRadiusOverlay = true },
+                        onSkip = {
+                            scope.launch {
+                                pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                            }
+                        }
+                    )
                 }
             }
         }
+    }
+
+    // Overlay for Corner Radius Customization
+    AnimatedVisibility(
+        visible = showCornerRadiusOverlay,
+        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+    ) {
+        BackHandler {
+            showCornerRadiusOverlay = false
+        }
+        NavBarCornerRadiusContent(
+            initialRadius = uiState.navBarCornerRadius.toFloat(),
+            onRadiusChange = { setupViewModel.setNavBarCornerRadius(it) },
+            onDone = { showCornerRadiusOverlay = false },
+            onBack = { showCornerRadiusOverlay = false }
+        )
     }
 }
 
@@ -363,6 +400,7 @@ sealed class SetupPage {
     object NotificationsPermission : SetupPage()
     object AllFilesPermission : SetupPage()
     object LibraryLayout : SetupPage()
+    object NavBarLayout : SetupPage()
     object BatteryOptimization : SetupPage()
     object Finish : SetupPage()
 }
@@ -680,17 +718,6 @@ fun LibraryLayoutPage(
             )
 
             Spacer(modifier = Modifier.height(24.dp))
-            
-//            Button(
-//                onClick = onSkip,
-//                contentPadding = PaddingValues(horizontal = 48.dp, vertical = 16.dp)
-//            ) {
-//                Text(
-//                    text = "Continue",
-//                    style = MaterialTheme.typography.titleMedium
-//                )
-//            }
-//            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
@@ -1231,7 +1258,6 @@ fun SetupBottomBar(
 
     Surface(
         modifier = modifier
-            //.padding(horizontal = 24.dp, vertical = 16.dp)
             .shadow(elevation = 8.dp, shape = shape, clip = true),
         color = MaterialTheme.colorScheme.surfaceContainer,
         shape = AbsoluteSmoothCornerShape(
@@ -1239,9 +1265,9 @@ fun SetupBottomBar(
             smoothnessAsPercentTL = 60,
             cornerRadiusTL = 36.dp,
             smoothnessAsPercentBR = 60,
-            cornerRadiusBR = 36.dp,
+            cornerRadiusBR = 0.dp,
             smoothnessAsPercentBL = 60,
-            cornerRadiusBL = 36.dp,
+            cornerRadiusBL = 0.dp,
             smoothnessAsPercentTR = 60
         )
     ) {
@@ -1339,6 +1365,244 @@ fun SetupBottomBar(
                                 Icon(Icons.Rounded.Check, contentDescription = "Finalizar")
                             } else {
                                 Icon(Icons.Rounded.Close, contentDescription = "Finalizar")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalAnimationApi::class)
+@Composable
+fun NavBarLayoutPage(
+    uiState: SetupUiState,
+    onModeSelected: (String) -> Unit,
+    onCustomizeRadius: () -> Unit,
+    onSkip: () -> Unit
+) {
+    val isDefault = uiState.navBarStyle != "full_width" // Default or null is default
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "App Navigation",
+                style = MaterialTheme.typography.displayMedium.copy(
+                    fontFamily = GoogleSansRounded,
+                    fontSize = 32.sp
+                ),
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "Choose the style of the bottom navigation bar.",
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        // Preview Section
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            contentAlignment = Alignment.Center
+        ) {
+            NavBarPreview(isDefault = isDefault)
+        }
+        
+        // Controls Section
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                ),
+                shape = RoundedCornerShape(24.dp),
+                onClick = { onModeSelected(if (isDefault) "full_width" else "default") }
+            ) {
+                Column(
+                    modifier = Modifier
+                       .padding(horizontal = 20.dp, vertical = 16.dp)
+                       .fillMaxWidth()
+                ) {
+                    Row(
+                       modifier = Modifier.fillMaxWidth(),
+                       verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Default Style",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = if (isDefault) "Floating pill with rounded corners" else "Standard full-width bar",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = isDefault,
+                            onCheckedChange = { checked ->
+                                onModeSelected(if (checked) "default" else "full_width")
+                            }
+                        )
+                    }
+                    
+                    AnimatedVisibility(
+                        visible = isDefault,
+                        enter =   androidx.compose.animation.expandVertically() + fadeIn(),
+                        exit = androidx.compose.animation.shrinkVertically() + fadeOut()
+                    ) {
+                         Column {
+                             Spacer(modifier = Modifier.height(16.dp))
+                             FilledTonalButton(
+                                 onClick = onCustomizeRadius,
+                                 modifier = Modifier.fillMaxWidth(),
+                                 colors = ButtonDefaults.filledTonalButtonColors(
+                                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                 )
+                             ) {
+                                 Icon(Icons.Rounded.RoundedCorner, contentDescription = null, modifier = Modifier.size(18.dp))
+                                 Spacer(modifier = Modifier.width(8.dp))
+                                 Text("Customize Corner Radius")
+                             }
+                         }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Text(
+                text = "You can change this later in Settings > Appearance > Navbar Style.",
+                style = MaterialTheme.typography.labelMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+fun NavBarPreview(isDefault: Boolean) {
+    val gradientColors = listOf(
+        MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.5f), // Lighter top
+        MaterialTheme.colorScheme.surfaceContainer, // Darker bottom
+    )
+    
+    // Simulate the bottom of a screen
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceBright
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp) // Taller to show bottom part clearly
+            .padding(horizontal = 8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+        ) {
+            // Content placeholder
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                 // Fake content lines
+                 repeat(3) {
+                     Box(
+                         modifier = Modifier
+                             .fillMaxWidth(if(it==1) 0.7f else 1f)
+                             .height(12.dp)
+                             .clip(RoundedCornerShape(6.dp))
+                             .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                     )
+                 }
+            }
+            
+            // Navbar
+            Box(
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                AnimatedContent(
+                    targetState = isDefault,
+                    transitionSpec = {
+                        (fadeIn(animationSpec = tween(400)) + slideInVertically { it })
+                            .togetherWith(fadeOut(animationSpec = tween(200)) + slideOutVertically { it })
+                    },
+                    label = "NavbarPreviewAnim"
+                ) { default ->
+                    if (default) {
+                        // Default Pill Style
+                         Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                                .height(80.dp),
+                            shape = AbsoluteSmoothCornerShape(
+                                cornerRadiusTL = 28.dp,
+                                cornerRadiusTR = 28.dp,
+                                cornerRadiusBL = 28.dp,
+                                cornerRadiusBR = 28.dp,
+                                smoothnessAsPercentTL = 60,
+                                smoothnessAsPercentTR = 60,
+                                smoothnessAsPercentBL = 60,
+                                smoothnessAsPercentBR = 60
+                            ),
+                            color = MaterialTheme.colorScheme.surfaceContainer,
+                            tonalElevation = 6.dp
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(painterResource(R.drawable.rounded_home_24), null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Icon(painterResource(R.drawable.rounded_search_24), null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Icon(painterResource(R.drawable.rounded_library_music_24), null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    } else {
+                        // Full Width Style
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(80.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainer,
+                            tonalElevation = 6.dp
+                        ) {
+                             Row(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(painterResource(R.drawable.rounded_home_24), null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Icon(painterResource(R.drawable.rounded_search_24), null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Icon(painterResource(R.drawable.rounded_library_music_24), null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }

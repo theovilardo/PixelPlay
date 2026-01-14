@@ -26,7 +26,9 @@ data class SetupUiState(
     val allFilesAccessGranted: Boolean = false,
     val isLoadingDirectories: Boolean = false,
     val blockedDirectories: Set<String> = emptySet(),
-    val libraryNavigationMode: String = "tab_row"
+    val libraryNavigationMode: String = "tab_row",
+    val navBarStyle: String = "default",
+    val navBarCornerRadius: Int = 28
 ) {
     val allPermissionsGranted: Boolean
         get() {
@@ -72,6 +74,18 @@ class SetupViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.libraryNavigationModeFlow.collect { mode ->
                 _uiState.update { it.copy(libraryNavigationMode = mode) }
+            }
+        }
+
+        viewModelScope.launch {
+            userPreferencesRepository.navBarStyleFlow.collect { style ->
+                _uiState.update { it.copy(navBarStyle = style) }
+            }
+        }
+
+        viewModelScope.launch {
+            userPreferencesRepository.navBarCornerRadiusFlow.collect { radius ->
+                _uiState.update { it.copy(navBarCornerRadius = radius) }
             }
         }
     }
@@ -151,6 +165,18 @@ class SetupViewModel @Inject constructor(
     fun setLibraryNavigationMode(mode: String) {
         viewModelScope.launch {
             userPreferencesRepository.setLibraryNavigationMode(mode)
+        }
+    }
+
+    fun setNavBarStyle(style: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setNavBarStyle(style)
+        }
+    }
+
+    fun setNavBarCornerRadius(radius: Int) {
+        viewModelScope.launch {
+            userPreferencesRepository.setNavBarCornerRadius(radius)
         }
     }
 
