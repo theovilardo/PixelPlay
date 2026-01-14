@@ -198,7 +198,7 @@ fun FileExplorerContent(
                         fontFamily = GoogleSansRounded,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontSize = 22.sp,
-                            textGeometricTransform = TextGeometricTransform(scaleX = 1.2f),
+//                            textGeometricTransform = TextGeometricTransform(scaleX = 1.2f),
                         ),
                         color = MaterialTheme.colorScheme.onSurface,
                     )
