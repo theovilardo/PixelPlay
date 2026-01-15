@@ -103,6 +103,7 @@ import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.Genre
 import com.theveloper.pixelplay.data.model.Lyrics
+import com.theveloper.pixelplay.data.model.LyricsSourcePreference
 import com.theveloper.pixelplay.data.model.MusicFolder
 import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
@@ -391,6 +392,14 @@ class PlayerViewModel @Inject constructor(
     // This is derived from the current song's ID
     private val _currentSongLyricsSyncOffset = MutableStateFlow(0)
     val currentSongLyricsSyncOffset: StateFlow<Int> = _currentSongLyricsSyncOffset.asStateFlow()
+
+    // Lyrics source preference (API_FIRST, EMBEDDED_FIRST, LOCAL_FIRST)
+    val lyricsSourcePreference: StateFlow<LyricsSourcePreference> = userPreferencesRepository.lyricsSourcePreferenceFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = LyricsSourcePreference.EMBEDDED_FIRST
+        )
 
     fun setLyricsSyncOffset(songId: String, offsetMs: Int) {
         viewModelScope.launch {
@@ -5439,7 +5448,10 @@ class PlayerViewModel @Inject constructor(
             }
 
             val fetchedLyrics = try {
-                musicRepository.getLyrics(currentSong)
+                musicRepository.getLyrics(
+                    song = currentSong,
+                    sourcePreference = lyricsSourcePreference.value
+                )
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (error: Exception) {

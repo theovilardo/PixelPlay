@@ -43,6 +43,7 @@ import com.theveloper.pixelplay.data.database.toArtist
 import com.theveloper.pixelplay.data.database.toSong
 import com.theveloper.pixelplay.data.database.toSongWithArtistRefs
 import com.theveloper.pixelplay.data.model.Lyrics
+import com.theveloper.pixelplay.data.model.LyricsSourcePreference
 import com.theveloper.pixelplay.data.model.SyncedLine
 import com.theveloper.pixelplay.utils.LogUtils
 import com.theveloper.pixelplay.data.model.MusicFolder
@@ -574,8 +575,12 @@ class MusicRepositoryImpl @Inject constructor(
         }.conflate().flowOn(Dispatchers.IO)
     }
 
-    override suspend fun getLyrics(song: Song): Lyrics? {
-        return lyricsRepository.getLyrics(song)
+    override suspend fun getLyrics(
+        song: Song,
+        sourcePreference: LyricsSourcePreference,
+        forceRefresh: Boolean
+    ): Lyrics? {
+        return lyricsRepository.getLyrics(song, sourcePreference, forceRefresh)
     }
 
     /**

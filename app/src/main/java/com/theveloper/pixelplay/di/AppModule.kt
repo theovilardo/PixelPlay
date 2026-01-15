@@ -190,9 +190,9 @@ object AppModule {
         val loggingInterceptor = HttpLoggingInterceptor()
         loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY)
         
-        // Connection pool with limited connections to avoid overwhelming servers
+        // Connection pool with optimized connections for better performance
         val connectionPool = okhttp3.ConnectionPool(
-            maxIdleConnections = 2,
+            maxIdleConnections = 5,
             keepAliveDuration = 30,
             timeUnit = java.util.concurrent.TimeUnit.SECONDS
         )
@@ -251,9 +251,9 @@ object AppModule {
         val loggingInterceptor = HttpLoggingInterceptor()
         loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.HEADERS)
         
-        // Connection pool to reuse connections
+        // Connection pool to reuse connections for better performance
         val connectionPool = okhttp3.ConnectionPool(
-            maxIdleConnections = 2,
+            maxIdleConnections = 5,
             keepAliveDuration = 30,
             timeUnit = java.util.concurrent.TimeUnit.SECONDS
         )
