@@ -9,7 +9,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import java.io.BufferedReader
 import java.io.InputStreamReader
-import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,6 +22,14 @@ class M3uManager @Inject constructor(
         val songIds = mutableListOf<String>()
         var playlistName = "Imported Playlist"
 
+        // Pre-load all songs once for efficient lookup (fixes performance issue with large M3U files)
+        val allSongs = musicRepository.getAudioFiles().first()
+        
+        // Build lookup maps for fast matching
+        val songsByPath = allSongs.associateBy { it.path }
+        val songsByFileName = allSongs.groupBy { it.path.substringAfterLast("/") }
+        val songsByContentUriFileName = allSongs.groupBy { it.contentUriString.substringAfterLast("/") }
+
         context.contentResolver.openInputStream(uri)?.use { inputStream ->
             BufferedReader(InputStreamReader(inputStream)).use { reader ->
                 var line: String?
@@ -35,14 +42,16 @@ class M3uManager @Inject constructor(
                     
                     // trimmedLine is likely a file path or URI
                     // We need to find a song in our database that matches this path
-                    val song = musicRepository.getSongByPath(trimmedLine)
-                    if (song != null) {
-                        songIds.add(song.id)
+                    
+                    // First try exact path match from pre-loaded map
+                    val songByPath = songsByPath[trimmedLine]
+                    if (songByPath != null) {
+                        songIds.add(songByPath.id)
                     } else {
                         // Try to match by filename if path doesn't match exactly
                         val fileName = trimmedLine.substringAfterLast("/")
-                        val songs = musicRepository.getAudioFiles().first()
-                        val matchedSong = songs.find { it.path.endsWith(fileName) || it.contentUriString.endsWith(fileName) }
+                        val matchedSong = songsByFileName[fileName]?.firstOrNull()
+                            ?: songsByContentUriFileName[fileName]?.firstOrNull()
                         if (matchedSong != null) {
                             songIds.add(matchedSong.id)
                         }
