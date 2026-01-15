@@ -17,6 +17,7 @@
     <string name="all_files_access_setting">All Files Access</string>
     <string name="lyrics_not_found">Lyrics not found</string>
     <string name="search_lyrics_online_prompt">Would you like to search for lyrics online?</string>
+    <string name="custom_search_hint">We couldn’t find lyrics automatically. You can edit the title or artist and try searching manually.</string>
     <string name="failed_to_search_for_lyrics">Failed to search for lyrics</string>
     <string name="failed_to_fetch_lyrics_from_remote">Failed to fetch lyrics from remote</string>
     <string name="lyrics_fetch_timeout">Connection timed out. Please check your internet connection.</string>

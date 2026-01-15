@@ -204,6 +204,44 @@ class LyricsRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun searchRemoteByQuery(title: String, artist: String?): Result<Pair<String, List<LyricsSearchResult>>> = withContext(Dispatchers.IO) {
+        try {
+            val query = listOfNotNull(
+                title.takeIf { it.isNotBlank() },
+                artist?.takeIf { it.isNotBlank() }
+            ).joinToString(" ")
+
+            LogUtils.d(this@LyricsRepositoryImpl, "Manual lyrics search: title=$title, artist=$artist")
+
+            // Search using the custom query provided by user
+            val responses = lrcLibApiService.searchLyrics(query = query)
+                ?.distinctBy { it.id }
+                ?: emptyList()
+
+            if (responses.isEmpty()) {
+                return@withContext Result.failure(NoLyricsFoundException(query))
+            }
+
+            val results = responses.mapNotNull { response ->
+                val rawLyrics = response.syncedLyrics ?: response.plainLyrics ?: return@mapNotNull null
+                val parsed = LyricsUtils.parseLyrics(rawLyrics).copy(areFromRemote = true)
+                if (!parsed.isValid()) return@mapNotNull null
+
+                LyricsSearchResult(response, parsed, rawLyrics)
+            }.sortedByDescending { !it.record.syncedLyrics.isNullOrEmpty() }
+
+            if (results.isEmpty()) {
+                Result.failure(NoLyricsFoundException(query))
+            } else {
+                Result.success(Pair(query, results))
+            }
+        } catch (e: Exception) {
+            LogUtils.e(this@LyricsRepositoryImpl, e, "Manual search failed")
+            Result.failure(LyricsException(context.getString(R.string.failed_to_search_for_lyrics), e)
+            )
+        }
+    }
+
     override suspend fun updateLyrics(songId: Long, lyricsContent: String): Unit = withContext(Dispatchers.IO) {
         LogUtils.d(this@LyricsRepositoryImpl, "Updating lyrics for songId: $songId")
         

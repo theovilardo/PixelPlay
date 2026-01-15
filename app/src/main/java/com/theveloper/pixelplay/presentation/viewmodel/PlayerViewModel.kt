@@ -267,6 +267,7 @@ sealed interface LyricsSearchUiState {
     object Loading : LyricsSearchUiState
     data class PickResult(val query: String, val results: List<LyricsSearchResult>) : LyricsSearchUiState
     data class Success(val lyrics: Lyrics) : LyricsSearchUiState
+    data class NotFound(val message: String, val allowManualSearch: Boolean = true) : LyricsSearchUiState
     data class Error(val message: String, val query: String? = null) : LyricsSearchUiState
 }
 
@@ -5635,10 +5636,15 @@ class PlayerViewModel @Inject constructor(
                             _lyricsSearchUiState.value = LyricsSearchUiState.PickResult(query, results)
                         }
                         .onFailure { error ->
-                            _lyricsSearchUiState.value = if (error is NoLyricsFoundException) {
-                                LyricsSearchUiState.Error(context.getString(R.string.lyrics_not_found), error.query)
+                            // Handle NoLyricsFoundException for manual search state
+                            if (error is NoLyricsFoundException) {
+                                _lyricsSearchUiState.value =
+                                    LyricsSearchUiState.NotFound(
+                                        message = context.getString(R.string.lyrics_not_found)
+                                    )
                             } else {
-                                LyricsSearchUiState.Error(error.message ?: "Unknown error")
+                                _lyricsSearchUiState.value =
+                                    LyricsSearchUiState.Error(error.message ?: "Unknown error")
                             }
                         }
                 } else {
@@ -5655,13 +5661,15 @@ class PlayerViewModel @Inject constructor(
                                         _lyricsSearchUiState.value = LyricsSearchUiState.PickResult(query, results)
                                     }
                                     .onFailure { searchError ->
-                                        _lyricsSearchUiState.value = if (searchError is NoLyricsFoundException) {
-                                            LyricsSearchUiState.Error(
-                                                context.getString(R.string.lyrics_not_found),
-                                                searchError.query
-                                            )
+                                        // Handle NoLyricsFoundException for manual search state
+                                        if (searchError is NoLyricsFoundException) {
+                                            _lyricsSearchUiState.value =
+                                                LyricsSearchUiState.NotFound(
+                                                    message = context.getString(R.string.lyrics_not_found)
+                                                )
                                         } else {
-                                            LyricsSearchUiState.Error(searchError.message ?: "Unknown error")
+                                            _lyricsSearchUiState.value =
+                                                LyricsSearchUiState.Error(error.message ?: "Unknown error")
                                         }
                                     }
                             } else {
@@ -5672,6 +5680,33 @@ class PlayerViewModel @Inject constructor(
             } else {
                 _lyricsSearchUiState.value = LyricsSearchUiState.Error("No song is currently playing.")
             }
+        }
+    }
+
+    /**
+     * Manual search lyrics using query provided by user (title and artist)
+     */
+    fun searchLyricsManually(title: String, artist: String? = null) {
+        if (title.isBlank()) return
+
+        viewModelScope.launch {
+            _lyricsSearchUiState.value = LyricsSearchUiState.Loading
+
+            musicRepository.searchRemoteLyricsByQuery(title, artist)
+                .onSuccess { (q, results) ->
+                    _lyricsSearchUiState.value =
+                        LyricsSearchUiState.PickResult(q, results)
+                }
+                .onFailure { error ->
+                    _lyricsSearchUiState.value =
+                        if (error is NoLyricsFoundException) {
+                            LyricsSearchUiState.NotFound(
+                                message = context.getString(R.string.lyrics_not_found)
+                            )
+                        } else {
+                            LyricsSearchUiState.Error(error.message ?: "Unknown error")
+                        }
+                }
         }
     }
 
