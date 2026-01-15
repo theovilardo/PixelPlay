@@ -247,6 +247,9 @@ fun FullPlayerContent(
             onPickResult = { result ->
                 playerViewModel.acceptLyricsSearchResultForCurrentSong(result)
             },
+            onManualSearch = { title, artist ->
+                playerViewModel.searchLyricsManually(title, artist)
+            },
             onDismiss = {
                 // El usuario cancela o cierra el diálogo
                 showFetchLyricsDialog = false
@@ -801,6 +804,7 @@ fun FullPlayerContent(
             },
             onSearchLyrics = { forcePick -> playerViewModel.fetchLyricsForCurrentSong(forcePick) },
             onPickResult = { playerViewModel.acceptLyricsSearchResultForCurrentSong(it) },
+            onManualSearch = { title, artist -> playerViewModel.searchLyricsManually(title, artist) },
             onImportLyrics = { filePickerLauncher.launch("*/*") },
             onDismissLyricsSearch = { playerViewModel.resetLyricsSearchState() },
             lyricsSyncOffset = lyricsSyncOffset,

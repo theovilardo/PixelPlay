@@ -801,7 +801,12 @@ fun UnifiedPlayerSheet(
             }
     }
 
-    val actuallyShowSheetContent = shouldShowSheet && (!internalIsKeyboardVisible || pendingSaveQueueOverlay != null || selectedSongForInfo != null)
+    val actuallyShowSheetContent = shouldShowSheet && (
+            !internalIsKeyboardVisible ||
+            currentSheetContentState == PlayerSheetState.EXPANDED ||
+            pendingSaveQueueOverlay != null ||
+            selectedSongForInfo != null
+    )
 
     // val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState() // Replaced by activePlayerColorSchemePair
     val activePlayerSchemePair by playerViewModel.activePlayerColorSchemePair.collectAsState()

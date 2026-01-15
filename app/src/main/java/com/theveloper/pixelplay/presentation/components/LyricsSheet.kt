@@ -87,6 +87,7 @@ fun LyricsSheet(
     resetLyricsForCurrentSong: () -> Unit,
     onSearchLyrics: (Boolean) -> Unit,
     onPickResult: (LyricsSearchResult) -> Unit,
+    onManualSearch: (String, String?) -> Unit,
     onImportLyrics: () -> Unit,
     onDismissLyricsSearch: () -> Unit,
     lyricsSyncOffset: Int,
@@ -142,6 +143,7 @@ fun LyricsSheet(
             currentSong = currentSong,
             onConfirm = onSearchLyrics,
             onPickResult = onPickResult,
+            onManualSearch = onManualSearch,
             onDismiss = {
                 showFetchLyricsDialog = false
                 onDismissLyricsSearch()

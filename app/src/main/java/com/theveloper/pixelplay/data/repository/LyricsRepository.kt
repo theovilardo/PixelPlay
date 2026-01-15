@@ -28,6 +28,11 @@ interface LyricsRepository {
      * Search for lyrics on remote API and return multiple results.
      */
     suspend fun searchRemote(song: Song): Result<Pair<String, List<LyricsSearchResult>>>
+  
+    /**
+     * Search for lyrics on remote API using query title and artist, and return multiple results.
+     */
+    suspend fun searchRemoteByQuery(title: String, artist: String? = null): Result<Pair<String, List<LyricsSearchResult>>>
     
     /**
      * Update lyrics for a song in the database.
