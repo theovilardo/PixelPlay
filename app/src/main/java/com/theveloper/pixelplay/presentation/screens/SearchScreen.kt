@@ -146,7 +146,7 @@ fun SearchScreen(
 
     val searchbarHorizontalPadding by animateDpAsState(
         targetValue = if (!active) 24.dp else 0.dp,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium), // Ajusta la animación si es necesario
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessHigh),
         label = "searchbarHorizontalPadding"
     )
 
@@ -177,7 +177,10 @@ fun SearchScreen(
     }
 
     DisposableEffect(Unit) {
-        onDispose { onSearchBarActiveChange(false) }
+        onDispose {
+            active = false  // Reset immediately to prevent animation conflicts during navigation
+            onSearchBarActiveChange(false)
+        }
     }
 
     Box(
