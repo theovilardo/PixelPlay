@@ -14,6 +14,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.media3.common.Player
 import com.theveloper.pixelplay.data.model.Playlist
 import com.theveloper.pixelplay.data.model.SortOption // Added import
+import com.theveloper.pixelplay.data.model.LyricsSourcePreference
 import com.theveloper.pixelplay.data.model.TransitionSettings
 import com.theveloper.pixelplay.data.equalizer.EqualizerPreset // Added import
 import java.util.UUID
@@ -142,6 +143,10 @@ constructor(
         
         // Lyrics Sync Offset per song (Map<songId, offsetMs> as JSON)
         val LYRICS_SYNC_OFFSETS = stringPreferencesKey("lyrics_sync_offsets_json")
+        
+        // Lyrics Source Preference
+        val LYRICS_SOURCE_PREFERENCE = stringPreferencesKey("lyrics_source_preference")
+        val AUTO_SCAN_LRC_FILES = booleanPreferencesKey("auto_scan_lrc_files")
     }
 
     val appRebrandDialogShownFlow: Flow<Boolean> =
@@ -395,6 +400,32 @@ constructor(
     }
 
     // ===== End Lyrics Sync Offset Settings =====
+
+    // ===== Lyrics Source Preference Settings =====
+    
+    val lyricsSourcePreferenceFlow: Flow<LyricsSourcePreference> =
+            dataStore.data.map { preferences ->
+                LyricsSourcePreference.fromName(preferences[PreferencesKeys.LYRICS_SOURCE_PREFERENCE])
+            }
+
+    suspend fun setLyricsSourcePreference(preference: LyricsSourcePreference) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.LYRICS_SOURCE_PREFERENCE] = preference.name
+        }
+    }
+
+    val autoScanLrcFilesFlow: Flow<Boolean> =
+            dataStore.data.map { preferences ->
+                preferences[PreferencesKeys.AUTO_SCAN_LRC_FILES] ?: false
+            }
+
+    suspend fun setAutoScanLrcFiles(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.AUTO_SCAN_LRC_FILES] = enabled
+        }
+    }
+
+    // ===== End Lyrics Source Preference Settings =====
 
     // ===== End Multi-Artist Settings =====
 

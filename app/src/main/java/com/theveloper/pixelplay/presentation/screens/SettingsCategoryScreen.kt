@@ -82,6 +82,7 @@ import com.theveloper.pixelplay.data.preferences.LaunchTab
 import com.theveloper.pixelplay.data.preferences.LibraryNavigationMode
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.preferences.ThemePreference
+import com.theveloper.pixelplay.data.model.LyricsSourcePreference
 import com.theveloper.pixelplay.data.worker.SyncProgress
 import com.theveloper.pixelplay.presentation.components.ExpressiveTopBarContent
 import com.theveloper.pixelplay.presentation.components.FileExplorerDialog
@@ -284,6 +285,31 @@ fun SettingsCategoryScreen(
                                 subtitle = "Remove all imported lyrics from the database.",
                                 leadingIcon = { Icon(Icons.Outlined.ClearAll, null, tint = MaterialTheme.colorScheme.secondary) },
                                 onClick = { showClearLyricsDialog = true }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            ThemeSelectorItem(
+                                label = "Lyrics Source Priority",
+                                description = "Choose which source to try first when fetching lyrics.",
+                                options = mapOf(
+                                    LyricsSourcePreference.EMBEDDED_FIRST.name to "Embedded First",
+                                    LyricsSourcePreference.API_FIRST.name to "Online First",
+                                    LyricsSourcePreference.LOCAL_FIRST.name to "Local (.lrc) First"
+                                ),
+                                selectedKey = uiState.lyricsSourcePreference.name,
+                                onSelectionChanged = { key ->
+                                    settingsViewModel.setLyricsSourcePreference(
+                                        LyricsSourcePreference.fromName(key)
+                                    )
+                                },
+                                leadingIcon = { Icon(painterResource(R.drawable.rounded_lyrics_24), null, tint = MaterialTheme.colorScheme.secondary) }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            SwitchSettingItem(
+                                title = "Auto-scan .lrc files",
+                                subtitle = "Automatically scan and assign .lrc files in the same folder during library sync.",
+                                checked = uiState.autoScanLrcFiles,
+                                onCheckedChange = { settingsViewModel.setAutoScanLrcFiles(it) },
+                                leadingIcon = { Icon(Icons.Outlined.Folder, null, tint = MaterialTheme.colorScheme.secondary) }
                             )
                             Spacer(Modifier.height(4.dp))
                             SettingsItem(

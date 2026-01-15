@@ -4,6 +4,7 @@ import android.net.Uri
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.Lyrics
+import com.theveloper.pixelplay.data.model.LyricsSourcePreference
 import com.theveloper.pixelplay.data.model.Playlist
 import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
@@ -137,7 +138,11 @@ interface MusicRepository {
      */
     fun getGenres(): Flow<List<com.theveloper.pixelplay.data.model.Genre>>
 
-    suspend fun getLyrics(song: Song): Lyrics?
+    suspend fun getLyrics(
+        song: Song,
+        sourcePreference: LyricsSourcePreference = LyricsSourcePreference.EMBEDDED_FIRST,
+        forceRefresh: Boolean = false
+    ): Lyrics?
 
     suspend fun getLyricsFromRemote(song: Song): Result<Pair<Lyrics, String>>
 

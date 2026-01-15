@@ -38,6 +38,9 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import java.util.concurrent.ConcurrentHashMap
+import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.data.repository.LyricsRepository
+import com.theveloper.pixelplay.data.worker.SyncProgress
 
 enum class SyncMode {
     INCREMENTAL,
@@ -50,7 +53,8 @@ class SyncWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters,
     private val musicDao: MusicDao,
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val lyricsRepository: LyricsRepository
 ) : CoroutineWorker(appContext, workerParams) {
 
     private val contentResolver: ContentResolver = appContext.contentResolver
@@ -216,6 +220,47 @@ class SyncWorker @AssistedInject constructor(
                 
                 // Count total songs for the output
                 val totalSongs = musicDao.getSongCount().first()
+                
+                // --- LRC SCANNING PHASE ---
+                val autoScanLrc = userPreferencesRepository.autoScanLrcFilesFlow.first()
+                if (autoScanLrc) {
+                    Log.i(TAG, "Auto-scan LRC files enabled. Starting scan phase...")
+                    
+                    
+                    val allSongsEntities = musicDao.getAllSongsList()
+                    val allSongs = allSongsEntities.map { entity ->
+                        Song(
+                            id = entity.id.toString(),
+                            title = entity.title,
+                            artist = entity.artistName,
+                            artistId = entity.artistId,
+                            album = entity.albumName,
+                            albumId = entity.albumId,
+                            path = entity.filePath,
+                            contentUriString = entity.contentUriString,
+                            albumArtUriString = entity.albumArtUriString,
+                            duration = entity.duration,
+                            lyrics = entity.lyrics,
+                            dateAdded = entity.dateAdded,
+                            trackNumber = entity.trackNumber,
+                            year = entity.year,
+                            mimeType = entity.mimeType,
+                            bitrate = entity.bitrate,
+                            sampleRate = entity.sampleRate
+                        )
+                    }
+                    
+                    val scannedCount = lyricsRepository.scanAndAssignLocalLrcFiles(allSongs) { current, total ->
+                         setProgress(workDataOf(
+                            PROGRESS_CURRENT to current,
+                            PROGRESS_TOTAL to total,
+                            PROGRESS_PHASE to SyncProgress.SyncPhase.SCANNING_LRC.ordinal
+                        ))
+                    }
+                    
+                    Log.i(TAG, "LRC Scan finished. Assigned lyrics to $scannedCount songs.")
+                }
+                
                 Result.success(workDataOf(OUTPUT_TOTAL_SONGS to totalSongs))
             } else {
                 Log.i(TAG, "No new or modified songs found.")

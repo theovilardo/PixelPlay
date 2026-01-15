@@ -35,6 +35,7 @@ data class SyncProgress(
         FETCHING_MEDIASTORE,
         PROCESSING_FILES,
         SAVING_TO_DATABASE,
+        SCANNING_LRC,
         COMPLETING
     }
 

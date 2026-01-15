@@ -11,6 +11,7 @@ import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.preferences.FullPlayerLoadingTweaks
 import com.theveloper.pixelplay.data.repository.LyricsRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
+import com.theveloper.pixelplay.data.model.LyricsSourcePreference
 import com.theveloper.pixelplay.data.worker.SyncManager
 import com.theveloper.pixelplay.data.worker.SyncProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -42,6 +43,8 @@ data class SettingsUiState(
     val showQueueHistory: Boolean = true,
     val isCrossfadeEnabled: Boolean = true,
     val crossfadeDuration: Int = 6000,
+    val lyricsSourcePreference: LyricsSourcePreference = LyricsSourcePreference.EMBEDDED_FIRST,
+    val autoScanLrcFiles: Boolean = false,
     val blockedDirectories: Set<String> = emptySet(),
     val availableModels: List<GeminiModel> = emptyList(),
     val isLoadingModels: Boolean = false,
@@ -203,6 +206,18 @@ class SettingsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            userPreferencesRepository.lyricsSourcePreferenceFlow.collect { preference ->
+                _uiState.update { it.copy(lyricsSourcePreference = preference) }
+            }
+        }
+
+        viewModelScope.launch {
+            userPreferencesRepository.autoScanLrcFilesFlow.collect { enabled ->
+                _uiState.update { it.copy(autoScanLrcFiles = enabled) }
+            }
+        }
+
+        viewModelScope.launch {
             userPreferencesRepository.blockedDirectoriesFlow.collect { blocked ->
                 _uiState.update { it.copy(blockedDirectories = blocked) }
             }
@@ -324,6 +339,18 @@ class SettingsViewModel @Inject constructor(
     fun setCrossfadeDuration(duration: Int) {
         viewModelScope.launch {
             userPreferencesRepository.setCrossfadeDuration(duration)
+        }
+    }
+
+    fun setLyricsSourcePreference(preference: LyricsSourcePreference) {
+        viewModelScope.launch {
+            userPreferencesRepository.setLyricsSourcePreference(preference)
+        }
+    }
+
+    fun setAutoScanLrcFiles(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setAutoScanLrcFiles(enabled)
         }
     }
 
