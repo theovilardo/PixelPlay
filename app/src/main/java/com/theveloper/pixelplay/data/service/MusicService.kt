@@ -22,6 +22,7 @@ import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.CommandButton
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionResult
@@ -221,7 +222,11 @@ class MusicService : MediaSessionService() {
             .setCallback(callback)
             .build()
 
-        setMediaNotificationProvider(MusicNotificationProvider(this, this))
+        setMediaNotificationProvider(
+            DefaultMediaNotificationProvider.Builder(this)
+                .build()
+                .also { it.setSmallIcon(R.drawable.monochrome_player) }
+        )
         mediaSession?.let { refreshMediaSessionUi(it) }
 
         serviceScope.launch {
