@@ -23,7 +23,6 @@ import java.io.File
 data class SetupUiState(
     val mediaPermissionGranted: Boolean = false,
     val notificationsPermissionGranted: Boolean = false,
-    val allFilesAccessGranted: Boolean = false,
     val isLoadingDirectories: Boolean = false,
     val blockedDirectories: Set<String> = emptySet()
 ) {
@@ -31,8 +30,8 @@ data class SetupUiState(
         get() {
             val mediaOk = mediaPermissionGranted
             val notificationsOk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) notificationsPermissionGranted else true
-            val allFilesOk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) allFilesAccessGranted else true
-            return mediaOk && notificationsOk && allFilesOk
+            // All files access is now optional - not required for setup completion
+            return mediaOk && notificationsOk
         }
 }
 
@@ -82,17 +81,12 @@ class SetupViewModel @Inject constructor(
             true // Not required before Android 13 (Tiramisu)
         }
 
-        val allFilesAccessGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Environment.isExternalStorageManager()
-        } else {
-            true // Not required before Android 11 (R)
-        }
+        // All files access is now optional - don't check it
 
         _uiState.update {
             it.copy(
                 mediaPermissionGranted = mediaPermissionGranted,
-                notificationsPermissionGranted = notificationsPermissionGranted,
-                allFilesAccessGranted = allFilesAccessGranted
+                notificationsPermissionGranted = notificationsPermissionGranted
             )
         }
     }

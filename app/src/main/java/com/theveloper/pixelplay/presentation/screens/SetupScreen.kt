@@ -134,10 +134,6 @@ fun SetupScreen(
         )
         // Add media permissions page for all versions
         list.add(SetupPage.MediaPermission)
-        // Add all files access page for Android 11+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            list.add(SetupPage.AllFilesPermission)
-        }
         // Add directory selection page after storage permissions
         list.add(SetupPage.DirectorySelection)
         // Add notifications permission page for Android 13+
@@ -232,7 +228,6 @@ fun SetupScreen(
                         onStorageSelected = setupViewModel::selectStorage
                     )
                     SetupPage.NotificationsPermission -> NotificationsPermissionPage(uiState)
-                    SetupPage.AllFilesPermission -> AllFilesPermissionPage(uiState)
                     SetupPage.BatteryOptimization -> BatteryOptimizationPage(
                         onSkip = {
                             scope.launch {
@@ -268,8 +263,8 @@ fun DirectorySelectionPage(
     val context = LocalContext.current
 
     val hasMediaPermission = uiState.mediaPermissionGranted
-    val hasAllFilesAccess = Build.VERSION.SDK_INT < Build.VERSION_CODES.R || uiState.allFilesAccessGranted
-    val canOpenDirectoryPicker = hasMediaPermission && hasAllFilesAccess
+    // All files access is now optional - only need media permission for directory picker
+    val canOpenDirectoryPicker = hasMediaPermission
 
     PermissionPageLayout(
         title = "Excluded folders",
@@ -327,7 +322,6 @@ sealed class SetupPage {
     object MediaPermission : SetupPage()
     object DirectorySelection : SetupPage()
     object NotificationsPermission : SetupPage()
-    object AllFilesPermission : SetupPage()
     object BatteryOptimization : SetupPage()
     object Finish : SetupPage()
 }
@@ -509,35 +503,6 @@ fun NotificationsPermissionPage(uiState: SetupUiState) {
         onGrantClicked = {
             if (!isGranted) {
                 permissionState.launchMultiplePermissionRequest()
-            }
-        }
-    )
-}
-
-@Composable
-fun AllFilesPermissionPage(uiState: SetupUiState) {
-    val context = LocalContext.current
-    val fileIcons = persistentListOf(
-        R.drawable.rounded_question_mark_24,
-        R.drawable.rounded_attach_file_24,
-        R.drawable.rounded_imagesmode_24,
-        R.drawable.rounded_broken_image_24,
-        R.drawable.rounded_folder_24
-    )
-
-    val isGranted = uiState.allFilesAccessGranted
-
-    PermissionPageLayout(
-        title = "All Files Access",
-        granted = isGranted,
-        description = "For some Android versions, PixelPlayer needs broader file access to find all your music.",
-        buttonText = if(isGranted) "Permission Granted" else "Go to Settings",
-        icons = fileIcons,
-        onGrantClicked = {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !isGranted) {
-                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                intent.data = "package:${context.packageName}".toUri()
-                context.startActivity(intent)
             }
         }
     )

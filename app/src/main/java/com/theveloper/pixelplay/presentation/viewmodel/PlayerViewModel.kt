@@ -1245,6 +1245,10 @@ class PlayerViewModel @Inject constructor(
         updateBluetoothAudioDevices()
     }
 
+    // Loading state for UI
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading = _isLoading.asStateFlow()
+
     init {
         Log.i("PlayerViewModel", "init started.")
 
@@ -2150,8 +2154,13 @@ class PlayerViewModel @Inject constructor(
 
     fun onMainActivityStart() {
         Trace.beginSection("PlayerViewModel.onMainActivityStart")
-        preloadThemesAndInitialData()
-        checkAndUpdateDailyMixIfNeeded()
+        
+        // Start data loading immediately without blocking UI
+        viewModelScope.launch {
+            preloadThemesAndInitialData()
+            checkAndUpdateDailyMixIfNeeded()
+        }
+        
         Trace.endSection()
     }
 
@@ -2728,6 +2737,11 @@ class PlayerViewModel @Inject constructor(
     fun showAndPlaySong(song: Song) {
         Log.d("ShuffleDebug", "showAndPlaySong (single song overload) called for '${song.title}'")
         
+        // Set loading state for YouTube songs
+        if (YouTubeToSongMapper.isYouTubeSong(song)) {
+            _isLoading.value = true
+        }
+        
         // Check if this is a YouTube song
         if (YouTubeToSongMapper.isYouTubeSong(song)) {
             // Play the clicked song immediately with single-song context
@@ -2742,19 +2756,24 @@ class PlayerViewModel @Inject constructor(
                         if (relatedVideosResult.isSuccess) {
                             val relatedVideos = relatedVideosResult.getOrThrow()
                             val relatedSongs = YouTubeToSongMapper.mapToSongs(relatedVideos)
-                            
+                           
                             Log.d("PlayerViewModel", "Fetched ${relatedSongs.size} related videos for YouTube song: ${song.title}")
-                            
+                           
                             // Process in smaller batches for faster initial load
                             processRelatedVideosInBatches(song, relatedSongs)
                         } else {
                             Log.w("PlayerViewModel", "Failed to fetch related videos for YouTube song: ${song.title}")
                         }
                     } else {
-                        Log.w("PlayerViewModel", "Failed to extract video ID from YouTube song: ${song.id}")
-                    }
+                            Log.w("PlayerViewModel", "Failed to extract video ID from YouTube song: ${song.id}")
+                            sendToast("Invalid YouTube video ID. Song may not be available.")
+                        }
                 } catch (e: Exception) {
                     Log.e("PlayerViewModel", "Error fetching related videos for YouTube song", e)
+                    sendToast("Failed to load related videos. Song will still play.")
+                } finally {
+                    // Clear loading state after processing
+                    _isLoading.value = false
                 }
             }
         } else {
@@ -4036,6 +4055,12 @@ class PlayerViewModel @Inject constructor(
             appShortcutManager.updateLastPlaylistShortcut(playlistId, queueName)
         }
         
+        // Set loading state if any songs are YouTube songs
+        val hasYouTubeSongs = songsToPlay.any { YouTubeToSongMapper.isYouTubeSong(it) }
+        if (hasYouTubeSongs) {
+            _isLoading.value = true
+        }
+        
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             if (!ensureHttpServerRunning()) return
@@ -4064,6 +4089,8 @@ class PlayerViewModel @Inject constructor(
                     if (!success) {
                         sendToast("Failed to load media on cast device.")
                     }
+                    // Clear loading state after cast completes
+                    _isLoading.value = false
                 }
             )
 
@@ -4091,13 +4118,14 @@ class PlayerViewModel @Inject constructor(
                                 val url = fetchYouTubeStreamUrl(song)
                                 if (url == null) {
                                     Log.e("PlayerViewModel", "Failed to fetch YouTube stream URL for song: ${song.title}")
+                                    sendToast("Failed to load ${song.title}. Check your connection.")
                                     return@withContext emptyList<MediaItem>()
                                 }
                                 url
                             } else {
                                 song.contentUriString
                             }
-                            
+                           
                             val metadataBuilder = MediaMetadata.Builder()
                                 .setTitle(song.title)
                                 .setArtist(song.displayArtist)
@@ -4115,7 +4143,7 @@ class PlayerViewModel @Inject constructor(
                                 .setUri(streamUrl.toUri())
                                 .setMediaMetadata(metadata)
                                 .build()
-                            
+                           
                             Log.d("PlayerViewModel", "internalPlaySongs - Song: ${song.title}, ID: ${song.id}, IsYouTube: ${YouTubeToSongMapper.isYouTubeSong(song)}, Stream URL: $streamUrl, MediaItem URI: ${mediaItem.localConfiguration?.uri}")
                             mediaItem
                         }
@@ -4136,8 +4164,15 @@ class PlayerViewModel @Inject constructor(
                                 totalDuration = startSong.duration.coerceAtLeast(0L)
                             )
                         }
+                    } else {
+                        // All songs failed to load
+                        Log.e("PlayerViewModel", "All songs failed to load. Queue may be empty.")
+                        sendToast("Failed to load songs. Please check your connection and try again.")
                     }
                     _playerUiState.update { it.copy(isLoadingInitialSongs = false) }
+                    
+                    // Clear loading state after playback starts
+                    _isLoading.value = false
                 }
                 Unit
             }
@@ -4166,6 +4201,7 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             // Set loading state if it's a YouTube video
             if (YouTubeToSongMapper.isYouTubeSong(song)) {
+                _isLoading.value = true
                 _playerUiState.update { it.copy(isLoadingInitialSongs = true) }
             }
 
@@ -4176,6 +4212,9 @@ class PlayerViewModel @Inject constructor(
                 }
                 if (url == null) {
                     Log.e("PlayerViewModel", "Failed to fetch YouTube stream URL for song: ${song.title}")
+                    _isLoading.value = false
+                    _playerUiState.update { it.copy(isLoadingInitialSongs = false) }
+                    sendToast("Failed to load YouTube song. Please check your connection and try again.")
                     return@launch
                 }
                 url
@@ -4200,6 +4239,9 @@ class PlayerViewModel @Inject constructor(
             }
             _stablePlayerState.update { it.copy(currentSong = song, isPlaying = true) }
             _playerUiState.update { it.copy(isLoadingInitialSongs = false) }
+            
+            // Clear loading state after playback starts
+            _isLoading.value = false
             
             song.albumArtUriString?.toUri()?.let { uri ->
                 extractAndGenerateColorScheme(uri, isPreload = false)
@@ -4804,37 +4846,39 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun playPause() {
-        val castSession = _castSession.value
-        if (castSession != null && castSession.remoteMediaClient != null) {
-            val remoteMediaClient = castSession.remoteMediaClient!!
-            if (remoteMediaClient.isPlaying) {
-                castPlayer?.pause()
-            } else {
-                // If there are items in the remote queue, just play.
-                // Otherwise, load the current local queue to the remote player.
-                if (remoteMediaClient.mediaQueue != null && remoteMediaClient.mediaQueue.itemCount > 0) {
-                    castPlayer?.play()
+        viewModelScope.launch {
+            val castSession = _castSession.value
+            if (castSession != null && castSession.remoteMediaClient != null) {
+                val remoteMediaClient = castSession.remoteMediaClient!!
+                if (remoteMediaClient.isPlaying) {
+                    castPlayer?.pause()
                 } else {
-                    val queue = _playerUiState.value.currentPlaybackQueue
-                    if (queue.isNotEmpty()) {
-                        val startSong = _stablePlayerState.value.currentSong ?: queue.first()
-                        viewModelScope.launch {
+                    // If there are items in the remote queue, just play.
+                    // Otherwise, load the current local queue to the remote player.
+                    if (remoteMediaClient.mediaQueue != null && remoteMediaClient.mediaQueue.itemCount > 0) {
+                        castPlayer?.play()
+                    } else {
+                        val queue = _playerUiState.value.currentPlaybackQueue
+                        if (queue.isNotEmpty()) {
+                            val startSong = _stablePlayerState.value.currentSong ?: queue.first()
                             internalPlaySongs(queue.toList(), startSong, _playerUiState.value.currentQueueSourceName)
                         }
                     }
                 }
-            }
-        } else {
-            mediaController?.let { controller ->
-                if (controller.isPlaying) {
-                    controller.pause()
-                } else {
-                    if (controller.currentMediaItem == null) {
-                        val currentQueue = _playerUiState.value.currentPlaybackQueue
-                        val currentSong = _stablePlayerState.value.currentSong
-                        when {
-                            currentQueue.isNotEmpty() && currentSong != null -> {
-                                viewModelScope.launch {
+            } else {
+                mediaController?.let { controller ->
+                    if (controller.isPlaying) {
+                        controller.pause()
+                    } else {
+                        if (controller.currentMediaItem == null) {
+                            val currentQueue = _playerUiState.value.currentPlaybackQueue
+                            val currentSong = _stablePlayerState.value.currentSong
+                            when {
+                                currentQueue.isNotEmpty() && currentSong != null -> {
+                                    // Set loading state for YouTube songs
+                                    if (YouTubeToSongMapper.isYouTubeSong(currentSong)) {
+                                        _isLoading.value = true
+                                    }
                                     transitionSchedulerJob?.cancel()
                                     internalPlaySongs(
                                         currentQueue.toList(),
@@ -4842,19 +4886,28 @@ class PlayerViewModel @Inject constructor(
                                         _playerUiState.value.currentQueueSourceName
                                     )
                                 }
+                                currentSong != null -> {
+                                    // Set loading state for YouTube songs
+                                    if (YouTubeToSongMapper.isYouTubeSong(currentSong)) {
+                                        _isLoading.value = true
+                                    }
+                                    loadAndPlaySong(currentSong)
+                                }
+                                _playerUiState.value.allSongs.isNotEmpty() -> {
+                                    val firstSong = _playerUiState.value.allSongs.first()
+                                    // Set loading state for YouTube songs
+                                    if (YouTubeToSongMapper.isYouTubeSong(firstSong)) {
+                                        _isLoading.value = true
+                                    }
+                                    loadAndPlaySong(firstSong)
+                                }
+                                else -> {
+                                    controller.play()
+                                }
                             }
-                            currentSong != null -> {
-                                loadAndPlaySong(currentSong)
-                            }
-                            _playerUiState.value.allSongs.isNotEmpty() -> {
-                                loadAndPlaySong(_playerUiState.value.allSongs.first())
-                            }
-                            else -> {
-                                controller.play()
-                            }
+                        } else {
+                            controller.play()
                         }
-                    } else {
-                        controller.play()
                     }
                 }
             }

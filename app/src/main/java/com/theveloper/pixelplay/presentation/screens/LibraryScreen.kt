@@ -1905,44 +1905,12 @@ fun EnhancedSongListItem(
     onMoreOptionsClick: (Song) -> Unit,
     onClick: () -> Unit
 ) {
-    // Animamos el radio de las esquinas basándonos en si la canción es la actual.
-    val animatedCornerRadius by animateDpAsState(
-        targetValue = if (isCurrentSong && !isLoading) 50.dp else 22.dp,
-        animationSpec = tween(durationMillis = 400),
-        label = "cornerRadiusAnimation"
-    )
+    // Use simple static corners instead of expensive animations
+    val cornerRadius = if (isCurrentSong && !isLoading) 16.dp else 12.dp
+    val albumCornerRadius = if (isCurrentSong && !isLoading) 16.dp else 8.dp
 
-    val animatedAlbumCornerRadius by animateDpAsState(
-        targetValue = if (isCurrentSong && !isLoading) 50.dp else 12.dp,
-        animationSpec = tween(durationMillis = 400),
-        label = "cornerRadiusAnimation"
-    )
-
-    val surfaceShape = remember(animatedCornerRadius) {
-        AbsoluteSmoothCornerShape(
-            cornerRadiusTL = animatedCornerRadius,
-            smoothnessAsPercentTR = 60,
-            cornerRadiusTR = animatedCornerRadius,
-            smoothnessAsPercentBR = 60,
-            cornerRadiusBL = animatedCornerRadius,
-            smoothnessAsPercentBL = 60,
-            cornerRadiusBR = animatedCornerRadius,
-            smoothnessAsPercentTL = 60
-        )
-    }
-
-    val albumShape = remember(animatedCornerRadius) {
-        AbsoluteSmoothCornerShape(
-            cornerRadiusTL = animatedAlbumCornerRadius,
-            smoothnessAsPercentTR = 60,
-            cornerRadiusTR = animatedAlbumCornerRadius,
-            smoothnessAsPercentBR = 60,
-            cornerRadiusBL = animatedAlbumCornerRadius,
-            smoothnessAsPercentBL = 60,
-            cornerRadiusBR = animatedAlbumCornerRadius,
-            smoothnessAsPercentTL = 60
-        )
-    }
+    val surfaceShape = RoundedCornerShape(cornerRadius)
+    val albumShape = RoundedCornerShape(albumCornerRadius)
 
     val colors = MaterialTheme.colorScheme
     val containerColor = if ((isCurrentSong) && !isLoading) colors.primaryContainer else colors.surfaceContainerLow
@@ -2044,7 +2012,7 @@ fun EnhancedSongListItem(
                         model = song.albumArtUriString,
                         contentDescription = song.title,
                         shape = albumShape,
-                        targetSize = Size(168, 168), // 56dp * 3 (para densidad xxhdpi)
+                        targetSize = Size(120, 120), // Reduced from 168 for better performance
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -2206,14 +2174,11 @@ fun LibraryAlbumsTab(
                         Spacer(Modifier.height(4.dp))
                     }
                     items(albums, key = { "album_${it.id}" }) { album ->
-                        val albumSpecificColorSchemeFlow =
-                            playerViewModel.getAlbumColorSchemeFlow(album.albumArtUriString)
                         val rememberedOnClick = remember(album.id) { { onAlbumClick(album.id) } }
-                        AlbumGridItemRedesigned(
+                        AlbumGridItemOptimized(
                             album = album,
-                            albumColorSchemePairFlow = albumSpecificColorSchemeFlow,
                             onClick = rememberedOnClick,
-                            isLoading = isLoading && albums.isEmpty() // Shimmer solo si está cargando Y la lista está vacía
+                            isLoading = isLoading && albums.isEmpty()
                         )
                     }
                 }
@@ -2229,6 +2194,108 @@ fun LibraryAlbumsTab(
 //                    )
 //                    .align(Alignment.TopCenter)
 //            )
+        }
+    }
+}
+
+@Composable
+fun AlbumGridItemOptimized(
+    album: Album,
+    onClick: () -> Unit,
+    isLoading: Boolean = false
+) {
+    val cardCornerRadius = 16.dp
+
+    if (isLoading) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(cardCornerRadius),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+        ) {
+            Column(
+                modifier = Modifier.background(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(cardCornerRadius)
+                )
+            ) {
+                ShimmerBox(
+                    modifier = Modifier
+                        .aspectRatio(3f / 2f)
+                        .fillMaxSize()
+                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                ) {
+                    ShimmerBox(
+                        modifier = Modifier
+                            .fillMaxWidth(0.8f)
+                            .height(20.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    ShimmerBox(
+                        modifier = Modifier
+                            .fillMaxWidth(0.6f)
+                            .height(16.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                    )
+                }
+            }
+        }
+    } else {
+        Card(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(cardCornerRadius),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+        ) {
+            Column {
+                Box(
+                    modifier = Modifier
+                        .aspectRatio(3f / 2f)
+                        .fillMaxSize()
+                ) {
+                    SmartImage(
+                        model = album.albumArtUriString,
+                        contentDescription = "Album art for ${album.title}",
+                        contentScale = ContentScale.Crop,
+                        targetSize = Size(200, 200), // Smaller size for better performance
+                        allowHardware = true, // Enable hardware acceleration
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        album.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Medium, // Reduced from Bold
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        album.artist, 
+                        style = MaterialTheme.typography.bodySmall, 
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, 
+                        maxLines = 1, 
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "${album.songCount} Songs", 
+                        style = MaterialTheme.typography.bodySmall, 
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), 
+                        maxLines = 1, 
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
     }
 }

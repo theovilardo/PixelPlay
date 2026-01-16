@@ -73,7 +73,6 @@ import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
 import com.theveloper.pixelplay.presentation.components.UnifiedPlayerSheet
 import com.theveloper.pixelplay.presentation.components.getNavigationBarHeight
-import com.theveloper.pixelplay.presentation.components.AllFilesAccessDialog
 import com.theveloper.pixelplay.presentation.navigation.AppNavigation
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.screens.SetupScreen
@@ -170,10 +169,6 @@ class MainActivity : ComponentActivity() {
     // For handling shortcut navigation - using StateFlow so composables can observe changes
     private val _pendingPlaylistNavigation = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
     private val _pendingShuffleAll = kotlinx.coroutines.flow.MutableStateFlow(false)
-
-    private val requestAllFilesAccessLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { _ ->
-        // Handle the result in onResume
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         LogUtils.d(this, "onCreate")
@@ -367,45 +362,13 @@ class MainActivity : ComponentActivity() {
         }
         val permissionState = rememberMultiplePermissionsState(permissions = permissions)
 
-        var showAllFilesAccessDialog by remember { mutableStateOf(false) }
-        val needsAllFilesAccess = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
-                !android.os.Environment.isExternalStorageManager()
-
+        // Remove automatic permission requests - make them optional
         LaunchedEffect(Unit) {
-            if (!permissionState.allPermissionsGranted) {
-                permissionState.launchMultiplePermissionRequest()
-            }
+            LogUtils.i(this, "App starting with optional permissions")
+            mainViewModel.startSync()
         }
 
-        if (permissionState.allPermissionsGranted) {
-            LaunchedEffect(Unit) {
-                LogUtils.i(this, "Permissions granted")
-                Log.i("MainActivity", "Permissions granted. Calling mainViewModel.startSync()")
-                mainViewModel.startSync()
-                if (needsAllFilesAccess && !isBenchmark) {
-                    showAllFilesAccessDialog = true
-                }
-            }
-            MainAppContent(playerViewModel, mainViewModel)
-        } else {
-            PermissionsNotGrantedScreen {
-                permissionState.launchMultiplePermissionRequest()
-            }
-        }
-
-        if (showAllFilesAccessDialog) {
-            AllFilesAccessDialog(
-                onDismiss = { showAllFilesAccessDialog = false },
-                onConfirm = {
-                    showAllFilesAccessDialog = false
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                        intent.data = "package:$packageName".toUri()
-                        requestAllFilesAccessLauncher.launch(intent)
-                    }
-                }
-            )
-        }
+        MainAppContent(playerViewModel, mainViewModel)
     }
 
     @androidx.annotation.OptIn(UnstableApi::class)

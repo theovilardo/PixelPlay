@@ -127,6 +127,7 @@ fun SearchScreen(
     val currentFilter by remember { derivedStateOf { uiState.selectedSearchFilter } }
     val searchMode = uiState.searchMode
     val searchHistory = uiState.searchHistory
+    // Keep genres collection as it's needed for GenreCategoriesGrid
     val genres by playerViewModel.genres.collectAsState()
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val favoriteSongIds by playerViewModel.favoriteSongIds.collectAsState()
@@ -717,10 +718,10 @@ fun SearchResultsList(
                     Box(modifier = Modifier.padding(bottom = 12.dp)) {
                         when (item) {
                             is SearchResultItem.SongItem -> {
-                                val rememberedOnClick = remember(item.song, playerViewModel, onItemSelected) {
+                                val rememberedOnClick = remember(item.song, playerViewModel) {
                                     {
                                         playerViewModel.showAndPlaySong(item.song)
-                                        onItemSelected()
+                                        // Removed onItemSelected() to prevent unwanted navigation
                                     }
                                 }
                                 EnhancedSongListItem(

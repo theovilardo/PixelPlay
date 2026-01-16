@@ -8,7 +8,11 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.annotation.OptIn
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -18,9 +22,6 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Indication
 import androidx.compose.foundation.MutatorMutex
 import androidx.compose.foundation.background
@@ -54,14 +55,15 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -1152,11 +1154,12 @@ fun UnifiedPlayerSheet(
                                                     }
                                                     .zIndex(if (playerContentExpansionFraction.value < 0.5f) 1f else 0f)
                                             ) {
-                                                MiniPlayerContentInternal(
+                                                PlayerControls(
                                                     song = currentSongNonNull, // Use non-null version
                                                     cornerRadiusAlb = (overallSheetTopCornerRadius.value * 0.5).dp,
                                                     isPlaying = stablePlayerState.isPlaying, // from top-level stablePlayerState
                                                     isCastConnecting = isCastConnecting,
+                                                    isLoading = playerViewModel.isLoading.collectAsState().value,
                                                     onPlayPause = { playerViewModel.playPause() },
                                                     onPrevious = { playerViewModel.previousSong() },
                                                     onNext = { playerViewModel.nextSong() },
@@ -1346,9 +1349,9 @@ fun UnifiedPlayerSheet(
                                 onDismiss = { animateQueueSheet(false) },
                                 onSongInfoClick = { song -> selectedSongForInfo = song }, // Trigger SongInfoBottomSheet
                                 onPlaySong = { song ->
-                                    playerViewModel.playSongs(
-                                        currentPlaybackQueue, // Use granular state
+                                    playerViewModel.showAndPlaySong(
                                         song,
+                                        currentPlaybackQueue, // Use granular state
                                         currentQueueSourceName // Use granular state
                                     )
                                 },
@@ -1569,10 +1572,11 @@ fun getNavigationBarHeight(): Dp {
 }
 
 @Composable
-private fun MiniPlayerContentInternal(
+private fun PlayerControls(
     song: Song,
     isPlaying: Boolean,
     isCastConnecting: Boolean,
+    isLoading: Boolean,
     onPlayPause: () -> Unit,
     onPrevious: () -> Unit,
     cornerRadiusAlb: Dp,
@@ -1673,19 +1677,35 @@ private fun MiniPlayerContentInternal(
                 .clickable(
                     interactionSource = interaction,
                     indication = indication,
-                    enabled = !isCastConnecting
+                    enabled = !isCastConnecting && !isLoading
                 ) {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onPlayPause()
+                    if (!isLoading) {
+                        onPlayPause()
+                    }
                 },
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                painter = if (isPlaying) painterResource(R.drawable.rounded_pause_24) else painterResource(R.drawable.rounded_play_arrow_24),
-                contentDescription = if (isPlaying) "Pausar" else "Reproducir",
-                tint = LocalMaterialTheme.current.onPrimary,
-                modifier = Modifier.size(22.dp)
-            )
+            Crossfade(
+                targetState = isLoading,
+                animationSpec = tween(150),
+                label = "PlayButtonLoading"
+            ) { loading ->
+                if (loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp,
+                        color = LocalMaterialTheme.current.onPrimary
+                    )
+                } else {
+                    Icon(
+                        painter = if (isPlaying) painterResource(R.drawable.rounded_pause_24) else painterResource(R.drawable.rounded_play_arrow_24),
+                        contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                        tint = LocalMaterialTheme.current.onPrimary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.width(8.dp))

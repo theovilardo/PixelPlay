@@ -50,7 +50,7 @@ fun SmartImage(
     crossfadeDurationMillis: Int = 300,
     useDiskCache: Boolean = true,
     useMemoryCache: Boolean = true,
-    allowHardware: Boolean = false,
+    allowHardware: Boolean = true,
     targetSize: Size = Size(300, 300),
     colorFilter: ColorFilter? = null,
     alpha: Float = 1f,
