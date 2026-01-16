@@ -5,8 +5,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -79,12 +81,14 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -274,8 +278,44 @@ fun PlaylistDetailScreen(
                     val currentPlaylistSongsSortOrder = uiState.currentPlaylistSongsSortOrder
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                         FilledTonalIconButton(
-                            onClick = { playerViewModel.showSortingSheet() },
+                            onClick = {
+                                val newOrder = if (currentPlaylistSongsSortOrder == SortOrder.ASCENDING) SortOrder.DESCENDING else SortOrder.ASCENDING
+                                playlistViewModel.sortPlaylistSongs(currentPlaylistSongsSortOption, newOrder)
+                            },
                             shape = RoundedCornerShape(topStart = 26.dp, bottomStart = 26.dp, topEnd = 4.dp, bottomEnd = 4.dp),
+                            modifier = Modifier.width(48.dp),
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        ) {
+                            var rotation by remember { mutableFloatStateOf(if (currentPlaylistSongsSortOrder == SortOrder.ASCENDING) 0f else 180f) }
+                            var lastSortOrder by remember { mutableStateOf(currentPlaylistSongsSortOrder) }
+
+                            LaunchedEffect(currentPlaylistSongsSortOrder) {
+                                if (currentPlaylistSongsSortOrder != lastSortOrder) {
+                                    rotation += 180f
+                                    lastSortOrder = currentPlaylistSongsSortOrder
+                                }
+                            }
+
+                            val animatedRotation by animateFloatAsState(
+                                targetValue = rotation,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessLow
+                                ),
+                                label = "SortOrderRotation"
+                            )
+                            Icon(
+                                imageVector = Icons.Rounded.ArrowUpward,
+                                contentDescription = if (currentPlaylistSongsSortOrder == SortOrder.ASCENDING) "Ascending" else "Descending",
+                                modifier = Modifier.rotate(animatedRotation)
+                            )
+                        }
+                        FilledTonalIconButton(
+                            onClick = { playerViewModel.showSortingSheet() },
+                            shape = RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp, topEnd = 26.dp, bottomEnd = 26.dp),
                             modifier = Modifier.width(48.dp),
                             colors = IconButtonDefaults.filledIconButtonColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -286,25 +326,6 @@ fun PlaylistDetailScreen(
                                 imageVector = Icons.AutoMirrored.Rounded.Sort,
                                 contentDescription = "Sort Options",
                             )
-                        }
-                        FilledTonalIconButton(
-                            onClick = {
-                                val newOrder = if (currentPlaylistSongsSortOrder == SortOrder.ASCENDING) SortOrder.DESCENDING else SortOrder.ASCENDING
-                                playlistViewModel.sortPlaylistSongs(currentPlaylistSongsSortOption, newOrder)
-                            },
-                            shape = RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp, topEnd = 26.dp, bottomEnd = 26.dp),
-                            modifier = Modifier.width(48.dp),
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                contentColor = MaterialTheme.colorScheme.onSurface
-                            )
-                        ) {
-                            androidx.compose.animation.AnimatedContent(targetState = currentPlaylistSongsSortOrder, label = "SortOrderIcon") { order ->
-                                Icon(
-                                    imageVector = if (order == SortOrder.ASCENDING) Icons.Rounded.ArrowUpward else Icons.Rounded.ArrowDownward,
-                                    contentDescription = if (order == SortOrder.ASCENDING) "Ascending" else "Descending",
-                                )
-                            }
                         }
                     }
                     if (!isFolderPlaylist) {
@@ -918,7 +939,8 @@ fun PlaylistDetailScreen(
             SortOption.SongArtist,
             SortOption.SongAlbum,
             SortOption.SongDateAdded,
-            SortOption.SongDuration
+            SortOption.SongDuration,
+            SortOption.SongReleaseYear
         )
 
         LibrarySortBottomSheet(

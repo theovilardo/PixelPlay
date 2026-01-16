@@ -848,6 +848,11 @@ class PlaylistViewModel @Inject constructor(
             } else {
                 songs.sortedByDescending { it.dateAdded }
             }
+            SortOption.SongReleaseYear -> if (sortOrder == SortOrder.ASCENDING) {
+                songs.sortedBy { it.year }
+            } else {
+                songs.sortedByDescending { it.year }
+            }
             else -> songs
         }
     }
