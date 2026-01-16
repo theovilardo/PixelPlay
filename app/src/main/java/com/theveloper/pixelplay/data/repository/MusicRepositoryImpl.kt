@@ -641,7 +641,8 @@ class MusicRepositoryImpl @Inject constructor(
                 val path: String,
                 val name: String,
                 val songs: MutableList<Song> = mutableListOf(),
-                val subFolderPaths: MutableSet<String> = mutableSetOf()
+                val subFolderPaths: MutableSet<String> = mutableSetOf(),
+                val dateModified: Long = 0L
             )
 
             val tempFolders = mutableMapOf<String, TempFolder>()
@@ -653,7 +654,9 @@ class MusicRepositoryImpl @Inject constructor(
                 if (folderPath != null) {
                     val folderFile = File(folderPath)
                     // Create or get the leaf folder
-                    val leafFolder = tempFolders.getOrPut(folderPath) { TempFolder(folderPath, folderFile.name) }
+                    val leafFolder = tempFolders.getOrPut(folderPath) { 
+                        TempFolder(folderPath, folderFile.name, dateModified = folderFile.lastModified()) 
+                    }
                     leafFolder.songs.addAll(songsInFolder)
 
                     // Build hierarchy upwards
@@ -664,7 +667,9 @@ class MusicRepositoryImpl @Inject constructor(
                         val parentFile = currentFile.parentFile!!
                         val parentPath = parentFile.path
 
-                        val parentFolder = tempFolders.getOrPut(parentPath) { TempFolder(parentPath, parentFile.name) }
+                        val parentFolder = tempFolders.getOrPut(parentPath) { 
+                            TempFolder(parentPath, parentFile.name, dateModified = parentFile.lastModified()) 
+                        }
                         val added = parentFolder.subFolderPaths.add(currentPath)
 
                         if (!added) {
@@ -695,7 +700,8 @@ class MusicRepositoryImpl @Inject constructor(
                                 .thenBy { it.title.lowercase() }
                         )
                         .toImmutableList(),
-                    subFolders = subFolders
+                    subFolders = subFolders,
+                    dateModified = tempFolder.dateModified
                 )
             }
 

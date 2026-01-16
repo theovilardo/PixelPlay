@@ -17,6 +17,7 @@ sealed class SortOption(val storageKey: String, val displayName: String) {
     object SongAlbum : SortOption("song_album", "Album")
     object SongDateAdded : SortOption("song_date_added", "Date Added")
     object SongDuration : SortOption("song_duration", "Duration")
+    object SongReleaseYear : SortOption("song_release_year", "Release Year")
 
     // Album Sort Options
     object AlbumTitle : SortOption("album_title", "Title")
@@ -26,6 +27,7 @@ sealed class SortOption(val storageKey: String, val displayName: String) {
 
     // Artist Sort Options
     object ArtistName : SortOption("artist_name", "Name")
+    object ArtistSongCount : SortOption("artist_song_count", "Song Count")
 
     // Playlist Sort Options
     object PlaylistName : SortOption("playlist_name", "Name")
@@ -36,9 +38,11 @@ sealed class SortOption(val storageKey: String, val displayName: String) {
     object LikedSongArtist : SortOption("liked_artist", "Artist")
     object LikedSongAlbum : SortOption("liked_album", "Album")
     object LikedSongDateLiked : SortOption("liked_date_liked", "Date Liked")
+    object LikedSongReleaseYear : SortOption("liked_release_year", "Release Year")
 
     // Folder Sort Options
     object FolderName : SortOption("folder_name", "Name")
+    object FolderDateModified : SortOption("folder_date_modified", "Date Modified")
 
     companion object {
         val SONGS: List<SortOption> get() = listOf(
@@ -47,7 +51,8 @@ sealed class SortOption(val storageKey: String, val displayName: String) {
             SongArtist,
             SongAlbum,
             SongDateAdded,
-            SongDuration
+            SongDuration,
+            SongReleaseYear
         )
         val ALBUMS: List<SortOption> get() = listOf(
             AlbumTitle,
@@ -56,20 +61,23 @@ sealed class SortOption(val storageKey: String, val displayName: String) {
             AlbumSize
         )
         val ARTISTS: List<SortOption> get() = listOf(
-            ArtistName
+            ArtistName,
+            ArtistSongCount
         )
         val PLAYLISTS: List<SortOption> get() = listOf(
             PlaylistName,
             PlaylistDateCreated
         )
         val FOLDERS: List<SortOption> get() = listOf(
-            FolderName
+            FolderName,
+            FolderDateModified
         )
         val LIKED: List<SortOption> get() = listOf(
             LikedSongTitle,
             LikedSongArtist,
             LikedSongAlbum,
-            LikedSongDateLiked
+            LikedSongDateLiked,
+            LikedSongReleaseYear
         )
 
         fun fromStorageKey(

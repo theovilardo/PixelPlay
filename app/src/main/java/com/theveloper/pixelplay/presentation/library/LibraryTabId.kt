@@ -21,7 +21,8 @@ enum class LibraryTabId(
             SortOption.SongArtist,
             SortOption.SongAlbum,
             SortOption.SongDateAdded,
-            SortOption.SongDuration
+            SortOption.SongDuration,
+            SortOption.SongReleaseYear
         )
     ),
     Albums(
@@ -38,7 +39,8 @@ enum class LibraryTabId(
         stableKey = "ARTIST",
         label = "ARTIST",
         sortOptions = listOf(
-            SortOption.ArtistName
+            SortOption.ArtistName,
+            SortOption.ArtistSongCount
         )
     ),
     Playlists(
@@ -53,7 +55,8 @@ enum class LibraryTabId(
         stableKey = "FOLDERS",
         label = "FOLDERS",
         sortOptions = listOf(
-            SortOption.FolderName
+            SortOption.FolderName,
+            SortOption.FolderDateModified
         )
     ),
     Liked(
@@ -63,7 +66,8 @@ enum class LibraryTabId(
             SortOption.LikedSongTitle,
             SortOption.LikedSongArtist,
             SortOption.LikedSongAlbum,
-            SortOption.LikedSongDateLiked
+            SortOption.LikedSongDateLiked,
+            SortOption.LikedSongReleaseYear
         )
     );
 

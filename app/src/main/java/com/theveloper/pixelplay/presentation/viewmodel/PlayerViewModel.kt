@@ -795,6 +795,7 @@ class PlayerViewModel @Inject constructor(
             SortOption.LikedSongArtist -> favoriteSongsList.sortedBy { it.artist.lowercase() }
             SortOption.LikedSongAlbum -> favoriteSongsList.sortedBy { it.album.lowercase() }
             SortOption.LikedSongDateLiked -> favoriteSongsList.sortedBy { it.id } // ID is time-based/UUID, but usually insertion order. Assuming ID or a timestamp.
+            SortOption.LikedSongReleaseYear -> favoriteSongsList.sortedBy { it.year }
             else -> favoriteSongsList
         }
         
@@ -4612,6 +4613,11 @@ class PlayerViewModel @Inject constructor(
             } else {
                 _masterAllSongs.value.sortedByDescending { it.duration }
             }
+            SortOption.SongReleaseYear -> if (sortOrder == SortOrder.ASCENDING) {
+                _masterAllSongs.value.sortedBy { it.year }
+            } else {
+                _masterAllSongs.value.sortedByDescending { it.year }
+            }
             else -> _masterAllSongs.value
         }.toImmutableList()
         _playerUiState.update {
@@ -4677,6 +4683,11 @@ class PlayerViewModel @Inject constructor(
             } else {
                 _playerUiState.value.artists.sortedByDescending { it.name.lowercase() }
             }
+            SortOption.ArtistSongCount -> if (sortOrder == SortOrder.ASCENDING) {
+                _playerUiState.value.artists.sortedBy { it.songCount }
+            } else {
+                _playerUiState.value.artists.sortedByDescending { it.songCount }
+            }
             else -> _playerUiState.value.artists
         }.toImmutableList()
         _playerUiState.update {
@@ -4718,6 +4729,11 @@ class PlayerViewModel @Inject constructor(
                 _playerUiState.value.musicFolders.sortedBy { it.name.lowercase() }
             } else {
                 _playerUiState.value.musicFolders.sortedByDescending { it.name.lowercase() }
+            }
+            SortOption.FolderDateModified -> if (sortOrder == SortOrder.ASCENDING) {
+                _playerUiState.value.musicFolders.sortedBy { it.dateModified }
+            } else {
+                _playerUiState.value.musicFolders.sortedByDescending { it.dateModified }
             }
             else -> _playerUiState.value.musicFolders
         }.toImmutableList()
