@@ -71,6 +71,7 @@ import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.LibraryViewModel
 import android.util.Log
 import com.theveloper.pixelplay.ui.theme.LocalPixelPlayDarkTheme
 import androidx.compose.material.icons.rounded.DeleteForever
@@ -111,6 +112,7 @@ import timber.log.Timber
 fun SearchScreen(
     paddingValues: PaddingValues,
     playerViewModel: PlayerViewModel = hiltViewModel(),
+    libraryViewModel: LibraryViewModel = hiltViewModel(),
     playlistViewModel: PlaylistViewModel = hiltViewModel(),
     navController: NavHostController,
     onSearchBarActiveChange: (Boolean) -> Unit = {}
@@ -123,9 +125,9 @@ fun SearchScreen(
     val uiState by playerViewModel.playerUiState.collectAsState()
     val currentFilter by remember { derivedStateOf { uiState.selectedSearchFilter } }
     val searchHistory = uiState.searchHistory
-    val genres by playerViewModel.genres.collectAsState()
+    val genres by libraryViewModel.genres.collectAsState()
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
-    val favoriteSongIds by playerViewModel.favoriteSongIds.collectAsState()
+    val favoriteSongIds by libraryViewModel.favoriteSongIds.collectAsState()
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var selectedSongForInfo by remember { mutableStateOf<Song?>(null) }
 

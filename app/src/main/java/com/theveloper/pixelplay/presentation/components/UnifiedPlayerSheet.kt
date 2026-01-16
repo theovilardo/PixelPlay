@@ -5,6 +5,8 @@ package com.theveloper.pixelplay.presentation.components
 import android.os.Trace
 import android.util.Log
 import android.widget.Toast
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.CastViewModel
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.annotation.OptIn
@@ -143,10 +145,12 @@ private data class SaveQueueOverlayData(
 
 val MiniPlayerBottomSpacer = 8.dp
 
+
 @OptIn(UnstableApi::class)
 @Composable
 fun UnifiedPlayerSheet(
     playerViewModel: PlayerViewModel,
+    castViewModel: CastViewModel = hiltViewModel(),
     sheetCollapsedTargetY: Float,
     containerHeight: Dp,
     collapsedStateHorizontalPadding: Dp = 12.dp,
@@ -228,7 +232,9 @@ fun UnifiedPlayerSheet(
     val miniPlayerAndSpacerHeightPx =
         remember(density, MiniPlayerHeight) { with(density) { MiniPlayerHeight.toPx() } }
 
-    val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
+    val isDeviceConnecting by castViewModel.isCastConnecting.collectAsState()
+    val isTransferringPlayback by playerViewModel.isCastConnecting.collectAsState()
+    val isCastConnecting = isDeviceConnecting || isTransferringPlayback
 
     val showPlayerContentArea by remember {
         derivedStateOf { stablePlayerState.currentSong != null || isCastConnecting }
@@ -1207,6 +1213,7 @@ fun UnifiedPlayerSheet(
                                                 carouselStyle = carouselStyle,
                                                 loadingTweaks = fullPlayerLoadingTweaks,
                                                 playerViewModel = playerViewModel,
+                                                castViewModel = castViewModel,
                                                 // State Providers
                                                 currentPositionProvider = { positionToDisplay },
                                                 isPlayingProvider = { stablePlayerState.isPlaying },
@@ -1262,6 +1269,7 @@ fun UnifiedPlayerSheet(
                                     carouselStyle = carouselStyle,
                                     loadingTweaks = fullPlayerLoadingTweaks,
                                     playerViewModel = playerViewModel,
+                                    castViewModel = castViewModel,
                                     currentPositionProvider = { positionToDisplay },
                                     isPlayingProvider = { stablePlayerState.isPlaying },
                                     isFavoriteProvider = { isFavorite },
@@ -1500,6 +1508,7 @@ fun UnifiedPlayerSheet(
             ) {
                 CastBottomSheet(
                     playerViewModel = playerViewModel,
+                    castViewModel = castViewModel,
                     onDismiss = {
                         castSheetOpenFraction = 0f
                         showCastSheet = false

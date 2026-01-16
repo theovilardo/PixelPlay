@@ -290,7 +290,8 @@ fun PlaylistItem(
     isAddingToPlaylist: Boolean,
     selectedPlaylists: SnapshotStateMap<String, Boolean>? = null
 ) {
-    val allSongs by playerViewModel.allSongsFlow.collectAsState()
+    val playerUiState by playerViewModel.playerUiState.collectAsState()
+    val allSongs = playerUiState.allSongs
     val playlistSongs = remember(playlist.songIds, allSongs) {
         allSongs.filter { it.id in playlist.songIds }
     }

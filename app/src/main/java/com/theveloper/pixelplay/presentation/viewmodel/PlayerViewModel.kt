@@ -227,25 +227,11 @@ data class PlayerUiState(
     val currentPlaybackQueue: ImmutableList<Song> = persistentListOf(),
     val currentQueueSourceName: String = "All Songs",
     val lavaLampColors: ImmutableList<Color> = persistentListOf(),
-    val albums: ImmutableList<Album> = persistentListOf(),
-    val artists: ImmutableList<Artist> = persistentListOf(),
-    val isLoadingLibraryCategories: Boolean = false,
-    val currentSongSortOption: SortOption = SortOption.SongTitleAZ,
-    val currentAlbumSortOption: SortOption = SortOption.AlbumTitleAZ,
-    val currentArtistSortOption: SortOption = SortOption.ArtistNameAZ,
-    val currentFavoriteSortOption: SortOption = SortOption.LikedSongDateLiked,
-    val currentFolderSortOption: SortOption = SortOption.FolderNameAZ,
     val searchResults: ImmutableList<SearchResultItem> = persistentListOf(),
     val selectedSearchFilter: SearchFilterType = SearchFilterType.ALL,
     val searchHistory: ImmutableList<SearchHistoryItem> = persistentListOf(),
     val isSyncingLibrary: Boolean = false,
-    val musicFolders: ImmutableList<MusicFolder> = persistentListOf(),
-    val currentFolderPath: String? = null,
-    val isFolderFilterActive: Boolean = false,
-
-    val currentFolder: MusicFolder? = null,
-    val isFoldersPlaylistView: Boolean = false,
-
+    
     // State for dismiss/undo functionality
     val showDismissUndoBar: Boolean = false,
     val dismissedSong: Song? = null,
@@ -298,7 +284,6 @@ class PlayerViewModel @Inject constructor(
     private val playbackStatsRepository: PlaybackStatsRepository,
     private val aiPlaylistGenerator: AiPlaylistGenerator,
     private val aiMetadataGenerator: AiMetadataGenerator,
-    private val artistImageRepository: ArtistImageRepository,
     private val dualPlayerEngine: DualPlayerEngine,
     private val appShortcutManager: com.theveloper.pixelplay.utils.AppShortcutManager
 ) : ViewModel() {
@@ -307,7 +292,7 @@ class PlayerViewModel @Inject constructor(
 
     private val _playerUiState = MutableStateFlow(PlayerUiState())
     val playerUiState: StateFlow<PlayerUiState> = _playerUiState.asStateFlow()
-    private val _masterAllSongs = MutableStateFlow<ImmutableList<Song>>(persistentListOf())
+
     private val _stablePlayerState = MutableStateFlow(StablePlayerState())
     val stablePlayerState: StateFlow<StablePlayerState> = _stablePlayerState.asStateFlow()
 
@@ -456,41 +441,8 @@ class PlayerViewModel @Inject constructor(
     val artistNavigationRequests = _artistNavigationRequests.asSharedFlow()
     private var artistNavigationJob: Job? = null
 
-    private val _castRoutes = MutableStateFlow<List<MediaRouter.RouteInfo>>(emptyList())
-    val castRoutes: StateFlow<List<MediaRouter.RouteInfo>> = _castRoutes.asStateFlow()
-    private val _selectedRoute = MutableStateFlow<MediaRouter.RouteInfo?>(null)
-    val selectedRoute: StateFlow<MediaRouter.RouteInfo?> = _selectedRoute.asStateFlow()
-    private val _routeVolume = MutableStateFlow(0)
-    val routeVolume: StateFlow<Int> = _routeVolume.asStateFlow()
-    private val _isRefreshingRoutes = MutableStateFlow(false)
-    val isRefreshingRoutes: StateFlow<Boolean> = _isRefreshingRoutes.asStateFlow()
-
-    private val _isWifiEnabled = MutableStateFlow(false)
-    val isWifiEnabled: StateFlow<Boolean> = _isWifiEnabled.asStateFlow()
-    private val _isWifiRadioOn = MutableStateFlow(false)
-    val isWifiRadioOn: StateFlow<Boolean> = _isWifiRadioOn.asStateFlow()
-    private val _wifiName = MutableStateFlow<String?>(null)
-    val wifiName: StateFlow<String?> = _wifiName.asStateFlow()
-
-    private val _isBluetoothEnabled = MutableStateFlow(false)
-    val isBluetoothEnabled: StateFlow<Boolean> = _isBluetoothEnabled.asStateFlow()
-    private val _bluetoothName = MutableStateFlow<String?>(null)
-    val bluetoothName: StateFlow<String?> = _bluetoothName.asStateFlow()
-
-    private val _bluetoothAudioDevices = MutableStateFlow<List<String>>(emptyList())
-    val bluetoothAudioDevices: StateFlow<List<String>> = _bluetoothAudioDevices.asStateFlow()
-
-    private val mediaRouter: MediaRouter
-    private val mediaRouterCallback: MediaRouter.Callback
-    private val connectivityManager: ConnectivityManager
-    private val wifiManager: WifiManager?
-    private var wifiStateReceiver: BroadcastReceiver? = null
-    private var networkCallback: ConnectivityManager.NetworkCallback? = null
-    private val bluetoothAdapter: BluetoothAdapter?
-    private val bluetoothManager: BluetoothManager
-    private var bluetoothStateReceiver: BroadcastReceiver? = null
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-    private val audioDeviceCallback: android.media.AudioDeviceCallback
+
     private val sessionManager: SessionManager = CastContext.getSharedInstance(context).sessionManager
     private var castSessionManagerListener: SessionManagerListener<CastSession>? = null
     private val _castSession = MutableStateFlow<CastSession?>(null)
@@ -499,8 +451,7 @@ class PlayerViewModel @Inject constructor(
     val isRemotePlaybackActive: StateFlow<Boolean> = _isRemotePlaybackActive.asStateFlow()
     private val _isCastConnecting = MutableStateFlow(false)
     val isCastConnecting: StateFlow<Boolean> = _isCastConnecting.asStateFlow()
-    private val castControlCategory = CastMediaControlIntent.categoryForCast(CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID)
-    private var pendingCastRouteId: String? = null
+
     private val _remotePosition = MutableStateFlow(0L)
     val remotePosition: StateFlow<Long> = _remotePosition.asStateFlow()
     private var lastRemoteMediaStatus: MediaStatus? = null
@@ -607,54 +558,11 @@ class PlayerViewModel @Inject constructor(
     }
 
     // Last Library Tab Index
-    val lastLibraryTabIndexFlow: StateFlow<Int> =
-        userPreferencesRepository.lastLibraryTabIndexFlow.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = 0 // Default to Songs tab
-        )
 
-    val libraryTabsFlow: StateFlow<List<String>> = userPreferencesRepository.libraryTabsOrderFlow
-        .map { orderJson ->
-            if (orderJson != null) {
-                try {
-                    Json.decodeFromString<List<String>>(orderJson)
-                } catch (e: Exception) {
-                    listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "FOLDERS", "LIKED")
-                }
-            } else {
-                listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "FOLDERS", "LIKED")
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "FOLDERS", "LIKED"))
-
-    private val _loadedTabs = MutableStateFlow(emptySet<String>())
     private var lastBlockedDirectories: Set<String>? = null
 
-    private val _currentLibraryTabId = MutableStateFlow(LibraryTabId.SONGS)
-    val currentLibraryTabId: StateFlow<LibraryTabId> = _currentLibraryTabId.asStateFlow()
 
-    private val _isSortingSheetVisible = MutableStateFlow(false)
-    val isSortingSheetVisible: StateFlow<Boolean> = _isSortingSheetVisible.asStateFlow()
 
-    val availableSortOptions: StateFlow<List<SortOption>> =
-        currentLibraryTabId.map { tabId ->
-            Trace.beginSection("PlayerViewModel.availableSortOptionsMapping")
-            val options = when (tabId) {
-                LibraryTabId.SONGS -> SortOption.SONGS
-                LibraryTabId.ALBUMS -> SortOption.ALBUMS
-                LibraryTabId.ARTISTS -> SortOption.ARTISTS
-                LibraryTabId.PLAYLISTS -> SortOption.PLAYLISTS
-                LibraryTabId.FOLDERS -> SortOption.FOLDERS
-                LibraryTabId.LIKED -> SortOption.LIKED
-            }
-            Trace.endSection()
-            options
-        }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = SortOption.SONGS
-        )
 
     val isSyncingStateFlow: StateFlow<Boolean> = syncManager.isSyncing
         .stateIn(
@@ -666,54 +574,7 @@ class PlayerViewModel @Inject constructor(
     private val _isInitialDataLoaded = MutableStateFlow(false)
 
     // Flow dedicado sólo a la lista de canciones:
-    val allSongsFlow: StateFlow<List<Song>> =
-        _playerUiState
-            .map { it.allSongs }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val genres: StateFlow<ImmutableList<Genre>> = allSongsFlow
-        .map { songs ->
-            val genreMap = mutableMapOf<String, MutableList<Song>>()
-            val unknownGenreName = "Unknown Genre"
-
-            songs.forEach { song ->
-                val genreName = song.genre?.trim()
-                if (genreName.isNullOrBlank()) {
-                    genreMap.getOrPut(unknownGenreName) { mutableListOf() }.add(song)
-                } else {
-                    genreMap.getOrPut(genreName) { mutableListOf() }.add(song)
-                }
-            }
-
-            genreMap.toList().mapIndexedNotNull { index, (genreName, songs) ->
-                if (songs.isNotEmpty()) {
-                    val id = if (genreName.equals(unknownGenreName, ignoreCase = true)) {
-                        "unknown"
-                    } else {
-                        genreName.lowercase().replace(" ", "_").replace("/", "_")
-                    }
-                    val color = GenreColors.colors[index % GenreColors.colors.size]
-                    Genre(
-                        id = id,
-                        name = genreName,
-                        lightColorHex = color.lightColor.toHexString(),
-                        onLightColorHex = color.onLightColor.toHexString(),
-                        darkColorHex = color.darkColor.toHexString(),
-                        onDarkColorHex = color.onDarkColor.toHexString()
-                    )
-                } else {
-                    null
-                }
-            }
-                .distinctBy { it.id }
-                .sortedBy { it.name.lowercase() }
-                .toImmutableList()
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = persistentListOf()
-        )
 
     val activePlayerColorSchemePair: StateFlow<ColorSchemePair?> = combine(
         playerThemePreference, _currentAlbumArtColorSchemePair
@@ -771,26 +632,6 @@ class PlayerViewModel @Inject constructor(
         state.currentSong?.id?.let { ids.contains(it) } ?: false
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    private val _currentFavoriteSortOptionStateFlow = MutableStateFlow<SortOption>(SortOption.LikedSongDateLiked) // Default aligned with LibraryTabId default.
-    val currentFavoriteSortOptionStateFlow: StateFlow<SortOption> = _currentFavoriteSortOptionStateFlow.asStateFlow()
-
-    val favoriteSongs: StateFlow<ImmutableList<Song>> = combine(
-        favoriteSongIds,
-        _masterAllSongs,
-        currentFavoriteSortOptionStateFlow
-    ) { ids, allSongsList, sortOption ->
-        val favoriteSongsList = allSongsList.filter { song -> ids.contains(song.id) }
-        when (sortOption) {
-            SortOption.LikedSongTitleAZ -> favoriteSongsList.sortedBy { it.title.lowercase() }
-            SortOption.LikedSongTitleZA -> favoriteSongsList.sortedByDescending { it.title.lowercase() }
-            SortOption.LikedSongArtist -> favoriteSongsList.sortedBy { it.artist.lowercase() }
-            SortOption.LikedSongAlbum -> favoriteSongsList.sortedBy { it.album.lowercase() }
-            SortOption.LikedSongDateLiked -> favoriteSongsList.sortedByDescending { it.id }
-            else -> favoriteSongsList
-        }.toImmutableList()
-    }
-    .flowOn(Dispatchers.Default) // Execute combine and transformations on Default dispatcher
-    .stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
 
     private val _dailyMixSongs = MutableStateFlow<ImmutableList<Song>>(persistentListOf())
     val dailyMixSongs: StateFlow<ImmutableList<Song>> = _dailyMixSongs.asStateFlow()
@@ -813,7 +654,7 @@ class PlayerViewModel @Inject constructor(
      */
     fun observeSong(songId: String?): Flow<Song?> {
         if (songId == null) return flowOf(null)
-        return combine(allSongsFlow, favoriteSongIds) { songs, favorites ->
+        return combine(_playerUiState.map { it.allSongs }, favoriteSongIds) { songs, favorites ->
             songs.find { it.id == songId }?.copy(isFavorite = favorites.contains(songId))
         }.distinctUntilChanged()
     }
@@ -823,7 +664,7 @@ class PlayerViewModel @Inject constructor(
         dailyMixJob?.cancel()
         dailyMixJob = viewModelScope.launch(Dispatchers.IO) {
             // We need all songs to generate the mix
-            val allSongs = allSongsFlow.first()
+            val allSongs = _playerUiState.value.allSongs
             if (allSongs.isNotEmpty()) {
                 val favoriteIds = userPreferencesRepository.favoriteSongIdsFlow.first()
                 val mix = dailyMixManager.generateDailyMix(allSongs, favoriteIds)
@@ -869,7 +710,6 @@ class PlayerViewModel @Inject constructor(
 
     fun shuffleFavoriteSongs() {
         Log.d("ShuffleDebug", "shuffleFavoriteSongs called.")
-        // Don't use ExoPlayer's shuffle mode - we manually shuffle instead
         val currentSong = _stablePlayerState.value.currentSong
         val isPlaying = _stablePlayerState.value.isPlaying
         
@@ -882,38 +722,19 @@ class PlayerViewModel @Inject constructor(
         }
         
         // Otherwise start a new shuffled queue
-        val favSongs = favoriteSongs.value
+        val allSongs = _playerUiState.value.allSongs
+        val favIds = favoriteSongIds.value
+        val favSongs = allSongs.filter { favIds.contains(it.id) }
+        
         if (favSongs.isNotEmpty()) {
-            playSongsShuffled(favSongs, "Liked Songs (Shuffled)")
-        }
-    }
-
-    fun shuffleRandomAlbum() {
-        val allAlbums = _playerUiState.value.albums
-        if (allAlbums.isNotEmpty()) {
-            val randomAlbum = allAlbums.random()
-            val albumSongs = _playerUiState.value.allSongs.filter { it.albumId == randomAlbum.id }
-            if (albumSongs.isNotEmpty()) {
-                playSongsShuffled(albumSongs, randomAlbum.title)
-            }
-        }
-    }
-
-    fun shuffleRandomArtist() {
-        val allArtists = _playerUiState.value.artists
-        if (allArtists.isNotEmpty()) {
-            val randomArtist = allArtists.random()
-            val artistSongs = _playerUiState.value.allSongs.filter { it.artistId == randomArtist.id }
-            if (artistSongs.isNotEmpty()) {
-                playSongsShuffled(artistSongs, randomArtist.name)
-            }
+            playSongsShuffled(favSongs.toImmutableList(), "Liked Songs (Shuffled)")
         }
     }
 
     private fun loadPersistedDailyMix() {
         viewModelScope.launch {
             // Combine the flow of persisted IDs with the flow of all songs
-            userPreferencesRepository.dailyMixSongIdsFlow.combine(allSongsFlow) { ids, allSongs ->
+            userPreferencesRepository.dailyMixSongIdsFlow.combine(_playerUiState.map { it.allSongs }) { ids, allSongs ->
                 if (ids.isNotEmpty() && allSongs.isNotEmpty()) {
                     // Create a map for quick lookups
                     val songMap = allSongs.associateBy { it.id }
@@ -1104,177 +925,26 @@ class PlayerViewModel @Inject constructor(
         _predictiveBackCollapseFraction.value = fraction.coerceIn(0f, 1f)
     }
 
-    // Helper to resolve stored sort keys against the allowed group
-    private fun resolveSortOption(
-        optionKey: String?,
-        allowed: Collection<SortOption>,
-        fallback: SortOption
-    ): SortOption {
-        return SortOption.fromStorageKey(optionKey, allowed, fallback)
-    }
 
-    private fun hasBluetoothPermission(): Boolean {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
-    }
 
-    private fun hasLocationPermission(): Boolean {
-        return ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-    }
 
-    private fun MediaRouter.RouteInfo.isCastRoute(): Boolean {
-        return supportsControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK) ||
-            supportsControlCategory(castControlCategory)
-    }
-
-    private fun buildCastRouteSelector(): MediaRouteSelector {
-        return MediaRouteSelector.Builder()
-            .addControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK)
-            .addControlCategory(castControlCategory)
-            .build()
-    }
-
-    private fun updateWifiInfo(network: Network?) {
-        if (!hasLocationPermission()) {
-            _wifiName.value = null
-            return
-        }
-        if (network == null) {
-            _wifiName.value = null
-            return
-        }
-        val caps = connectivityManager.getNetworkCapabilities(network)
-        if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
-            val wifiInfo = caps.transportInfo as? android.net.wifi.WifiInfo
-            val rawSsid = wifiInfo?.ssid
-            // Android sometimes returns <unknown ssid> if no location permission
-            if (rawSsid != null && rawSsid != "<unknown ssid>") {
-                _wifiName.value = rawSsid.trim('"')
-            } else {
-                // Fallback to WifiManager for older APIs or if transportInfo failed
-                val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
-                val info = wifiManager?.connectionInfo
-                val fallbackSsid = info?.ssid
-                if (fallbackSsid != null && fallbackSsid != "<unknown ssid>") {
-                    _wifiName.value = fallbackSsid.trim('"')
-                } else {
-                    _wifiName.value = null
-                }
-            }
-        }
-    }
-
-    private fun updateWifiRadioState() {
-        val state = wifiManager?.wifiState
-        _isWifiRadioOn.value = when (state) {
-            WifiManager.WIFI_STATE_ENABLED, WifiManager.WIFI_STATE_ENABLING -> true
-            WifiManager.WIFI_STATE_DISABLED, WifiManager.WIFI_STATE_DISABLING -> false
-            else -> wifiManager?.isWifiEnabled == true
-        }
-    }
-
-    private fun updateBluetoothName(forceClear: Boolean = false) {
-        if (!hasBluetoothPermission()) {
-            if (forceClear) _bluetoothName.value = null
-            _bluetoothAudioDevices.value = emptyList()
-            return
-        }
-
-        val connectedDevice = safeGetConnectedDevices(BluetoothProfile.A2DP).firstOrNull()
-            ?: safeGetConnectedDevices(BluetoothProfile.HEADSET).firstOrNull()
-            ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                safeGetConnectedDevices(BluetoothProfile.LE_AUDIO).firstOrNull()
-            } else {
-                null
-            }
-
-        val audioDevices = audioManager.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)
-        val activeBluetoothAudioName = audioDevices.firstOrNull {
-            it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                it.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET ||
-                it.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER ||
-                it.type == android.media.AudioDeviceInfo.TYPE_HEARING_AID
-        }?.productName?.toString()
-
-        val resolvedName = connectedDevice?.name ?: activeBluetoothAudioName
-
-        when {
-            resolvedName != null -> _bluetoothName.value = resolvedName
-            forceClear || !(bluetoothAdapter?.isEnabled ?: false) -> _bluetoothName.value = null
-        }
-
-        updateBluetoothAudioDevices()
-    }
-
-    private fun updateBluetoothAudioDevices() {
-        if (!hasBluetoothPermission()) {
-            _bluetoothAudioDevices.value = emptyList()
-            return
-        }
-
-        val connectedDevices = buildSet {
-            safeGetConnectedDevices(BluetoothProfile.A2DP).mapNotNullTo(this) { it.name }
-            safeGetConnectedDevices(BluetoothProfile.HEADSET).mapNotNullTo(this) { it.name }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                safeGetConnectedDevices(BluetoothProfile.LE_AUDIO).mapNotNullTo(this) { it.name }
-            }
-
-            audioManager.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)
-                .filter {
-                    it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                        it.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET ||
-                        it.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER ||
-                        it.type == android.media.AudioDeviceInfo.TYPE_HEARING_AID
-                }
-                .mapNotNull { it.productName?.toString() }
-                .forEach { add(it) }
-        }
-
-        _bluetoothAudioDevices.value = connectedDevices.toList().sorted()
-    }
-
-    private fun safeGetConnectedDevices(profile: Int): List<BluetoothDevice> {
-        return runCatching { bluetoothManager.getConnectedDevices(profile) }.getOrElse { emptyList() }
-    }
-
-    fun refreshLocalConnectionInfo() {
-        val currentNetwork = connectivityManager.activeNetwork
-        val currentCaps = connectivityManager.getNetworkCapabilities(currentNetwork)
-        updateWifiRadioState()
-        _isWifiEnabled.value = currentCaps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
-        if (_isWifiEnabled.value) updateWifiInfo(currentNetwork)
-
-        _isBluetoothEnabled.value = bluetoothAdapter?.isEnabled ?: false
-        updateBluetoothName()
-        updateBluetoothAudioDevices()
-    }
 
     init {
         Log.i("PlayerViewModel", "init started.")
 
         // Cast initialization if already connected
+        Timber.tag(CAST_LOG_TAG).i("PlayerViewModel init: Checking for existing cast session")
         val currentSession = sessionManager.currentCastSession
         if (currentSession != null) {
+            Timber.tag(CAST_LOG_TAG).i("Existing cast session found: %s", currentSession)
             castPlayer = CastPlayer(currentSession)
             _isRemotePlaybackActive.value = true
+        } else {
+            Timber.tag(CAST_LOG_TAG).i("No existing cast session found")
         }
 
         // Observe current song lyrics offset
         observeCurrentSongLyricsOffset()
-
-        viewModelScope.launch {
-            userPreferencesRepository.migrateTabOrder()
-        }
-
-        viewModelScope.launch {
-            userPreferencesRepository.ensureLibrarySortDefaults()
-        }
-
-        viewModelScope.launch {
-            userPreferencesRepository.isFoldersPlaylistViewFlow.collect { isPlaylistView ->
-                setFoldersPlaylistViewState(isPlaylistView)
-            }
-        }
 
         viewModelScope.launch {
             userPreferencesRepository.blockedDirectoriesFlow
@@ -1287,58 +957,13 @@ class PlayerViewModel @Inject constructor(
 
                     if (blocked != lastBlockedDirectories) {
                         lastBlockedDirectories = blocked
-                        onBlockedDirectoriesChanged()
+                        onAllowedDirectoriesChanged()
                     }
                 }
         }
 
-        viewModelScope.launch {
-            combine(libraryTabsFlow, lastLibraryTabIndexFlow) { tabs, index ->
-                tabs.getOrNull(index)?.toLibraryTabIdOrNull() ?: LibraryTabId.SONGS
-            }.collect { tabId ->
-                _currentLibraryTabId.value = tabId
-            }
-        }
+        loadInitialDataForPlayer()
 
-        // Load initial sort options ONCE at startup.
-        viewModelScope.launch {
-            val initialSongSort = resolveSortOption(
-                userPreferencesRepository.songsSortOptionFlow.first(),
-                SortOption.SONGS,
-                SortOption.SongTitleAZ
-            )
-            val initialAlbumSort = resolveSortOption(
-                userPreferencesRepository.albumsSortOptionFlow.first(),
-                SortOption.ALBUMS,
-                SortOption.AlbumTitleAZ
-            )
-            val initialArtistSort = resolveSortOption(
-                userPreferencesRepository.artistsSortOptionFlow.first(),
-                SortOption.ARTISTS,
-                SortOption.ArtistNameAZ
-            )
-            val initialLikedSort = resolveSortOption(
-                userPreferencesRepository.likedSongsSortOptionFlow.first(),
-                SortOption.LIKED,
-                SortOption.LikedSongDateLiked
-            )
-
-            _playerUiState.update {
-                it.copy(
-                    currentSongSortOption = initialSongSort,
-                    currentAlbumSortOption = initialAlbumSort,
-                    currentArtistSortOption = initialArtistSort,
-                    currentFavoriteSortOption = initialLikedSort
-                )
-            }
-            // Also update the dedicated flow for favorites to ensure consistency
-            _currentFavoriteSortOptionStateFlow.value = initialLikedSort
-
-            sortSongs(initialSongSort, persist = false)
-            sortAlbums(initialAlbumSort, persist = false)
-            sortArtists(initialArtistSort, persist = false)
-            sortFavoriteSongs(initialLikedSort, persist = false)
-        }
 
         launchColorSchemeProcessor()
         loadPersistedDailyMix()
@@ -1373,145 +998,12 @@ class PlayerViewModel @Inject constructor(
                 pendingPlaybackAction?.invoke()
                 pendingPlaybackAction = null
             } catch (e: Exception) {
-                _playerUiState.update { it.copy(isLoadingInitialSongs = false, isLoadingLibraryCategories = false) }
+                _playerUiState.update { it.copy(isLoadingInitialSongs = false) }
                 Log.e("PlayerViewModel", "Error setting up MediaController", e)
             }
         }, ContextCompat.getMainExecutor(context))
 
-        mediaRouter = MediaRouter.getInstance(context)
-        val mediaRouteSelector = buildCastRouteSelector()
 
-        mediaRouterCallback = object : MediaRouter.Callback() {
-            private fun updateRoutes(router: MediaRouter) {
-                val routes = router.routes.filter { it.isCastRoute() }.distinctBy { it.id }
-                _castRoutes.value = routes
-                _selectedRoute.value = router.selectedRoute
-                _routeVolume.value = router.selectedRoute.volume
-            }
-
-            override fun onRouteAdded(router: MediaRouter, route: MediaRouter.RouteInfo) { updateRoutes(router) }
-            override fun onRouteRemoved(router: MediaRouter, route: MediaRouter.RouteInfo) { updateRoutes(router) }
-            override fun onRouteChanged(router: MediaRouter, route: MediaRouter.RouteInfo) { updateRoutes(router) }
-            override fun onRouteSelected(router: MediaRouter, route: MediaRouter.RouteInfo) {
-                updateRoutes(router)
-                if (route.supportsControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK) && !route.isDefault) {
-                    viewModelScope.launch {
-                        ensureHttpServerRunning()
-                    }
-                } else if (route.isDefault) {
-                    context.stopService(Intent(context, MediaFileHttpServerService::class.java))
-                }
-            }
-            override fun onRouteUnselected(router: MediaRouter, route: MediaRouter.RouteInfo) { updateRoutes(router) }
-            override fun onRouteVolumeChanged(router: MediaRouter, route: MediaRouter.RouteInfo) {
-                if (route.id == _selectedRoute.value?.id) {
-                    _routeVolume.value = route.volume
-                }
-            }
-        }
-        // Initial route setup
-        mediaRouter.addCallback(mediaRouteSelector, mediaRouterCallback, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY)
-        _castRoutes.value = mediaRouter.routes.filter { it.isCastRoute() }.distinctBy { it.id }
-        _selectedRoute.value = mediaRouter.selectedRoute
-
-        // Connectivity listeners
-        connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-        bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        bluetoothAdapter = bluetoothManager.adapter
-
-        // Initial state check
-        val activeNetwork = connectivityManager.activeNetwork
-        val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
-        updateWifiRadioState()
-        _isWifiEnabled.value = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
-        if (_isWifiEnabled.value) {
-            updateWifiInfo(activeNetwork)
-        }
-
-        _isBluetoothEnabled.value = bluetoothAdapter?.isEnabled ?: false
-        updateBluetoothName()
-
-        // Wi-Fi listener
-        networkCallback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                val caps = connectivityManager.getNetworkCapabilities(network)
-                if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
-                    _isWifiEnabled.value = true
-                    updateWifiInfo(network)
-                }
-            }
-
-            override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
-                if (networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
-                    _isWifiEnabled.value = true
-                    updateWifiInfo(network)
-                }
-            }
-
-            override fun onLost(network: Network) {
-                // A specific network was lost; check if another Wi-Fi network is active.
-                val currentNetwork = connectivityManager.activeNetwork
-                val caps = connectivityManager.getNetworkCapabilities(currentNetwork)
-                _isWifiEnabled.value = caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
-                if (!_isWifiEnabled.value) _wifiName.value = null
-            }
-        }
-        val networkRequest = NetworkRequest.Builder()
-            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-            .build()
-        connectivityManager.registerNetworkCallback(networkRequest, networkCallback!!)
-
-        wifiStateReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == WifiManager.WIFI_STATE_CHANGED_ACTION) {
-                    updateWifiRadioState()
-                }
-            }
-        }
-        wifiStateReceiver?.let {
-            context.registerReceiver(it, IntentFilter(WifiManager.WIFI_STATE_CHANGED_ACTION))
-        }
-
-        // Bluetooth listener
-        bluetoothStateReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                when (intent?.action) {
-                    BluetoothAdapter.ACTION_STATE_CHANGED -> {
-                        val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
-                        _isBluetoothEnabled.value = state == BluetoothAdapter.STATE_ON
-                        if (state == BluetoothAdapter.STATE_OFF) {
-                            _bluetoothName.value = null
-                            _bluetoothAudioDevices.value = emptyList()
-                        } else updateBluetoothName(forceClear = false)
-                    }
-                    android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED,
-                    android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
-                        updateBluetoothName(forceClear = intent?.action == android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED)
-                    }
-                }
-            }
-        }
-        val btFilter = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED).apply {
-            addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED)
-            addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED)
-        }
-        context.registerReceiver(bluetoothStateReceiver, btFilter)
-
-        audioDeviceCallback = object : android.media.AudioDeviceCallback() {
-            override fun onAudioDevicesAdded(addedDevices: Array<out android.media.AudioDeviceInfo>?) {
-                updateBluetoothName()
-            }
-            override fun onAudioDevicesRemoved(removedDevices: Array<out android.media.AudioDeviceInfo>?) {
-                updateBluetoothName(forceClear = removedDevices?.any {
-                    it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                        it.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET ||
-                        it.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER ||
-                        it.type == android.media.AudioDeviceInfo.TYPE_HEARING_AID
-                } == true)
-            }
-        }
-        audioManager.registerAudioDeviceCallback(audioDeviceCallback, null)
 
         remoteProgressListener = RemoteMediaClient.ProgressListener { progress, _ ->
             if (!isRemotelySeeking.value) {
@@ -1555,7 +1047,7 @@ class PlayerViewModel @Inject constructor(
                         mediaStatus.currentItemId
                     )
                 lastRemoteMediaStatus = mediaStatus
-                val songMap = _masterAllSongs.value.associateBy { it.id }
+                val songMap = _playerUiState.value.allSongs.associateBy { it.id }
                 val newQueue = mediaStatus.queueItems.mapNotNull { item ->
                     item.customData?.optString("songId")?.let { songId ->
                         songMap[songId]
@@ -1708,7 +1200,7 @@ class PlayerViewModel @Inject constructor(
         castSessionManagerListener = object : SessionManagerListener<CastSession> {
             private fun transferPlayback(session: CastSession) {
                 viewModelScope.launch {
-                    pendingCastRouteId = null
+                    // pendingCastRouteId = null (removed)
                     _isCastConnecting.value = true
                     if (!ensureHttpServerRunning()) {
                         _isCastConnecting.value = false
@@ -1786,16 +1278,18 @@ class PlayerViewModel @Inject constructor(
             }
 
             override fun onSessionStarted(session: CastSession, sessionId: String) {
+                Timber.tag(CAST_LOG_TAG).i("onSessionStarted called with session=%s, sessionId=%s", session, sessionId)
                 transferPlayback(session)
             }
 
             override fun onSessionResumed(session: CastSession, wasSuspended: Boolean) {
+                Timber.tag(CAST_LOG_TAG).i("onSessionResumed called with session=%s, wasSuspended=%s", session, wasSuspended)
                 transferPlayback(session)
             }
 
             private suspend fun stopServerAndTransferBack() {
                 val startMs = SystemClock.elapsedRealtime()
-                val targetRouteId = pendingCastRouteId
+                val targetRouteId: String? = null // pendingCastRouteId removed
                 val session = _castSession.value ?: return
                 val remoteMediaClient = session.remoteMediaClient
                 Timber.tag(CAST_LOG_TAG).i(
@@ -1866,12 +1360,7 @@ class PlayerViewModel @Inject constructor(
                 )
 
                 val localPlayer = mediaController ?: run {
-                    if (targetRouteId == null) {
-                        _isCastConnecting.value = false
-                    } else {
-                        pendingCastRouteId = null
-                        _isCastConnecting.value = false
-                    }
+                    _isCastConnecting.value = false
                     return
                 }
                 Timber.tag(CAST_LOG_TAG).i(
@@ -1884,7 +1373,7 @@ class PlayerViewModel @Inject constructor(
                     val fallbackQueue = if (transferSnapshot.lastKnownStatus?.queueItems?.isNotEmpty() == true) {
                         transferSnapshot.lastKnownStatus.queueItems.mapNotNull { item ->
                             item.customData?.optString("songId")?.let { songId ->
-                                _masterAllSongs.value.firstOrNull { it.id == songId }
+                                _playerUiState.value.allSongs.firstOrNull { it.id == songId }
                             }
                         }.toImmutableList()
                     } else {
@@ -1897,7 +1386,7 @@ class PlayerViewModel @Inject constructor(
                         } -> transferSnapshot.lastRemoteQueue
                         else -> fallbackQueue
                     }
-                    val songMap = _masterAllSongs.value.associateBy { it.id }
+                    val songMap = _playerUiState.value.allSongs.associateBy { it.id }
                     val finalQueue = chosenQueue.mapNotNull { song ->
                         songMap[song.id]
                     }
@@ -2057,22 +1546,9 @@ class PlayerViewModel @Inject constructor(
                 lastRemoteQueue = emptyList()
                 lastRemoteSongId = null
                 lastRemoteStreamPosition = 0L
-                if (targetRouteId == null) {
-                    Timber.tag(CAST_LOG_TAG).i("Transfer back complete. Clearing castConnecting=false")
-                    _isCastConnecting.value = false // NOW we reset the flag
-                    flushPendingRepeatMode()
-                } else {
-                    val pendingRoute = mediaRouter.routes.firstOrNull { it.id == targetRouteId }
-                    if (pendingRoute != null) {
-                        Timber.tag(CAST_LOG_TAG).i("Selecting pending route %s after transfer back.", targetRouteId)
-                        mediaRouter.selectRoute(pendingRoute)
-                    } else {
-                        Timber.tag(CAST_LOG_TAG).w("Pending route %s not found after transfer back. Resetting state.", targetRouteId)
-                        pendingCastRouteId = null
-                        _isCastConnecting.value = false
-                        flushPendingRepeatMode()
-                    }
-                }
+                Timber.tag(CAST_LOG_TAG).i("Transfer back complete. Clearing castConnecting=false")
+                _isCastConnecting.value = false // NOW we reset the flag
+                flushPendingRepeatMode()
                 Timber.tag(CAST_LOG_TAG).i(
                     "Transfer back finished at +%dms",
                     SystemClock.elapsedRealtime() - startMs
@@ -2089,25 +1565,29 @@ class PlayerViewModel @Inject constructor(
 
             // Other listener methods can be overridden if needed
             override fun onSessionStarting(session: CastSession) {
+                Timber.tag(CAST_LOG_TAG).i("onSessionStarting called")
                 _isCastConnecting.value = true
             }
             override fun onSessionStartFailed(session: CastSession, error: Int) {
-                pendingCastRouteId = null
+                Timber.tag(CAST_LOG_TAG).e("onSessionStartFailed called with error=%d", error)
                 _isCastConnecting.value = false
             }
             override fun onSessionEnding(session: CastSession) {
                 Timber.tag(CAST_LOG_TAG).i("Cast session ending; keeping connecting flag=%s", _isCastConnecting.value)
             }
             override fun onSessionResuming(session: CastSession, sessionId: String) {
+                Timber.tag(CAST_LOG_TAG).i("onSessionResuming called with sessionId=%s", sessionId)
                 _isCastConnecting.value = true
             }
             override fun onSessionResumeFailed(session: CastSession, error: Int) {
-                pendingCastRouteId = null
+                Timber.tag(CAST_LOG_TAG).e("onSessionResumeFailed called with error=%d", error)
                 _isCastConnecting.value = false
             }
         }
+        Timber.tag(CAST_LOG_TAG).i("Registering SessionManagerListener with sessionManager")
         sessionManager.addSessionManagerListener(castSessionManagerListener as SessionManagerListener<CastSession>, CastSession::class.java)
         _castSession.value = sessionManager.currentCastSession
+        Timber.tag(CAST_LOG_TAG).i("SessionManager state - currentCastSession=%s", sessionManager.currentCastSession)
         _isRemotePlaybackActive.value = _castSession.value != null
         _castSession.value?.remoteMediaClient?.registerCallback(remoteMediaClientCallback!!)
         _castSession.value?.remoteMediaClient?.addProgressListener(remoteProgressListener!!, 1000)
@@ -2163,13 +1643,12 @@ class PlayerViewModel @Inject constructor(
 
         _playerUiState.update {
             it.copy(
-                isLoadingInitialSongs = false,
-                isLoadingLibraryCategories = false
+                isLoadingInitialSongs = false
             )
         }
 
         val dummyList = persistentListOf(dummySong)
-        _masterAllSongs.value = dummyList
+
         _playerUiState.update {
             it.copy(
                 allSongs = dummyList,
@@ -2233,98 +1712,31 @@ class PlayerViewModel @Inject constructor(
         Trace.endSection()
     }
 
-    // Nueva función para carga paralela
-    private fun loadInitialLibraryDataParallel() {
+    private fun loadInitialDataForPlayer() {
         _playerUiState.update {
             it.copy(
-                isLoadingInitialSongs = true,
-                isLoadingLibraryCategories = true
+                isLoadingInitialSongs = true
             )
         }
 
-        val songsJob = viewModelScope.launch {
-            Log.d("PlayerViewModel", "Loading songs in parallel...")
+        viewModelScope.launch {
+            Log.d("PlayerViewModel", "Loading songs...")
             try {
                 val songsList = musicRepository.getAudioFiles().first()
-                _masterAllSongs.value = songsList.toImmutableList()
 
-                // Apply initial sort to the displayed list
-                sortSongs(_playerUiState.value.currentSongSortOption, persist = false)
 
                 _playerUiState.update { currentState ->
                     currentState.copy(
+                        allSongs = songsList.toImmutableList(),
                         isLoadingInitialSongs = false
                     )
                 }
-                Log.d("PlayerViewModel", "Songs loaded in parallel. Master count: ${songsList.size}")
+                Log.d("PlayerViewModel", "Songs loaded. Master count: ${songsList.size}")
             } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error loading songs in parallel", e)
+                Log.e("PlayerViewModel", "Error loading songs", e)
                 _playerUiState.update { it.copy(isLoadingInitialSongs = false) }
-            }
-        }
-
-        val albumsJob = viewModelScope.launch {
-            Log.d("PlayerViewModel", "Loading albums in parallel...")
-            try {
-                val albumsList = musicRepository.getAllAlbumsOnce()
-                _playerUiState.update { it.copy(albums = albumsList.toImmutableList()) }
-                sortAlbums(_playerUiState.value.currentAlbumSortOption, persist = false)
-                Log.d("PlayerViewModel", "Albums loaded in parallel. Count: ${albumsList.size}")
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error loading albums in parallel", e)
-            }
-        }
-
-        val artistsJob = viewModelScope.launch {
-            Log.d("PlayerViewModel", "Loading artists in parallel...")
-            try {
-                val artistsList = musicRepository.getAllArtistsOnce()
-                _playerUiState.update { it.copy(artists = artistsList.toImmutableList()) }
-                Log.d("PlayerViewModel", "Artists loaded in parallel. Count: ${artistsList.size}")
-                
-                // Fetch Deezer images for artists without images in background
-                launch(Dispatchers.IO) {
-                    val artistsWithoutImages = artistsList.filter { it.imageUrl.isNullOrEmpty() }
-                    Log.d("PlayerViewModel", "Fetching Deezer images for ${artistsWithoutImages.size} artists...")
-                    
-                    for (artist in artistsWithoutImages) {
-                        try {
-                            val imageUrl = artistImageRepository.getArtistImageUrl(artist.name, artist.id)
-                            if (!imageUrl.isNullOrEmpty()) {
-                                // Update artist in the UI state
-                                _playerUiState.update { currentState ->
-                                    val updatedArtists = currentState.artists.map { a ->
-                                        if (a.id == artist.id) a.copy(imageUrl = imageUrl) else a
-                                    }
-                                    currentState.copy(artists = updatedArtists.toImmutableList())
-                                }
-                            }
-                        } catch (e: Exception) {
-                            Log.w("PlayerViewModel", "Failed to fetch image for ${artist.name}: ${e.message}")
-                        }
-                    }
-                    Log.d("PlayerViewModel", "Deezer artist image fetch completed")
-                }
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error loading artists in parallel", e)
-            }
-        }
-
-        viewModelScope.launch {
-            try {
-                joinAll(songsJob, albumsJob, artistsJob)
-                Log.d("PlayerViewModel", "All parallel loads (songs, albums, artists) completed.")
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error during parallel data loading completion", e)
             } finally {
-                _playerUiState.update {
-                    it.copy(
-                        isLoadingInitialSongs = false,
-                        isLoadingLibraryCategories = false
-                    )
-                }
                 _isInitialDataLoaded.value = true
-                Log.d("PlayerViewModel", "_isInitialDataLoaded set to true after all parallel loads completed.")
             }
         }
     }
@@ -2335,7 +1747,7 @@ class PlayerViewModel @Inject constructor(
         Log.i("PlayerViewModel", "resetAndLoadInitialData called from: $caller. Proceeding with load.")
         Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData START - Called by: $caller")
 
-        loadInitialLibraryDataParallel()
+        loadInitialDataForPlayer()
         updateDailyMix()
 
         Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData END (dispatching parallel async work). Total function time: ${System.currentTimeMillis() - functionStartTime} ms")
@@ -2362,11 +1774,11 @@ class PlayerViewModel @Inject constructor(
                 val repoCallDuration = System.currentTimeMillis() - repoCallStartTime
                 Log.d("PlayerViewModelPerformance", "musicRepository.getAudioFiles (Single Action) took $repoCallDuration ms for ${allSongsList.size} songs.")
 
-                _masterAllSongs.value = allSongsList.toImmutableList()
-                sortSongs(_playerUiState.value.currentSongSortOption, persist = false)
+                // sortSongs(_playerUiState.value.currentSongSortOption, persist = false)
 
                 _playerUiState.update { currentState ->
                     currentState.copy(
+                        allSongs = allSongsList.toImmutableList(),
                         isLoadingInitialSongs = false
                     )
                 }
@@ -2389,161 +1801,10 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    private fun loadAlbumsFromRepository() {
-        Log.d("PlayerViewModelPerformance", "loadAlbumsFromRepository (All) called.")
 
-        viewModelScope.launch {
-            Trace.beginSection("PlayerViewModel.loadAlbumsFromRepository_coroutine")
-            val functionStartTime = System.currentTimeMillis()
-            Log.d("PlayerViewModelPerformance", "loadAlbumsFromRepository (All) START")
-
-            _playerUiState.update { it.copy(isLoadingLibraryCategories = true) }
-
-            try {
-                val repoCallAlbumsStartTime = System.currentTimeMillis()
-                // Usar la nueva función suspend del repositorio
-                val allAlbumsList: List<Album> = musicRepository.getAllAlbumsOnce()
-                val albumsLoadDuration = System.currentTimeMillis() - repoCallAlbumsStartTime
-                Log.d("PlayerViewModelPerformance", "musicRepository.getAllAlbumsOnce (All) took $albumsLoadDuration ms for ${allAlbumsList.size} albums.")
-
-                _playerUiState.update { currentState ->
-                    currentState.copy(
-                        albums = allAlbumsList.toImmutableList(),
-                        isLoadingLibraryCategories = false
-                    )
-                }
-                sortAlbums(_playerUiState.value.currentAlbumSortOption, persist = false)
-                Log.d("PlayerViewModelPerformance", "loadAlbumsFromRepository (All) END. Total time: ${System.currentTimeMillis() - functionStartTime} ms. Albums loaded: ${allAlbumsList.size}")
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error loading all albums from getAllAlbumsOnce", e)
-                _playerUiState.update { it.copy(isLoadingLibraryCategories = false) }
-            } finally {
-                Trace.endSection() // End PlayerViewModel.loadAlbumsFromRepository_coroutine
-            }
-        }
-    }
-
-    fun loadSongsIfNeeded() {
-        val songsEmpty = _playerUiState.value.allSongs.isEmpty()
-        val notLoading = !_playerUiState.value.isLoadingInitialSongs
-
-        Log.d("PlayerViewModel", "loadSongsIfNeeded: songsEmpty=$songsEmpty, notLoadingInitialSongs=$notLoading")
-        if (songsEmpty && notLoading) {
-            Log.i("PlayerViewModel", "loadSongsIfNeeded: Conditions met. Loading all songs.")
-            loadSongsFromRepository()
-        } else {
-            var reason = ""
-            if (!songsEmpty) reason += "Songs not empty. "
-            if (!notLoading) reason += "Currently loading initial songs. "
-            Log.w("PlayerViewModel", "loadSongsIfNeeded: Conditions NOT met. Skipping load. Reason: $reason")
-        }
-    }
-
-    fun loadAlbumsIfNeeded() {
-        val albumsEmpty = _playerUiState.value.albums.isEmpty()
-        val notLoading = !_playerUiState.value.isLoadingLibraryCategories
-        Log.d("PlayerViewModel", "loadAlbumsIfNeeded: albumsEmpty=$albumsEmpty, notLoadingLibraryCategories=$notLoading")
-        if (albumsEmpty && notLoading) { // Simplified condition
-            Log.i("PlayerViewModel", "loadAlbumsIfNeeded: Conditions met. Loading all albums.")
-            loadAlbumsFromRepository() // No isInitialLoad parameter
-        } else {
-            var reason = ""
-            if (!albumsEmpty) reason += "Albums not empty. "
-            if (!notLoading) reason += "Currently loading library categories. "
-            Log.w("PlayerViewModel", "loadAlbumsIfNeeded: Conditions NOT met. Skipping load. Reason: $reason")
-        }
-    }
-
-    // Funciones para cargar artistas
-    private fun loadArtistsFromRepository() {
-        Log.d("PlayerViewModelPerformance", "loadArtistsFromRepository (All) called.")
-
-        viewModelScope.launch {
-            val functionStartTime = System.currentTimeMillis()
-            Log.d("PlayerViewModelPerformance", "loadArtistsFromRepository (All) START")
-
-            _playerUiState.update { it.copy(isLoadingLibraryCategories = true) }
-
-            try {
-                val repoCallArtistsStartTime = System.currentTimeMillis()
-                // Usar la nueva función suspend del repositorio
-                val allArtistsList: List<Artist> = musicRepository.getAllArtistsOnce()
-                val artistsLoadDuration = System.currentTimeMillis() - repoCallArtistsStartTime
-                Log.d("PlayerViewModelPerformance", "musicRepository.getAllArtistsOnce (All) took $artistsLoadDuration ms for ${allArtistsList.size} artists.")
-
-                _playerUiState.update { currentState ->
-                    currentState.copy(
-                        artists = allArtistsList.toImmutableList(),
-                        isLoadingLibraryCategories = false
-                    )
-                }
-                 Log.d("PlayerViewModelPerformance", "loadArtistsFromRepository (All) END. Total time: ${System.currentTimeMillis() - functionStartTime} ms. Artists loaded: ${allArtistsList.size}")
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error loading all artists from getAllArtistsOnce", e)
-                _playerUiState.update { it.copy(isLoadingLibraryCategories = false) }
-            }
-        }
-    }
-
-    fun loadArtistsIfNeeded() {
-        val artistsEmpty = _playerUiState.value.artists.isEmpty()
-        val notLoading = !_playerUiState.value.isLoadingLibraryCategories
-        Log.d("PlayerViewModel", "loadArtistsIfNeeded: artistsEmpty=$artistsEmpty, notLoadingLibraryCategories=$notLoading")
-        if (artistsEmpty && notLoading) { // Simplified condition
-            Log.i("PlayerViewModel", "loadArtistsIfNeeded: Conditions met. Loading all artists.")
-            loadArtistsFromRepository() // No isInitialLoad parameter
-        } else {
-            var reason = ""
-            if (!artistsEmpty) reason += "Artists not empty. "
-            if (!notLoading) reason += "Currently loading library categories. "
-            Log.w("PlayerViewModel", "loadArtistsIfNeeded: Conditions NOT met. Skipping load. Reason: $reason")
-        }
-    }
-
-    fun loadFoldersFromRepository() {
-        Log.d("PlayerViewModelPerformance", "loadFoldersFromRepository (All) called.")
-
-        viewModelScope.launch {
-            val functionStartTime = System.currentTimeMillis()
-            Log.d("PlayerViewModelPerformance", "loadFoldersFromRepository (All) START")
-
-            _playerUiState.update { it.copy(isLoadingLibraryCategories = true) }
-
-            try {
-                val repoCallFoldersStartTime = System.currentTimeMillis()
-                val allFoldersList: List<MusicFolder> = musicRepository.getMusicFolders().first()
-                val foldersLoadDuration = System.currentTimeMillis() - repoCallFoldersStartTime
-                Log.d("PlayerViewModelPerformance", "musicRepository.getMusicFolders (All) took $foldersLoadDuration ms for ${allFoldersList.size} folders.")
-
-                _playerUiState.update { currentState ->
-                    currentState.copy(
-                        musicFolders = allFoldersList.toImmutableList(),
-                        isLoadingLibraryCategories = false
-                    )
-                }
-                 Log.d("PlayerViewModelPerformance", "loadFoldersFromRepository (All) END. Total time: ${System.currentTimeMillis() - functionStartTime} ms. Folders loaded: ${allFoldersList.size}")
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error loading all folders from getMusicFolders", e)
-                _playerUiState.update { it.copy(isLoadingLibraryCategories = false) }
-            }
-        }
-    }
 
     private fun onAllowedDirectoriesChanged() {
-        _loadedTabs.value = emptySet()
-
-        _playerUiState.update { state ->
-            if (_currentLibraryTabId.value == LibraryTabId.FOLDERS) {
-                state.copy(currentFolder = null, currentFolderPath = null)
-            } else {
-                state
-            }
-        }
-
         loadSongsFromRepository()
-        loadAlbumsFromRepository()
-        loadArtistsFromRepository()
-        loadFoldersFromRepository()
     }
 
     fun showAndPlaySong(
@@ -2781,7 +2042,7 @@ class PlayerViewModel @Inject constructor(
 
     private fun resolveSongFromMediaItem(mediaItem: MediaItem): Song? {
         _playerUiState.value.currentPlaybackQueue.find { it.id == mediaItem.mediaId }?.let { return it }
-        _masterAllSongs.value.find { it.id == mediaItem.mediaId }?.let { return it }
+        _playerUiState.value.allSongs.find { it.id == mediaItem.mediaId }?.let { return it }
 
         val metadata = mediaItem.mediaMetadata
         val extras = metadata.extras
@@ -4559,146 +3820,6 @@ class PlayerViewModel @Inject constructor(
         return musicRepository.getSongsByIds(songIds).first()
     }
 
-    //Sorting
-    fun sortSongs(sortOption: SortOption, persist: Boolean = true) {
-        val sortedSongs = when (sortOption) {
-            SortOption.SongTitleAZ -> _masterAllSongs.value.sortedBy { it.title.lowercase() }
-            SortOption.SongTitleZA -> _masterAllSongs.value.sortedByDescending { it.title.lowercase() }
-            SortOption.SongArtist -> _masterAllSongs.value.sortedBy { it.artist.lowercase() }
-            SortOption.SongAlbum -> _masterAllSongs.value.sortedBy { it.album.lowercase() }
-            SortOption.SongDateAdded -> _masterAllSongs.value.sortedByDescending { it.dateAdded }
-            SortOption.SongDuration -> _masterAllSongs.value.sortedBy { it.duration }
-            else -> _masterAllSongs.value
-        }.toImmutableList()
-        _playerUiState.update {
-            it.copy(
-                allSongs = sortedSongs,
-                currentSongSortOption = sortOption
-            )
-        }
-
-        if (persist) {
-            viewModelScope.launch {
-                userPreferencesRepository.setSongsSortOption(sortOption.storageKey)
-            }
-        }
-    }
-
-    fun sortAlbums(sortOption: SortOption, persist: Boolean = true) {
-        val sortedAlbums = when (sortOption) {
-            SortOption.AlbumTitleAZ -> _playerUiState.value.albums.sortedBy { it.title.lowercase() }
-            SortOption.AlbumTitleZA -> _playerUiState.value.albums.sortedByDescending { it.title.lowercase() }
-            SortOption.AlbumArtist -> _playerUiState.value.albums.sortedBy { it.artist.lowercase() }
-            SortOption.AlbumReleaseYear -> _playerUiState.value.albums.sortedByDescending { it.year }
-            SortOption.AlbumSizeAsc -> _playerUiState.value.albums.sortedWith(compareBy<Album> { it.songCount }.thenBy { it.title.lowercase() })
-            SortOption.AlbumSizeDesc -> _playerUiState.value.albums.sortedWith(compareByDescending<Album> { it.songCount }.thenBy { it.title.lowercase() })
-            else -> _playerUiState.value.albums
-        }.toImmutableList()
-        _playerUiState.update {
-            it.copy(
-                albums = sortedAlbums,
-                currentAlbumSortOption = sortOption
-            )
-        }
-
-        if (persist) {
-            viewModelScope.launch {
-                userPreferencesRepository.setAlbumsSortOption(sortOption.storageKey)
-            }
-        }
-    }
-
-    fun sortArtists(sortOption: SortOption, persist: Boolean = true) {
-        val sortedArtists = when (sortOption) {
-            SortOption.ArtistNameAZ -> _playerUiState.value.artists.sortedBy { it.name.lowercase() }
-            SortOption.ArtistNameZA -> _playerUiState.value.artists.sortedByDescending { it.name.lowercase() }
-            else -> _playerUiState.value.artists
-        }.toImmutableList()
-        _playerUiState.update {
-            it.copy(
-                artists = sortedArtists,
-                currentArtistSortOption = sortOption
-            )
-        }
-
-        if (persist) {
-            viewModelScope.launch {
-                userPreferencesRepository.setArtistsSortOption(sortOption.storageKey)
-            }
-        }
-    }
-
-    fun sortFavoriteSongs(sortOption: SortOption, persist: Boolean = true) {
-        _playerUiState.update { it.copy(currentFavoriteSortOption = sortOption) }
-        _currentFavoriteSortOptionStateFlow.value = sortOption // Actualizar el StateFlow dedicado
-        // The actual sorting is handled by the 'favoriteSongs' StateFlow reacting to 'currentFavoriteSortOptionStateFlow'.
-        if (persist) {
-            viewModelScope.launch {
-                userPreferencesRepository.setLikedSongsSortOption(sortOption.storageKey)
-            }
-        }
-    }
-
-    fun sortFolders(sortOption: SortOption) {
-        val sortedFolders = when (sortOption) {
-            SortOption.FolderNameAZ -> _playerUiState.value.musicFolders.sortedBy { it.name.lowercase() }
-            SortOption.FolderNameZA -> _playerUiState.value.musicFolders.sortedByDescending { it.name.lowercase() }
-            else -> _playerUiState.value.musicFolders
-        }.toImmutableList()
-        _playerUiState.update {
-            it.copy(
-                musicFolders = sortedFolders,
-                currentFolderSortOption = sortOption
-            )
-        }
-    }
-
-    fun setFoldersPlaylistView(isPlaylistView: Boolean) {
-        viewModelScope.launch {
-            userPreferencesRepository.setFoldersPlaylistView(isPlaylistView)
-            setFoldersPlaylistViewState(isPlaylistView)
-        }
-    }
-
-    fun navigateToFolder(path: String) {
-        val storageRootPath = android.os.Environment.getExternalStorageDirectory().path
-        if (path == storageRootPath) {
-            _playerUiState.update {
-                it.copy(
-                    currentFolderPath = null,
-                    currentFolder = null
-                )
-            }
-            return
-        }
-
-        val folder = findFolder(path, _playerUiState.value.musicFolders)
-        if (folder != null) {
-            _playerUiState.update {
-                it.copy(
-                    currentFolderPath = path,
-                    currentFolder = folder
-                )
-            }
-        }
-    }
-
-    fun navigateBackFolder() {
-        _playerUiState.update {
-            val currentFolder = it.currentFolder
-            if (currentFolder != null) {
-                val parentPath = File(currentFolder.path).parent
-                val parentFolder = findFolder(parentPath, _playerUiState.value.musicFolders)
-                it.copy(
-                    currentFolderPath = parentPath,
-                    currentFolder = parentFolder
-                )
-            } else {
-                it
-            }
-        }
-    }
-
     private fun findFolder(path: String?, folders: List<MusicFolder>): MusicFolder? {
         if (path == null) {
             return null
@@ -4714,24 +3835,9 @@ class PlayerViewModel @Inject constructor(
         return null
     }
 
-    private fun setFoldersPlaylistViewState(isPlaylistView: Boolean) {
-        _playerUiState.update { currentState ->
-            currentState.copy(
-                isFoldersPlaylistView = isPlaylistView,
-                currentFolderPath = null,
-                currentFolder = null
-            )
-        }
-    }
 
-    fun toggleFolderFilter() {
-        viewModelScope.launch {
-            val newFilterState = !_playerUiState.value.isFolderFilterActive
-            userPreferencesRepository.setFolderFilterActive(newFilterState)
-            _playerUiState.update { it.copy(isFolderFilterActive = newFilterState) }
-            loadFoldersFromRepository()
-        }
-    }
+
+
 
     fun updateSearchFilter(filterType: SearchFilterType) {
         _playerUiState.update { it.copy(selectedSearchFilter = filterType) }
@@ -4821,14 +3927,14 @@ class PlayerViewModel @Inject constructor(
 
             try {
                 val candidatePool = dailyMixManager.generateDailyMix(
-                    allSongs = allSongsFlow.value,
+                    allSongs = _playerUiState.value.allSongs,
                     favoriteSongIds = favoriteSongIds.value,
                     limit = 120
                 )
 
                 val result = aiPlaylistGenerator.generate(
                     userPrompt = prompt,
-                    allSongs = allSongsFlow.value,
+                    allSongs = _playerUiState.value.allSongs,
                     minLength = minLength,
                     maxLength = maxLength,
                     candidateSongs = candidatePool
@@ -4887,14 +3993,14 @@ class PlayerViewModel @Inject constructor(
                 val minLength = (desiredSize * 0.6).toInt().coerceAtLeast(10)
                 val maxLength = desiredSize.coerceAtLeast(20)
                 val candidatePool = dailyMixManager.generateDailyMix(
-                    allSongs = allSongsFlow.value,
+                    allSongs = _playerUiState.value.allSongs,
                     favoriteSongIds = favoriteSongIds.value,
                     limit = 100
                 )
 
                 val result = aiPlaylistGenerator.generate(
                     userPrompt = prompt,
-                    allSongs = allSongsFlow.value,
+                    allSongs = _playerUiState.value.allSongs,
                     minLength = minLength,
                     maxLength = maxLength,
                     candidateSongs = candidatePool
@@ -4933,27 +4039,11 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    fun selectRoute(route: MediaRouter.RouteInfo) {
-        val selectedRouteId = _selectedRoute.value?.id
-        val isCastRoute = route.isCastRoute() && !route.isDefault
-        val isSwitchingBetweenRemotes = isCastRoute &&
-            (isRemotePlaybackActive.value || _isCastConnecting.value) &&
-            selectedRouteId != null &&
-            selectedRouteId != route.id
 
-        if (isSwitchingBetweenRemotes) {
-            pendingCastRouteId = route.id
-            _isCastConnecting.value = true
-            sessionManager.currentCastSession?.let { sessionManager.endCurrentSession(true) }
-        } else {
-            pendingCastRouteId = null
-        }
-        mediaRouter.selectRoute(route)
-    }
 
     fun disconnect(resetConnecting: Boolean = true) {
         val start = SystemClock.elapsedRealtime()
-        pendingCastRouteId = null
+        // pendingCastRouteId = null (removed)
         val wasRemote = _isRemotePlaybackActive.value
         if (wasRemote) {
             Timber.tag(CAST_LOG_TAG).i(
@@ -4962,7 +4052,9 @@ class PlayerViewModel @Inject constructor(
             )
             _isCastConnecting.value = true
         }
-        mediaRouter.selectRoute(mediaRouter.defaultRoute)
+        
+        sessionManager.endCurrentSession(true)
+        
         _isRemotePlaybackActive.value = false
         if (resetConnecting && !wasRemote) {
             _isCastConnecting.value = false
@@ -4975,31 +4067,7 @@ class PlayerViewModel @Inject constructor(
         )
     }
 
-    fun setRouteVolume(volume: Int) {
-        _routeVolume.value = volume
-        _selectedRoute.value?.requestSetVolume(volume)
-    }
 
-    fun refreshCastRoutes() {
-        viewModelScope.launch {
-            _isRefreshingRoutes.value = true
-            mediaRouter.removeCallback(mediaRouterCallback)
-            val mediaRouteSelector = buildCastRouteSelector()
-            mediaRouter.addCallback(
-                mediaRouteSelector,
-                mediaRouterCallback,
-                MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY or MediaRouter.CALLBACK_FLAG_PERFORM_ACTIVE_SCAN
-            )
-            _castRoutes.value = mediaRouter.routes.filter { it.isCastRoute() }.distinctBy { it.id }
-            _selectedRoute.value = mediaRouter.selectedRoute
-            delay(1800) // Allow active scan to run briefly
-            mediaRouter.removeCallback(mediaRouterCallback)
-            mediaRouter.addCallback(mediaRouteSelector, mediaRouterCallback, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY)
-            _castRoutes.value = mediaRouter.routes.filter { it.isCastRoute() }.distinctBy { it.id }
-            _selectedRoute.value = mediaRouter.selectedRoute
-            _isRefreshingRoutes.value = false
-        }
-    }
 
     private suspend fun ensureHttpServerRunning(): Boolean {
         if (MediaFileHttpServerService.isServerRunning && MediaFileHttpServerService.serverAddress != null) {
@@ -5065,11 +4133,6 @@ class PlayerViewModel @Inject constructor(
         super.onCleared()
         stopProgressUpdates()
         listeningStatsTracker.onCleared()
-        mediaRouter.removeCallback(mediaRouterCallback)
-        networkCallback?.let { connectivityManager.unregisterNetworkCallback(it) }
-        wifiStateReceiver?.let { context.unregisterReceiver(it) }
-        bluetoothStateReceiver?.let { context.unregisterReceiver(it) }
-        audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
         sessionManager.removeSessionManagerListener(castSessionManagerListener as SessionManagerListener<CastSession>, CastSession::class.java)
     }
 
@@ -5370,66 +4433,7 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    fun saveLastLibraryTabIndex(tabIndex: Int) {
-        viewModelScope.launch {
-            userPreferencesRepository.saveLastLibraryTabIndex(tabIndex)
-        }
-    }
 
-    fun showSortingSheet() {
-        _isSortingSheetVisible.value = true
-    }
-
-    fun hideSortingSheet() {
-        _isSortingSheetVisible.value = false
-    }
-
-    fun onLibraryTabSelected(tabIndex: Int) {
-        Trace.beginSection("PlayerViewModel.onLibraryTabSelected")
-        saveLastLibraryTabIndex(tabIndex)
-
-        val tabIdentifier = libraryTabsFlow.value.getOrNull(tabIndex) ?: return
-        val tabId = tabIdentifier.toLibraryTabIdOrNull() ?: LibraryTabId.SONGS
-        _currentLibraryTabId.value = tabId
-
-        if (_loadedTabs.value.contains(tabIdentifier)) {
-            Log.d("PlayerViewModel", "Tab '$tabIdentifier' already loaded. Skipping data load.")
-            Trace.endSection()
-            return
-        }
-
-        Log.d("PlayerViewModel", "Tab '$tabIdentifier' selected. Attempting to load data.")
-        viewModelScope.launch {
-            Trace.beginSection("PlayerViewModel.onLibraryTabSelected_coroutine_load")
-            try {
-                when (tabId) {
-                    LibraryTabId.SONGS -> loadSongsIfNeeded()
-                    LibraryTabId.ALBUMS -> loadAlbumsIfNeeded()
-                    LibraryTabId.ARTISTS -> loadArtistsIfNeeded()
-                    LibraryTabId.FOLDERS -> loadFoldersFromRepository()
-                    else -> Unit
-                }
-                _loadedTabs.update { currentTabs -> currentTabs + tabIdentifier }
-                Log.d("PlayerViewModel", "Tab '$tabIdentifier' marked as loaded. Current loaded tabs: ${_loadedTabs.value}")
-            } finally {
-                Trace.endSection()
-            }
-        }
-        Trace.endSection()
-    }
-
-    fun saveLibraryTabsOrder(tabs: List<String>) {
-        viewModelScope.launch {
-            val orderJson = Json.encodeToString(tabs)
-            userPreferencesRepository.saveLibraryTabsOrder(orderJson)
-        }
-    }
-
-    fun resetLibraryTabsOrder() {
-        viewModelScope.launch {
-            userPreferencesRepository.resetLibraryTabsOrder()
-        }
-    }
 
     fun selectSongForInfo(song: Song) {
         _selectedSongForInfo.value = song
@@ -5534,12 +4538,6 @@ class PlayerViewModel @Inject constructor(
                 if (index != -1) {
                     currentSongs[index] = updatedSong
                     _playerUiState.update { it.copy(allSongs = currentSongs.toImmutableList()) }
-                }
-
-                _masterAllSongs.update { songs ->
-                    songs.map { existing ->
-                        if (existing.id == song.id) updatedSong else existing
-                    }.toImmutableList()
                 }
 
                 if (_stablePlayerState.value.currentSong?.id == song.id) {

@@ -115,6 +115,7 @@ import com.theveloper.pixelplay.presentation.components.subcomps.FetchLyricsDial
 import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.CastViewModel
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import com.theveloper.pixelplay.utils.AudioMetaUtils.mimeTypeToFormat
 import com.theveloper.pixelplay.utils.formatDuration
@@ -142,6 +143,7 @@ fun FullPlayerContent(
     carouselStyle: String,
     loadingTweaks: FullPlayerLoadingTweaks,
     playerViewModel: PlayerViewModel, // For stable state like totalDuration and lyrics
+    castViewModel: com.theveloper.pixelplay.presentation.viewmodel.CastViewModel,
     // State Providers
     currentPositionProvider: () -> Long,
     isPlayingProvider: () -> Boolean,
@@ -178,6 +180,11 @@ fun FullPlayerContent(
     val lyricsSearchUiState by playerViewModel.lyricsSearchUiState.collectAsState()
     val currentSongArtists by playerViewModel.currentSongArtists.collectAsState()
     val lyricsSyncOffset by playerViewModel.currentSongLyricsSyncOffset.collectAsState()
+
+    // Cast / Bluetooth states
+    val selectedRouteName by castViewModel.selectedRoute.map { it?.name }.collectAsState(initial = null)
+    val isBluetoothEnabled by castViewModel.isBluetoothEnabled.collectAsState()
+    val bluetoothName by castViewModel.bluetoothName.collectAsState()
 
     var showFetchLyricsDialog by remember { mutableStateOf(false) }
     var totalDrag by remember { mutableStateOf(0f) }
@@ -628,9 +635,9 @@ fun FullPlayerContent(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
-                            val selectedRouteName by playerViewModel.selectedRoute.map { it?.name }.collectAsState(initial = null)
-                            val isBluetoothEnabled by playerViewModel.isBluetoothEnabled.collectAsState()
-                            val bluetoothName by playerViewModel.bluetoothName.collectAsState()
+                            val selectedRouteName by castViewModel.selectedRoute.map { it?.name }.collectAsState(initial = null)
+                            val isBluetoothEnabled by castViewModel.isBluetoothEnabled.collectAsState()
+                            val bluetoothName by castViewModel.bluetoothName.collectAsState()
                             val showCastLabel = isCastConnecting || (isRemotePlaybackActive && selectedRouteName != null)
                             val isBluetoothActive =
                                 isBluetoothEnabled && !bluetoothName.isNullOrEmpty() && !isRemotePlaybackActive && !isCastConnecting

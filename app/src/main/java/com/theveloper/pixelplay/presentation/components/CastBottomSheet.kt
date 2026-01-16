@@ -1,3 +1,7 @@
+@file:OptIn(
+    androidx.compose.material3.ExperimentalMaterial3Api::class,
+    androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class
+)
 package com.theveloper.pixelplay.presentation.components
 
 import android.Manifest
@@ -32,7 +36,6 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -97,6 +100,21 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.Velocity
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import kotlin.math.roundToInt
+import androidx.compose.animation.animateColorAsState
+import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.unit.sp
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+
+
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -109,51 +127,45 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.only
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import kotlinx.coroutines.launch
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.navigationBarsPadding
+import android.content.pm.PackageManager
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.core.content.ContextCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.mediarouter.media.MediaRouter
 import com.theveloper.pixelplay.R
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.CastViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
-import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
-import android.content.pm.PackageManager
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Velocity
-import androidx.compose.runtime.snapshotFlow
-import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
-import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun CastBottomSheet(
     playerViewModel: PlayerViewModel,
+    castViewModel: CastViewModel = hiltViewModel(),
     onDismiss: () -> Unit,
     onExpansionChanged: (Float) -> Unit = {}
 ) {
-    val routes by playerViewModel.castRoutes.collectAsState()
-    val selectedRoute by playerViewModel.selectedRoute.collectAsState()
-    val routeVolume by playerViewModel.routeVolume.collectAsState()
-    val isRefreshing by playerViewModel.isRefreshingRoutes.collectAsState()
-    val isWifiEnabled by playerViewModel.isWifiEnabled.collectAsState()
-    val isWifiRadioOn by playerViewModel.isWifiRadioOn.collectAsState()
-    val wifiName by playerViewModel.wifiName.collectAsState()
-    val isBluetoothEnabled by playerViewModel.isBluetoothEnabled.collectAsState()
-    val bluetoothName by playerViewModel.bluetoothName.collectAsState()
-    val bluetoothAudioDevices by playerViewModel.bluetoothAudioDevices.collectAsState()
+    val routes by castViewModel.castRoutes.collectAsState()
+    val selectedRoute by castViewModel.selectedRoute.collectAsState()
+    val routeVolume by castViewModel.routeVolume.collectAsState()
+    val isRefreshing by castViewModel.isRefreshingRoutes.collectAsState()
+    val isWifiEnabled by castViewModel.isWifiEnabled.collectAsState()
+    val isWifiRadioOn by castViewModel.isWifiRadioOn.collectAsState()
+    val wifiName by castViewModel.wifiName.collectAsState()
+    val isBluetoothEnabled by castViewModel.isBluetoothEnabled.collectAsState()
+    val bluetoothName by castViewModel.bluetoothName.collectAsState()
+    val bluetoothAudioDevices by castViewModel.bluetoothAudioDevices.collectAsState()
     val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
-    val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
+    val isDeviceConnecting by castViewModel.isCastConnecting.collectAsState()
+    val isTransferringPlayback by playerViewModel.isCastConnecting.collectAsState()
+    val isCastConnecting = isDeviceConnecting || isTransferringPlayback
     val trackVolume by playerViewModel.trackVolume.collectAsState()
     val isPlaying = playerViewModel.stablePlayerState.collectAsState().value.isPlaying
     val context = LocalContext.current
@@ -176,14 +188,14 @@ fun CastBottomSheet(
     ) {
         missingPermissions = missingCastPermissions(context, requiredPermissions)
         if (missingPermissions.isEmpty()) {
-            playerViewModel.refreshLocalConnectionInfo()
+            castViewModel.refreshLocalConnectionInfo()
         }
     }
 
     LaunchedEffect(Unit) {
         missingPermissions = missingCastPermissions(context, requiredPermissions)
         if (missingPermissions.isEmpty()) {
-            playerViewModel.refreshLocalConnectionInfo()
+            castViewModel.refreshLocalConnectionInfo()
         }
     }
 
@@ -302,12 +314,12 @@ fun CastBottomSheet(
             CastSheetContent(
                 state = uiState,
                 onSelectDevice = { id ->
-                    routes.firstOrNull { it.id == id }?.let { playerViewModel.selectRoute(it) }
+                    routes.firstOrNull { it.id == id }?.let { castViewModel.selectRoute(it) }
                 },
-                onDisconnect = { playerViewModel.disconnect() },
+                onDisconnect = { castViewModel.disconnect() },
                 onVolumeChange = { value ->
                     if (uiState.activeDevice.isRemote) {
-                        playerViewModel.setRouteVolume(value.toInt())
+                        castViewModel.setRouteVolume(value.toInt())
                     } else {
                         playerViewModel.setTrackVolume(value)
                     }
@@ -322,7 +334,7 @@ fun CastBottomSheet(
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     context.startActivity(intent)
                 },
-                onRefresh = { playerViewModel.refreshCastRoutes() }
+                onRefresh = { castViewModel.refreshCastRoutes() }
             )
         }
     }

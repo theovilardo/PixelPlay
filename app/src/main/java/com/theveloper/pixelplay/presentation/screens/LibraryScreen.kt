@@ -116,6 +116,7 @@ import com.theveloper.pixelplay.presentation.components.subcomps.LibraryActionRo
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.ColorSchemePair
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.LibraryViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.StablePlayerState
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistUiState
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
@@ -176,7 +177,6 @@ import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import java.util.Locale
 import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
-import com.theveloper.pixelplay.data.model.PlaylistShapeType
 import kotlinx.coroutines.flow.first
 
 val ListExtraBottomGap = 30.dp
@@ -189,14 +189,18 @@ val PlayerSheetCollapsedCornerRadius = 32.dp
 fun LibraryScreen(
     navController: NavController,
     playerViewModel: PlayerViewModel = hiltViewModel(),
+    libraryViewModel: LibraryViewModel = hiltViewModel(),
     playlistViewModel: PlaylistViewModel = hiltViewModel()
 ) {
     // La recolección de estados de alto nivel se mantiene mínima.
     val context = LocalContext.current // Added context
-    val lastTabIndex by playerViewModel.lastLibraryTabIndexFlow.collectAsState()
-    val favoriteIds by playerViewModel.favoriteSongIds.collectAsState() // Reintroducir favoriteIds aquí
+    val lastTabIndex by libraryViewModel.lastLibraryTabIndex.collectAsState()
+    val favoriteIds by libraryViewModel.favoriteSongIds.collectAsState()
     val scope = rememberCoroutineScope() // Mantener si se usa para acciones de UI
-    val syncManager = playerViewModel.syncManager
+    val syncManager = libraryViewModel.syncManager
+    val allSongs by libraryViewModel.allSongs.collectAsState()
+    val albums by libraryViewModel.albums.collectAsState()
+    val artists by libraryViewModel.artists.collectAsState()
     var isRefreshing by remember { mutableStateOf(false) }
     val isSyncing by syncManager.isSyncing.collectAsState(initial = false)
     val syncProgress by syncManager.syncProgress.collectAsState(initial = SyncProgress())
@@ -204,11 +208,11 @@ fun LibraryScreen(
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var showPlaylistBottomSheet by remember { mutableStateOf(false) }
     val selectedSongForInfo by playerViewModel.selectedSongForInfo.collectAsState()
-    val tabTitles by playerViewModel.libraryTabsFlow.collectAsState()
+    val tabTitles by libraryViewModel.libraryTabs.collectAsState()
     val pagerState = rememberPagerState(initialPage = lastTabIndex) { tabTitles.size }
-    val currentTabId by playerViewModel.currentLibraryTabId.collectAsState()
+    val currentTabId by libraryViewModel.currentLibraryTabId.collectAsState()
     val libraryNavigationMode by playerViewModel.libraryNavigationMode.collectAsState()
-    val isSortSheetVisible by playerViewModel.isSortingSheetVisible.collectAsState()
+    val isSortSheetVisible by libraryViewModel.isSortingSheetVisible.collectAsState()
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
 
     val m3uImportLauncher = rememberLauncherForActivityResult(
@@ -271,13 +275,13 @@ fun LibraryScreen(
     // La lógica de carga diferida (lazy loading) se mantiene.
     LaunchedEffect(Unit) {
         Trace.beginSection("LibraryScreen.InitialTabLoad")
-        playerViewModel.onLibraryTabSelected(lastTabIndex)
+        libraryViewModel.onLibraryTabSelected(lastTabIndex)
         Trace.endSection()
     }
 
     LaunchedEffect(pagerState.currentPage) {
         Trace.beginSection("LibraryScreen.PageChangeTabLoad")
-        playerViewModel.onLibraryTabSelected(pagerState.currentPage)
+        libraryViewModel.onLibraryTabSelected(pagerState.currentPage)
         Trace.endSection()
     }
 
@@ -473,7 +477,7 @@ fun LibraryScreen(
                 ) {
                     Column(Modifier.fillMaxSize()) {
                         // OPTIMIZACIÓN: La lógica de ordenamiento ahora es más eficiente.
-                        val availableSortOptions by playerViewModel.availableSortOptions.collectAsState()
+                        val availableSortOptions by libraryViewModel.availableSortOptions.collectAsState()
                         val sanitizedSortOptions = remember(availableSortOptions, currentTabId) {
                             val cleaned = availableSortOptions.filterIsInstance<SortOption>()
                             val ensured = if (cleaned.any { option ->
@@ -495,24 +499,33 @@ fun LibraryScreen(
                         val playlistUiState by playlistViewModel.uiState.collectAsState()
                         val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
 
+                        // Library-specific states from LibraryViewModel
+                        val currentSongSortOption by libraryViewModel.currentSongSortOption.collectAsState()
+                        val currentAlbumSortOption by libraryViewModel.currentAlbumSortOption.collectAsState()
+                        val currentArtistSortOption by libraryViewModel.currentArtistSortOption.collectAsState()
+                        val currentFolderSortOption by libraryViewModel.currentFolderSortOption.collectAsState()
+                        val currentFavoriteSortOption by libraryViewModel.currentFavoriteSortOption.collectAsState()
+                        val isFoldersPlaylistView by libraryViewModel.isFoldersPlaylistView.collectAsState()
+                        val currentFolder by libraryViewModel.currentFolder.collectAsState()
+
                         val currentSelectedSortOption: SortOption? = when (currentTabId) {
-                            LibraryTabId.SONGS -> playerUiState.currentSongSortOption
-                            LibraryTabId.ALBUMS -> playerUiState.currentAlbumSortOption
-                            LibraryTabId.ARTISTS -> playerUiState.currentArtistSortOption
+                            LibraryTabId.SONGS -> currentSongSortOption
+                            LibraryTabId.ALBUMS -> currentAlbumSortOption
+                            LibraryTabId.ARTISTS -> currentArtistSortOption
                             LibraryTabId.PLAYLISTS -> playlistUiState.currentPlaylistSortOption
-                            LibraryTabId.LIKED -> playerUiState.currentFavoriteSortOption
-                            LibraryTabId.FOLDERS -> playerUiState.currentFolderSortOption
+                            LibraryTabId.LIKED -> currentFavoriteSortOption
+                            LibraryTabId.FOLDERS -> currentFolderSortOption
                         }
 
-                        val onSortOptionChanged: (SortOption) -> Unit = remember(playerViewModel, playlistViewModel, currentTabId) {
+                        val onSortOptionChanged: (SortOption) -> Unit = remember(libraryViewModel, playlistViewModel, currentTabId) {
                             { option ->
                                 when (currentTabId) {
-                                    LibraryTabId.SONGS -> playerViewModel.sortSongs(option)
-                                    LibraryTabId.ALBUMS -> playerViewModel.sortAlbums(option)
-                                    LibraryTabId.ARTISTS -> playerViewModel.sortArtists(option)
+                                    LibraryTabId.SONGS -> libraryViewModel.sortSongs(option)
+                                    LibraryTabId.ALBUMS -> libraryViewModel.sortAlbums(option)
+                                    LibraryTabId.ARTISTS -> libraryViewModel.sortArtists(option)
                                     LibraryTabId.PLAYLISTS -> playlistViewModel.sortPlaylists(option)
-                                    LibraryTabId.LIKED -> playerViewModel.sortFavoriteSongs(option)
-                                    LibraryTabId.FOLDERS -> playerViewModel.sortFolders(option)
+                                    LibraryTabId.LIKED -> libraryViewModel.sortFavoriteSongs(option)
+                                    LibraryTabId.FOLDERS -> libraryViewModel.sortFolders(option)
                                 }
                             }
                         }
@@ -532,22 +545,38 @@ fun LibraryScreen(
                                 when (tabTitles.getOrNull(pagerState.currentPage)?.toLibraryTabIdOrNull()) {
                                     LibraryTabId.PLAYLISTS -> showCreatePlaylistDialog = true
                                     LibraryTabId.LIKED -> playerViewModel.shuffleFavoriteSongs()
-                                    LibraryTabId.ALBUMS -> playerViewModel.shuffleRandomAlbum()
-                                    LibraryTabId.ARTISTS -> playerViewModel.shuffleRandomArtist()
+                                    LibraryTabId.ALBUMS -> {
+                                        if (albums.isNotEmpty()) {
+                                            val randomAlbum = albums.random()
+                                            val songs = allSongs.filter { it.albumId == randomAlbum.id }
+                                            if (songs.isNotEmpty()) {
+                                                playerViewModel.playSongsShuffled(songs, randomAlbum.title)
+                                            }
+                                        }
+                                    }
+                                    LibraryTabId.ARTISTS -> {
+                                        if (artists.isNotEmpty()) {
+                                            val randomArtist = artists.random()
+                                            val songs = allSongs.filter { it.artistId == randomArtist.id }
+                                            if (songs.isNotEmpty()) {
+                                                playerViewModel.playSongsShuffled(songs, randomArtist.name)
+                                            }
+                                        }
+                                    }
                                     else -> playerViewModel.shuffleAllSongs()
                                 }
                             },
                             iconRotation = iconRotation,
                             showSortButton = sanitizedSortOptions.isNotEmpty(),
-                            onSortClick = { playerViewModel.showSortingSheet() },
+                            onSortClick = { libraryViewModel.showSortingSheet() },
                             isPlaylistTab = currentTabId == LibraryTabId.PLAYLISTS,
-                            isFoldersTab = currentTabId == LibraryTabId.FOLDERS && (!playerUiState.isFoldersPlaylistView || playerUiState.currentFolder != null),
+                            isFoldersTab = currentTabId == LibraryTabId.FOLDERS && (!isFoldersPlaylistView || currentFolder != null),
                             onGenerateWithAiClick = { /* Unused now */ },
                             onImportM3uClick = { m3uImportLauncher.launch("audio/x-mpegurl") },
                             //onFilterClick = { playerViewModel.toggleFolderFilter() },
-                            currentFolder = playerUiState.currentFolder,
-                            onFolderClick = { playerViewModel.navigateToFolder(it) },
-                            onNavigateBack = { playerViewModel.navigateBackFolder() },
+                            currentFolder = currentFolder,
+                            onFolderClick = { libraryViewModel.navigateToFolder(it) },
+                            onNavigateBack = { libraryViewModel.navigateBackFolder() },
                             isShuffleEnabled = stablePlayerState.isShuffleEnabled
                         )
 
@@ -565,15 +594,15 @@ fun LibraryScreen(
                                 title = "Sort by",
                                 options = sanitizedSortOptions,
                                 selectedOption = selectedOptionForSheet,
-                                onDismiss = { playerViewModel.hideSortingSheet() },
+                                onDismiss = { libraryViewModel.hideSortingSheet() },
                                 onOptionSelected = { option ->
                                     onSortOptionChanged(option)
-                                    playerViewModel.hideSortingSheet()
+                                    libraryViewModel.hideSortingSheet()
                                 },
                                 showViewToggle = currentTabId == LibraryTabId.FOLDERS,
-                                viewToggleChecked = playerUiState.isFoldersPlaylistView,
+                                viewToggleChecked = isFoldersPlaylistView,
                                 onViewToggleChange = { isChecked ->
-                                    playerViewModel.setFoldersPlaylistView(isChecked)
+                                    libraryViewModel.setFoldersPlaylistView(isChecked)
                                 }
                             )
                         }
@@ -588,17 +617,8 @@ fun LibraryScreen(
                         ) { page ->
                             when (tabTitles.getOrNull(page)?.toLibraryTabIdOrNull()) {
                                 LibraryTabId.SONGS -> {
-                                    val songs by remember {
-                                        playerViewModel.playerUiState
-                                            .map { it.allSongs }
-                                            .distinctUntilChanged()
-                                    }.collectAsState(initial = persistentListOf())
-
-                                    val isLoading by remember {
-                                        playerViewModel.playerUiState
-                                            .map { it.isLoadingInitialSongs }
-                                            .distinctUntilChanged()
-                                    }.collectAsState(initial = songs.isEmpty())
+                                    val songs by libraryViewModel.allSongs.collectAsState()
+                                    val isLoading by libraryViewModel.isLoadingInitialSongs.collectAsState()
 
                                     LibrarySongsTab(
                                         songs = songs,
@@ -611,17 +631,8 @@ fun LibraryScreen(
                                     )
                                 }
                                 LibraryTabId.ALBUMS -> {
-                                    val albums by remember {
-                                        playerViewModel.playerUiState
-                                            .map { it.albums }
-                                            .distinctUntilChanged()
-                                    }.collectAsState(initial = persistentListOf())
-
-                                    val isLoading by remember {
-                                        playerViewModel.playerUiState
-                                            .map { it.isLoadingLibraryCategories }
-                                            .distinctUntilChanged()
-                                    }.collectAsState(initial = albums.isEmpty())
+                                    val albums by libraryViewModel.albums.collectAsState()
+                                    val isLoading by libraryViewModel.isLoadingLibraryCategories.collectAsState()
 
                                     val stableOnAlbumClick: (Long) -> Unit = remember(navController) {
                                         { albumId: Long ->
@@ -640,17 +651,8 @@ fun LibraryScreen(
                                 }
 
                                 LibraryTabId.ARTISTS -> {
-                                    val artists by remember {
-                                        playerViewModel.playerUiState
-                                            .map { it.artists }
-                                            .distinctUntilChanged()
-                                    }.collectAsState(initial = persistentListOf())
-
-                                    val isLoading by remember {
-                                        playerViewModel.playerUiState
-                                            .map { it.isLoadingLibraryCategories }
-                                            .distinctUntilChanged()
-                                    }.collectAsState(initial = artists.isEmpty())
+                                    val artists by libraryViewModel.artists.collectAsState()
+                                    val isLoading by libraryViewModel.isLoadingLibraryCategories.collectAsState()
 
                                     LibraryArtistsTab(
                                         artists = artists,
@@ -683,7 +685,7 @@ fun LibraryScreen(
                                 }
 
                                 LibraryTabId.LIKED -> {
-                                    val favoriteSongs by playerViewModel.favoriteSongs.collectAsState()
+                                    val favoriteSongs by libraryViewModel.favoriteSongs.collectAsState()
                                     LibraryFavoritesTab(
                                         favoriteSongs = favoriteSongs,
                                         playerViewModel = playerViewModel,
@@ -704,10 +706,11 @@ fun LibraryScreen(
                                     }
 
                                     if (hasPermission) {
-                                        val playerUiState by playerViewModel.playerUiState.collectAsState()
-                                        val folders = playerUiState.musicFolders
-                                        val currentFolder = playerUiState.currentFolder
-                                        val isLoading = playerUiState.isLoadingLibraryCategories
+                                        val folders by libraryViewModel.musicFolders.collectAsState()
+                                        val currentFolder by libraryViewModel.currentFolder.collectAsState()
+                                        val isLoading by libraryViewModel.isLoadingLibraryCategories.collectAsState()
+                                        val isFoldersPlaylistView by libraryViewModel.isFoldersPlaylistView.collectAsState()
+                                        val currentFolderSortOption by libraryViewModel.currentFolderSortOption.collectAsState()
                                         val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
 
                                         LibraryFoldersTab(
@@ -716,8 +719,8 @@ fun LibraryScreen(
                                             isLoading = isLoading,
                                             bottomBarHeight = bottomBarHeightDp,
                                             stablePlayerState = stablePlayerState,
-                                            onNavigateBack = { playerViewModel.navigateBackFolder() },
-                                            onFolderClick = { folderPath -> playerViewModel.navigateToFolder(folderPath) },
+                                            onNavigateBack = { libraryViewModel.navigateBackFolder() },
+                                            onFolderClick = { folderPath -> libraryViewModel.navigateToFolder(folderPath) },
                                             onFolderAsPlaylistClick = { folder ->
                                                 val encodedPath = Uri.encode(folder.path)
                                                 navController.navigate(
@@ -730,8 +733,8 @@ fun LibraryScreen(
                                                 playerViewModel.showAndPlaySong(song, queue, currentFolder?.name ?: "Folder")
                                             },
                                             onMoreOptionsClick = stableOnMoreOptionsClick,
-                                            isPlaylistView = playerUiState.isFoldersPlaylistView,
-                                            currentSortOption = playerUiState.currentFolderSortOption,
+                                            isPlaylistView = isFoldersPlaylistView,
+                                            currentSortOption = currentFolderSortOption,
                                             isRefreshing = isRefreshing,
                                             onRefresh = onRefresh
                                         )
@@ -762,6 +765,9 @@ fun LibraryScreen(
                     }
                 }
                 val globalLoadingState by playerViewModel.playerUiState.collectAsState()
+                val isLoadingInitialSongs by libraryViewModel.isLoadingInitialSongs.collectAsState()
+                val isLoadingLibraryCategories by libraryViewModel.isLoadingLibraryCategories.collectAsState()
+                val isSyncingLibrary by libraryViewModel.isSyncing.collectAsState()
                 if (globalLoadingState.isGeneratingAiMetadata) {
                     Surface( // Fondo semitransparente para el indicador
                         modifier = Modifier.fillMaxSize(),
@@ -779,7 +785,7 @@ fun LibraryScreen(
                             }
                         }
                     }
-                } else if (globalLoadingState.isSyncingLibrary || ((globalLoadingState.isLoadingInitialSongs || globalLoadingState.isLoadingLibraryCategories) && (globalLoadingState.allSongs.isEmpty() && globalLoadingState.albums.isEmpty() && globalLoadingState.artists.isEmpty()))) {
+                } else if (isSyncingLibrary || ((isLoadingInitialSongs || isLoadingLibraryCategories) && (allSongs.isEmpty() && albums.isEmpty() && artists.isEmpty()))) {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)
@@ -832,7 +838,7 @@ fun LibraryScreen(
         }
     }
 
-    val allSongs by playerViewModel.allSongsFlow.collectAsState(initial = emptyList())
+
 
 
     CreatePlaylistDialog(
@@ -966,10 +972,10 @@ fun LibraryScreen(
         ReorderTabsSheet(
             tabs = tabTitles,
             onReorder = { newOrder ->
-                playerViewModel.saveLibraryTabsOrder(newOrder)
+                libraryViewModel.saveLibraryTabsOrder(newOrder)
             },
             onReset = {
-                playerViewModel.resetLibraryTabsOrder()
+                libraryViewModel.resetLibraryTabsOrder()
             },
             onDismiss = { showReorderTabsSheet = false }
         )

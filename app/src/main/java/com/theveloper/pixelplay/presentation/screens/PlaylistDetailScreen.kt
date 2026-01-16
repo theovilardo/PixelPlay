@@ -114,6 +114,7 @@ import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.LibraryViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel.Companion.FOLDER_PLAYLIST_PREFIX
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
@@ -138,6 +139,7 @@ fun PlaylistDetailScreen(
     onBackClick: () -> Unit,
     onDeletePlayListClick: () -> Unit,
     playerViewModel: PlayerViewModel,
+    libraryViewModel: LibraryViewModel = hiltViewModel(),
     playlistViewModel: PlaylistViewModel = hiltViewModel(),
     navController: NavController
 ) {
@@ -158,6 +160,7 @@ fun PlaylistDetailScreen(
     }
 
     var showAddSongsSheet by remember { mutableStateOf(false) }
+    var showSortSheet by remember { mutableStateOf(false) }
 
     var isReorderModeEnabled by remember { mutableStateOf(false) }
     var isRemoveModeEnabled by remember { mutableStateOf(false) }
@@ -177,7 +180,7 @@ fun PlaylistDetailScreen(
     }
 
     val selectedSongForInfo by playerViewModel.selectedSongForInfo.collectAsState()
-    val favoriteIds by playerViewModel.favoriteSongIds.collectAsState() // Reintroducir favoriteIds aquí
+    val favoriteIds by libraryViewModel.favoriteSongIds.collectAsState()
     val stableOnMoreOptionsClick: (Song) -> Unit = remember {
         { song ->
             playerViewModel.selectSongForInfo(song)
@@ -268,7 +271,7 @@ fun PlaylistDetailScreen(
                 actions = {
                     IconButton(
                         onClick = {
-                            playerViewModel.showSortingSheet() 
+                            showSortSheet = true
                         }
                     ) {
                         Icon(
@@ -865,9 +868,7 @@ fun PlaylistDetailScreen(
         }
     }
 
-    val isSortSheetVisible by playerViewModel.isSortingSheetVisible.collectAsState()
-
-    if (isSortSheetVisible) {
+    if (showSortSheet) {
         // Check if playlist is in Manual mode (which corresponds to Default Order)
         val isManualMode = uiState.playlistSongsOrderMode is PlaylistSongsOrderMode.Manual
         val rawOption = uiState.currentPlaylistSongsSortOption
@@ -895,10 +896,10 @@ fun PlaylistDetailScreen(
             title = "Sort Songs",
             options = songSortOptions,
             selectedOption = currentSortOption,
-            onDismiss = { playerViewModel.hideSortingSheet() },
+            onDismiss = { showSortSheet = false },
             onOptionSelected = { option ->
                  playlistViewModel.sortPlaylistSongs(option)
-                 playerViewModel.hideSortingSheet()
+                 showSortSheet = false
                  // Auto-scroll to first item after sorting (delay to allow list to update)
                  scope.launch {
                      kotlinx.coroutines.delay(100)

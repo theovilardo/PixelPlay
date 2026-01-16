@@ -79,6 +79,7 @@ import com.theveloper.pixelplay.presentation.components.StatsOverviewCard
 import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.LibraryViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.SettingsViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.StatsViewModel
 import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
@@ -95,6 +96,7 @@ fun HomeScreen(
     navController: NavController,
     paddingValuesParent: PaddingValues,
     playerViewModel: PlayerViewModel = hiltViewModel(),
+    libraryViewModel: LibraryViewModel = hiltViewModel(),
     settingsViewModel: SettingsViewModel = hiltViewModel(),
     onOpenSidebar: () -> Unit
 ) {
@@ -105,8 +107,8 @@ fun HomeScreen(
     }
     val statsViewModel: StatsViewModel = hiltViewModel()
     val settingsUiState by settingsViewModel.uiState.collectAsState()
-    // 1) Observar sólo la lista de canciones, que cambia con poca frecuencia
-    val allSongs by playerViewModel.allSongsFlow.collectAsState(initial = emptyList())
+    // 1) Observar sólo la lista de canciones desde LibraryViewModel
+    val allSongs by libraryViewModel.allSongs.collectAsState()
     val dailyMixSongs by playerViewModel.dailyMixSongs.collectAsState()
     val curatedYourMixSongs by playerViewModel.yourMixSongs.collectAsState()
 

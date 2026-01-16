@@ -76,6 +76,7 @@ import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.MainViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.LibraryViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import com.theveloper.pixelplay.utils.formatDuration
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
@@ -89,6 +90,7 @@ import kotlinx.coroutines.flow.map
 fun DailyMixScreen(
     mainViewModel: MainViewModel = hiltViewModel(),
     playlistViewModel: PlaylistViewModel = hiltViewModel(),
+    libraryViewModel: LibraryViewModel = hiltViewModel(),
     playerViewModel: PlayerViewModel,
     navController: NavController,
 ) {
@@ -102,7 +104,7 @@ fun DailyMixScreen(
     var showPlaylistBottomSheet by remember { mutableStateOf(false) }
     val playerSheetState by playerViewModel.sheetState.collectAsState() // This is a simple enum, less critical but fine
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
-    val favoriteSongIds by playerViewModel.favoriteSongIds.collectAsState()
+    val favoriteSongIds by libraryViewModel.favoriteSongIds.collectAsState()
 
     val showAiSheet by playerViewModel.showAiPlaylistSheet.collectAsState()
     val isGeneratingAiPlaylist by playerViewModel.isGeneratingAiPlaylist.collectAsState()
