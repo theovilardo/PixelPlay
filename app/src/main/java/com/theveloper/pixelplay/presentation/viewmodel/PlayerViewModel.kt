@@ -110,6 +110,7 @@ import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.model.SortOption
+import com.theveloper.pixelplay.data.model.SortOrder
 import com.theveloper.pixelplay.data.model.toLibraryTabIdOrNull
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.LibraryNavigationMode
@@ -230,11 +231,16 @@ data class PlayerUiState(
     val albums: ImmutableList<Album> = persistentListOf(),
     val artists: ImmutableList<Artist> = persistentListOf(),
     val isLoadingLibraryCategories: Boolean = false,
-    val currentSongSortOption: SortOption = SortOption.SongTitleAZ,
-    val currentAlbumSortOption: SortOption = SortOption.AlbumTitleAZ,
-    val currentArtistSortOption: SortOption = SortOption.ArtistNameAZ,
+    val currentSongSortOption: SortOption = SortOption.SongTitle,
+    val currentSongSortOrder: SortOrder = SortOrder.ASCENDING,
+    val currentAlbumSortOption: SortOption = SortOption.AlbumTitle,
+    val currentAlbumSortOrder: SortOrder = SortOrder.ASCENDING,
+    val currentArtistSortOption: SortOption = SortOption.ArtistName,
+    val currentArtistSortOrder: SortOrder = SortOrder.ASCENDING,
     val currentFavoriteSortOption: SortOption = SortOption.LikedSongDateLiked,
-    val currentFolderSortOption: SortOption = SortOption.FolderNameAZ,
+    val currentFavoriteSortOrder: SortOrder = SortOrder.DESCENDING,
+    val currentFolderSortOption: SortOption = SortOption.FolderName,
+    val currentFolderSortOrder: SortOrder = SortOrder.ASCENDING,
     val searchResults: ImmutableList<SearchResultItem> = persistentListOf(),
     val selectedSearchFilter: SearchFilterType = SearchFilterType.ALL,
     val searchHistory: ImmutableList<SearchHistoryItem> = persistentListOf(),
@@ -771,25 +777,34 @@ class PlayerViewModel @Inject constructor(
         state.currentSong?.id?.let { ids.contains(it) } ?: false
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    private val _currentFavoriteSortOptionStateFlow = MutableStateFlow<SortOption>(SortOption.LikedSongDateLiked) // Default aligned with LibraryTabId default.
+    private val _currentFavoriteSortOptionStateFlow = MutableStateFlow<SortOption>(SortOption.LikedSongDateLiked)
     val currentFavoriteSortOptionStateFlow: StateFlow<SortOption> = _currentFavoriteSortOptionStateFlow.asStateFlow()
+
+    private val _currentFavoriteSortOrderStateFlow = MutableStateFlow<SortOrder>(SortOrder.DESCENDING)
+    val currentFavoriteSortOrderStateFlow: StateFlow<SortOrder> = _currentFavoriteSortOrderStateFlow.asStateFlow()
 
     val favoriteSongs: StateFlow<ImmutableList<Song>> = combine(
         favoriteSongIds,
         _masterAllSongs,
-        currentFavoriteSortOptionStateFlow
-    ) { ids, allSongsList, sortOption ->
+        currentFavoriteSortOptionStateFlow,
+        currentFavoriteSortOrderStateFlow
+    ) { ids, allSongsList, sortOption, sortOrder ->
         val favoriteSongsList = allSongsList.filter { song -> ids.contains(song.id) }
-        when (sortOption) {
-            SortOption.LikedSongTitleAZ -> favoriteSongsList.sortedBy { it.title.lowercase() }
-            SortOption.LikedSongTitleZA -> favoriteSongsList.sortedByDescending { it.title.lowercase() }
+        val sorted = when (sortOption) {
+            SortOption.LikedSongTitle -> favoriteSongsList.sortedBy { it.title.lowercase() }
             SortOption.LikedSongArtist -> favoriteSongsList.sortedBy { it.artist.lowercase() }
             SortOption.LikedSongAlbum -> favoriteSongsList.sortedBy { it.album.lowercase() }
-            SortOption.LikedSongDateLiked -> favoriteSongsList.sortedByDescending { it.id }
+            SortOption.LikedSongDateLiked -> favoriteSongsList.sortedBy { it.id } // ID is time-based/UUID, but usually insertion order. Assuming ID or a timestamp.
             else -> favoriteSongsList
-        }.toImmutableList()
+        }
+        
+        if (sortOrder == SortOrder.DESCENDING) {
+            sorted.reversed().toImmutableList()
+        } else {
+            sorted.toImmutableList()
+        }
     }
-    .flowOn(Dispatchers.Default) // Execute combine and transformations on Default dispatcher
+    .flowOn(Dispatchers.Default)
     .stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
 
     private val _dailyMixSongs = MutableStateFlow<ImmutableList<Song>>(persistentListOf())
@@ -1105,11 +1120,12 @@ class PlayerViewModel @Inject constructor(
     }
 
     // Helper to resolve stored sort keys against the allowed group
+    // Helper to resolve stored sort keys against the allowed group
     private fun resolveSortOption(
         optionKey: String?,
         allowed: Collection<SortOption>,
         fallback: SortOption
-    ): SortOption {
+    ): Pair<SortOption, SortOrder> {
         return SortOption.fromStorageKey(optionKey, allowed, fallback)
     }
 
@@ -1301,43 +1317,44 @@ class PlayerViewModel @Inject constructor(
         }
 
         // Load initial sort options ONCE at startup.
+        // Load initial sort options ONCE at startup.
         viewModelScope.launch {
-            val initialSongSort = resolveSortOption(
-                userPreferencesRepository.songsSortOptionFlow.first(),
-                SortOption.SONGS,
-                SortOption.SongTitleAZ
-            )
-            val initialAlbumSort = resolveSortOption(
-                userPreferencesRepository.albumsSortOptionFlow.first(),
-                SortOption.ALBUMS,
-                SortOption.AlbumTitleAZ
-            )
-            val initialArtistSort = resolveSortOption(
-                userPreferencesRepository.artistsSortOptionFlow.first(),
-                SortOption.ARTISTS,
-                SortOption.ArtistNameAZ
-            )
-            val initialLikedSort = resolveSortOption(
-                userPreferencesRepository.likedSongsSortOptionFlow.first(),
-                SortOption.LIKED,
-                SortOption.LikedSongDateLiked
-            )
+            val initialSongSort = userPreferencesRepository.songsSortOptionFlow.first()
+            val storedSongOrder = userPreferencesRepository.songsSortOrderFlow.first()
+            val finalSongOrder = if (storedSongOrder != SortOrder.ASCENDING) storedSongOrder else SortOrder.ASCENDING
+
+            val initialAlbumSort = userPreferencesRepository.albumsSortOptionFlow.first()
+            val storedAlbumOrder = userPreferencesRepository.albumsSortOrderFlow.first()
+            val finalAlbumOrder = if (storedAlbumOrder != SortOrder.ASCENDING) storedAlbumOrder else SortOrder.ASCENDING
+
+            val initialArtistSort = userPreferencesRepository.artistsSortOptionFlow.first()
+            val storedArtistOrder = userPreferencesRepository.artistsSortOrderFlow.first()
+            val finalArtistOrder = if (storedArtistOrder != SortOrder.ASCENDING) storedArtistOrder else SortOrder.ASCENDING
+
+            val initialLikedSort = userPreferencesRepository.likedSongsSortOptionFlow.first()
+            val storedLikedOrder = userPreferencesRepository.likedSongsSortOrderFlow.first()
+            val finalLikedOrder = if (storedLikedOrder != SortOrder.DESCENDING) storedLikedOrder else SortOrder.DESCENDING
 
             _playerUiState.update {
                 it.copy(
                     currentSongSortOption = initialSongSort,
+                    currentSongSortOrder = finalSongOrder,
                     currentAlbumSortOption = initialAlbumSort,
+                    currentAlbumSortOrder = finalAlbumOrder,
                     currentArtistSortOption = initialArtistSort,
-                    currentFavoriteSortOption = initialLikedSort
+                    currentArtistSortOrder = finalArtistOrder,
+                    currentFavoriteSortOption = initialLikedSort,
+                    currentFavoriteSortOrder = finalLikedOrder
                 )
             }
             // Also update the dedicated flow for favorites to ensure consistency
             _currentFavoriteSortOptionStateFlow.value = initialLikedSort
+            _currentFavoriteSortOrderStateFlow.value = finalLikedOrder
 
-            sortSongs(initialSongSort, persist = false)
-            sortAlbums(initialAlbumSort, persist = false)
-            sortArtists(initialArtistSort, persist = false)
-            sortFavoriteSongs(initialLikedSort, persist = false)
+            sortSongs(initialSongSort, finalSongOrder, persist = false)
+            sortAlbums(initialAlbumSort, finalAlbumOrder, persist = false)
+            sortArtists(initialArtistSort, finalArtistOrder, persist = false)
+            sortFavoriteSongs(initialLikedSort, finalLikedOrder, persist = false)
         }
 
         launchColorSchemeProcessor()
@@ -2249,7 +2266,7 @@ class PlayerViewModel @Inject constructor(
                 _masterAllSongs.value = songsList.toImmutableList()
 
                 // Apply initial sort to the displayed list
-                sortSongs(_playerUiState.value.currentSongSortOption, persist = false)
+                sortSongs(_playerUiState.value.currentSongSortOption, _playerUiState.value.currentSongSortOrder, persist = false)
 
                 _playerUiState.update { currentState ->
                     currentState.copy(
@@ -2268,7 +2285,7 @@ class PlayerViewModel @Inject constructor(
             try {
                 val albumsList = musicRepository.getAllAlbumsOnce()
                 _playerUiState.update { it.copy(albums = albumsList.toImmutableList()) }
-                sortAlbums(_playerUiState.value.currentAlbumSortOption, persist = false)
+                sortAlbums(_playerUiState.value.currentAlbumSortOption, _playerUiState.value.currentAlbumSortOrder, persist = false)
                 Log.d("PlayerViewModel", "Albums loaded in parallel. Count: ${albumsList.size}")
             } catch (e: Exception) {
                 Log.e("PlayerViewModel", "Error loading albums in parallel", e)
@@ -2363,7 +2380,7 @@ class PlayerViewModel @Inject constructor(
                 Log.d("PlayerViewModelPerformance", "musicRepository.getAudioFiles (Single Action) took $repoCallDuration ms for ${allSongsList.size} songs.")
 
                 _masterAllSongs.value = allSongsList.toImmutableList()
-                sortSongs(_playerUiState.value.currentSongSortOption, persist = false)
+                sortSongs(_playerUiState.value.currentSongSortOption, _playerUiState.value.currentSongSortOrder, persist = false)
 
                 _playerUiState.update { currentState ->
                     currentState.copy(
@@ -2412,7 +2429,7 @@ class PlayerViewModel @Inject constructor(
                         isLoadingLibraryCategories = false
                     )
                 }
-                sortAlbums(_playerUiState.value.currentAlbumSortOption, persist = false)
+                sortAlbums(_playerUiState.value.currentAlbumSortOption, _playerUiState.value.currentAlbumSortOrder, persist = false)
                 Log.d("PlayerViewModelPerformance", "loadAlbumsFromRepository (All) END. Total time: ${System.currentTimeMillis() - functionStartTime} ms. Albums loaded: ${allAlbumsList.size}")
             } catch (e: Exception) {
                 Log.e("PlayerViewModel", "Error loading all albums from getAllAlbumsOnce", e)
@@ -2477,6 +2494,7 @@ class PlayerViewModel @Inject constructor(
                         isLoadingLibraryCategories = false
                     )
                 }
+                sortArtists(_playerUiState.value.currentArtistSortOption, _playerUiState.value.currentArtistSortOrder, persist = false)
                  Log.d("PlayerViewModelPerformance", "loadArtistsFromRepository (All) END. Total time: ${System.currentTimeMillis() - functionStartTime} ms. Artists loaded: ${allArtistsList.size}")
             } catch (e: Exception) {
                 Log.e("PlayerViewModel", "Error loading all artists from getAllArtistsOnce", e)
@@ -2521,6 +2539,7 @@ class PlayerViewModel @Inject constructor(
                         isLoadingLibraryCategories = false
                     )
                 }
+                sortFolders(_playerUiState.value.currentFolderSortOption, _playerUiState.value.currentFolderSortOrder)
                  Log.d("PlayerViewModelPerformance", "loadFoldersFromRepository (All) END. Total time: ${System.currentTimeMillis() - functionStartTime} ms. Folders loaded: ${allFoldersList.size}")
             } catch (e: Exception) {
                 Log.e("PlayerViewModel", "Error loading all folders from getMusicFolders", e)
@@ -3958,6 +3977,12 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun toggleFavoriteSong(songId: String, removing: Boolean = false) {
+        viewModelScope.launch {
+            userPreferencesRepository.toggleFavoriteSong(songId, removing)
+        }
+    }
+
     fun addSongToQueue(song: Song) {
         mediaController?.let { controller ->
             val mediaItem = MediaItem.Builder()
@@ -4560,95 +4585,147 @@ class PlayerViewModel @Inject constructor(
     }
 
     //Sorting
-    fun sortSongs(sortOption: SortOption, persist: Boolean = true) {
+    fun sortSongs(sortOption: SortOption, sortOrder: SortOrder, persist: Boolean = true) {
         val sortedSongs = when (sortOption) {
-            SortOption.SongTitleAZ -> _masterAllSongs.value.sortedBy { it.title.lowercase() }
-            SortOption.SongTitleZA -> _masterAllSongs.value.sortedByDescending { it.title.lowercase() }
-            SortOption.SongArtist -> _masterAllSongs.value.sortedBy { it.artist.lowercase() }
-            SortOption.SongAlbum -> _masterAllSongs.value.sortedBy { it.album.lowercase() }
-            SortOption.SongDateAdded -> _masterAllSongs.value.sortedByDescending { it.dateAdded }
-            SortOption.SongDuration -> _masterAllSongs.value.sortedBy { it.duration }
+            SortOption.SongTitle -> if (sortOrder == SortOrder.ASCENDING) {
+                _masterAllSongs.value.sortedBy { it.title.lowercase() }
+            } else {
+                _masterAllSongs.value.sortedByDescending { it.title.lowercase() }
+            }
+            SortOption.SongArtist -> if (sortOrder == SortOrder.ASCENDING) {
+                _masterAllSongs.value.sortedBy { it.artist.lowercase() }
+            } else {
+                _masterAllSongs.value.sortedByDescending { it.artist.lowercase() }
+            }
+            SortOption.SongAlbum -> if (sortOrder == SortOrder.ASCENDING) {
+                _masterAllSongs.value.sortedBy { it.album.lowercase() }
+            } else {
+                _masterAllSongs.value.sortedByDescending { it.album.lowercase() }
+            }
+            SortOption.SongDateAdded -> if (sortOrder == SortOrder.ASCENDING) {
+                _masterAllSongs.value.sortedBy { it.dateAdded }
+            } else {
+                _masterAllSongs.value.sortedByDescending { it.dateAdded }
+            }
+            SortOption.SongDuration -> if (sortOrder == SortOrder.ASCENDING) {
+                _masterAllSongs.value.sortedBy { it.duration }
+            } else {
+                _masterAllSongs.value.sortedByDescending { it.duration }
+            }
             else -> _masterAllSongs.value
         }.toImmutableList()
         _playerUiState.update {
             it.copy(
                 allSongs = sortedSongs,
-                currentSongSortOption = sortOption
+                currentSongSortOption = sortOption,
+                currentSongSortOrder = sortOrder
             )
         }
 
         if (persist) {
             viewModelScope.launch {
-                userPreferencesRepository.setSongsSortOption(sortOption.storageKey)
+                userPreferencesRepository.setSongsSortOption(sortOption)
+                userPreferencesRepository.setSongsSortOrder(sortOrder)
             }
         }
     }
 
-    fun sortAlbums(sortOption: SortOption, persist: Boolean = true) {
+    fun sortAlbums(sortOption: SortOption, sortOrder: SortOrder, persist: Boolean = true) {
         val sortedAlbums = when (sortOption) {
-            SortOption.AlbumTitleAZ -> _playerUiState.value.albums.sortedBy { it.title.lowercase() }
-            SortOption.AlbumTitleZA -> _playerUiState.value.albums.sortedByDescending { it.title.lowercase() }
-            SortOption.AlbumArtist -> _playerUiState.value.albums.sortedBy { it.artist.lowercase() }
-            SortOption.AlbumReleaseYear -> _playerUiState.value.albums.sortedByDescending { it.year }
-            SortOption.AlbumSizeAsc -> _playerUiState.value.albums.sortedWith(compareBy<Album> { it.songCount }.thenBy { it.title.lowercase() })
-            SortOption.AlbumSizeDesc -> _playerUiState.value.albums.sortedWith(compareByDescending<Album> { it.songCount }.thenBy { it.title.lowercase() })
+            SortOption.AlbumTitle -> if (sortOrder == SortOrder.ASCENDING) {
+                _playerUiState.value.albums.sortedBy { it.title.lowercase() }
+            } else {
+                _playerUiState.value.albums.sortedByDescending { it.title.lowercase() }
+            }
+            SortOption.AlbumArtist -> if (sortOrder == SortOrder.ASCENDING) {
+                _playerUiState.value.albums.sortedBy { it.artist.lowercase() }
+            } else {
+                _playerUiState.value.albums.sortedByDescending { it.artist.lowercase() }
+            }
+            SortOption.AlbumReleaseYear -> if (sortOrder == SortOrder.ASCENDING) {
+                _playerUiState.value.albums.sortedBy { it.year }
+            } else {
+                _playerUiState.value.albums.sortedByDescending { it.year }
+            }
+            SortOption.AlbumSize -> if (sortOrder == SortOrder.ASCENDING) {
+                _playerUiState.value.albums.sortedWith(compareBy<Album> { it.songCount }.thenBy { it.title.lowercase() })
+            } else {
+                _playerUiState.value.albums.sortedWith(compareByDescending<Album> { it.songCount }.thenBy { it.title.lowercase() })
+            }
             else -> _playerUiState.value.albums
         }.toImmutableList()
         _playerUiState.update {
             it.copy(
                 albums = sortedAlbums,
-                currentAlbumSortOption = sortOption
+                currentAlbumSortOption = sortOption,
+                currentAlbumSortOrder = sortOrder
             )
         }
 
         if (persist) {
             viewModelScope.launch {
-                userPreferencesRepository.setAlbumsSortOption(sortOption.storageKey)
+                userPreferencesRepository.setAlbumsSortOption(sortOption)
+                userPreferencesRepository.setAlbumsSortOrder(sortOrder)
             }
         }
     }
 
-    fun sortArtists(sortOption: SortOption, persist: Boolean = true) {
+    fun sortArtists(sortOption: SortOption, sortOrder: SortOrder, persist: Boolean = true) {
         val sortedArtists = when (sortOption) {
-            SortOption.ArtistNameAZ -> _playerUiState.value.artists.sortedBy { it.name.lowercase() }
-            SortOption.ArtistNameZA -> _playerUiState.value.artists.sortedByDescending { it.name.lowercase() }
+            SortOption.ArtistName -> if (sortOrder == SortOrder.ASCENDING) {
+                _playerUiState.value.artists.sortedBy { it.name.lowercase() }
+            } else {
+                _playerUiState.value.artists.sortedByDescending { it.name.lowercase() }
+            }
             else -> _playerUiState.value.artists
         }.toImmutableList()
         _playerUiState.update {
             it.copy(
                 artists = sortedArtists,
-                currentArtistSortOption = sortOption
+                currentArtistSortOption = sortOption,
+                currentArtistSortOrder = sortOrder
             )
         }
 
         if (persist) {
             viewModelScope.launch {
                 userPreferencesRepository.setArtistsSortOption(sortOption.storageKey)
+                userPreferencesRepository.setArtistsSortOrder(sortOrder)
             }
         }
     }
 
-    fun sortFavoriteSongs(sortOption: SortOption, persist: Boolean = true) {
-        _playerUiState.update { it.copy(currentFavoriteSortOption = sortOption) }
+    fun sortFavoriteSongs(sortOption: SortOption, sortOrder: SortOrder, persist: Boolean = true) {
+        _playerUiState.update {
+            it.copy(
+                currentFavoriteSortOption = sortOption,
+                currentFavoriteSortOrder = sortOrder
+            )
+        }
         _currentFavoriteSortOptionStateFlow.value = sortOption // Actualizar el StateFlow dedicado
         // The actual sorting is handled by the 'favoriteSongs' StateFlow reacting to 'currentFavoriteSortOptionStateFlow'.
         if (persist) {
             viewModelScope.launch {
                 userPreferencesRepository.setLikedSongsSortOption(sortOption.storageKey)
+                userPreferencesRepository.setLikedSongsSortOrder(sortOrder)
             }
         }
     }
 
-    fun sortFolders(sortOption: SortOption) {
+    fun sortFolders(sortOption: SortOption, sortOrder: SortOrder) {
         val sortedFolders = when (sortOption) {
-            SortOption.FolderNameAZ -> _playerUiState.value.musicFolders.sortedBy { it.name.lowercase() }
-            SortOption.FolderNameZA -> _playerUiState.value.musicFolders.sortedByDescending { it.name.lowercase() }
+            SortOption.FolderName -> if (sortOrder == SortOrder.ASCENDING) {
+                _playerUiState.value.musicFolders.sortedBy { it.name.lowercase() }
+            } else {
+                _playerUiState.value.musicFolders.sortedByDescending { it.name.lowercase() }
+            }
             else -> _playerUiState.value.musicFolders
         }.toImmutableList()
         _playerUiState.update {
             it.copy(
                 musicFolders = sortedFolders,
-                currentFolderSortOption = sortOption
+                currentFolderSortOption = sortOption,
+                currentFolderSortOrder = sortOrder
             )
         }
     }

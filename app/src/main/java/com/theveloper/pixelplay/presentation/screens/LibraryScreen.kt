@@ -101,6 +101,7 @@ import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.MusicFolder
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.model.SortOption
+import com.theveloper.pixelplay.data.model.SortOrder
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
@@ -504,15 +505,39 @@ fun LibraryScreen(
                             LibraryTabId.FOLDERS -> playerUiState.currentFolderSortOption
                         }
 
-                        val onSortOptionChanged: (SortOption) -> Unit = remember(playerViewModel, playlistViewModel, currentTabId) {
+                        val currentSelectedSortOrder: SortOrder? = when (currentTabId) {
+                            LibraryTabId.SONGS -> playerUiState.currentSongSortOrder
+                            LibraryTabId.ALBUMS -> playerUiState.currentAlbumSortOrder
+                            LibraryTabId.ARTISTS -> playerUiState.currentArtistSortOrder
+                            LibraryTabId.PLAYLISTS -> playlistUiState.currentPlaylistSortOrder
+                            LibraryTabId.LIKED -> playerUiState.currentFavoriteSortOrder
+                            LibraryTabId.FOLDERS -> playerUiState.currentFolderSortOrder
+                        }
+
+                        val onSortOptionChanged: (SortOption) -> Unit = remember(playerViewModel, playlistViewModel, currentTabId, currentSelectedSortOrder) {
                             { option ->
+                                val order = currentSelectedSortOrder ?: SortOrder.ASCENDING
                                 when (currentTabId) {
-                                    LibraryTabId.SONGS -> playerViewModel.sortSongs(option)
-                                    LibraryTabId.ALBUMS -> playerViewModel.sortAlbums(option)
-                                    LibraryTabId.ARTISTS -> playerViewModel.sortArtists(option)
-                                    LibraryTabId.PLAYLISTS -> playlistViewModel.sortPlaylists(option)
-                                    LibraryTabId.LIKED -> playerViewModel.sortFavoriteSongs(option)
-                                    LibraryTabId.FOLDERS -> playerViewModel.sortFolders(option)
+                                    LibraryTabId.SONGS -> playerViewModel.sortSongs(option, order)
+                                    LibraryTabId.ALBUMS -> playerViewModel.sortAlbums(option, order)
+                                    LibraryTabId.ARTISTS -> playerViewModel.sortArtists(option, order)
+                                    LibraryTabId.PLAYLISTS -> playlistViewModel.sortPlaylists(option, order)
+                                    LibraryTabId.LIKED -> playerViewModel.sortFavoriteSongs(option, order)
+                                    LibraryTabId.FOLDERS -> playerViewModel.sortFolders(option, order)
+                                }
+                            }
+                        }
+
+                        val onSortOrderChanged: (SortOrder) -> Unit = remember(playerViewModel, playlistViewModel, currentTabId, currentSelectedSortOption) {
+                            { order ->
+                                val option = currentSelectedSortOption ?: currentTabId.defaultSort
+                                when (currentTabId) {
+                                    LibraryTabId.SONGS -> playerViewModel.sortSongs(option, order)
+                                    LibraryTabId.ALBUMS -> playerViewModel.sortAlbums(option, order)
+                                    LibraryTabId.ARTISTS -> playerViewModel.sortArtists(option, order)
+                                    LibraryTabId.PLAYLISTS -> playlistViewModel.sortPlaylists(option, order)
+                                    LibraryTabId.LIKED -> playerViewModel.sortFavoriteSongs(option, order)
+                                    LibraryTabId.FOLDERS -> playerViewModel.sortFolders(option, order)
                                 }
                             }
                         }
@@ -539,6 +564,11 @@ fun LibraryScreen(
                             },
                             iconRotation = iconRotation,
                             showSortButton = sanitizedSortOptions.isNotEmpty(),
+                            sortOrder = currentSelectedSortOrder,
+                            onSortOrderClick = {
+                                val newOrder = if (currentSelectedSortOrder == SortOrder.ASCENDING) SortOrder.DESCENDING else SortOrder.ASCENDING
+                                onSortOrderChanged(newOrder)
+                            },
                             onSortClick = { playerViewModel.showSortingSheet() },
                             isPlaylistTab = currentTabId == LibraryTabId.PLAYLISTS,
                             isFoldersTab = currentTabId == LibraryTabId.FOLDERS && (!playerUiState.isFoldersPlaylistView || playerUiState.currentFolder != null),
@@ -732,6 +762,7 @@ fun LibraryScreen(
                                             onMoreOptionsClick = stableOnMoreOptionsClick,
                                             isPlaylistView = playerUiState.isFoldersPlaylistView,
                                             currentSortOption = playerUiState.currentFolderSortOption,
+                                            currentSortOrder = playerUiState.currentFolderSortOrder,
                                             isRefreshing = isRefreshing,
                                             onRefresh = onRefresh
                                         )
@@ -1337,7 +1368,8 @@ fun LibraryFoldersTab(
     bottomBarHeight: Dp,
     onMoreOptionsClick: (Song) -> Unit,
     isPlaylistView: Boolean = false,
-    currentSortOption: SortOption = SortOption.FolderNameAZ,
+    currentSortOption: SortOption = SortOption.FolderName,
+    currentSortOrder: SortOrder = SortOrder.ASCENDING,
     isRefreshing: Boolean,
     onRefresh: () -> Unit
 ) {
@@ -1361,10 +1393,14 @@ fun LibraryFoldersTab(
             listState.scrollToItem(0)
         }
 
-        val flattenedFolders = remember(folders, currentSortOption) {
+        val flattenedFolders = remember(folders, currentSortOption, currentSortOrder) {
             val flattened = flattenFolders(folders)
             when (currentSortOption) {
-                SortOption.FolderNameZA -> flattened.sortedByDescending { it.name.lowercase() }
+                SortOption.FolderName -> if (currentSortOrder == SortOrder.ASCENDING) {
+                    flattened.sortedBy { it.name.lowercase() }
+                } else {
+                    flattened.sortedByDescending { it.name.lowercase() }
+                }
                 else -> flattened.sortedBy { it.name.lowercase() }
             }
         }
@@ -1372,28 +1408,40 @@ fun LibraryFoldersTab(
         val isRoot = targetPath == "root"
         val activeFolder = if (isRoot) null else currentFolder
         val showPlaylistCards = playlistMode && activeFolder == null
-        val itemsToShow = remember(activeFolder, folders, flattenedFolders, currentSortOption) {
+        val itemsToShow = remember(activeFolder, folders, flattenedFolders, currentSortOption, currentSortOrder) {
             when {
                 showPlaylistCards -> flattenedFolders
                 activeFolder != null -> {
                     when (currentSortOption) {
-                        SortOption.FolderNameZA -> activeFolder.subFolders.sortedByDescending { it.name.lowercase() }
+                        SortOption.FolderName -> if (currentSortOrder == SortOrder.ASCENDING) {
+                            activeFolder.subFolders.sortedBy { it.name.lowercase() }
+                        } else {
+                            activeFolder.subFolders.sortedByDescending { it.name.lowercase() }
+                        }
                         else -> activeFolder.subFolders.sortedBy { it.name.lowercase() }
                     }
                 }
                 else -> {
                      when (currentSortOption) {
-                        SortOption.FolderNameZA -> folders.sortedByDescending { it.name.lowercase() }
+                        SortOption.FolderName -> if (currentSortOrder == SortOrder.ASCENDING) {
+                            folders.sortedBy { it.name.lowercase() }
+                        } else {
+                            folders.sortedByDescending { it.name.lowercase() }
+                        }
                         else -> folders.sortedBy { it.name.lowercase() }
                     }
                 }
             }
         }.toImmutableList()
 
-        val songsToShow = remember(activeFolder, currentSortOption) {
+        val songsToShow = remember(activeFolder, currentSortOption, currentSortOrder) {
             val songs = activeFolder?.songs ?: emptyList()
             when (currentSortOption) {
-                SortOption.FolderNameZA -> songs.sortedByDescending { it.title.lowercase() }
+                SortOption.FolderName -> if (currentSortOrder == SortOrder.ASCENDING) {
+                    songs.sortedBy { it.title.lowercase() }
+                } else {
+                    songs.sortedByDescending { it.title.lowercase() }
+                }
                 else -> songs.sortedBy { it.title.lowercase() }
             }
         }.toImmutableList()

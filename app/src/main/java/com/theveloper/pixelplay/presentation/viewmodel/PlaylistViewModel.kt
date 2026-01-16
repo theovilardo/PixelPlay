@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.theveloper.pixelplay.data.model.Playlist
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.model.SortOption
+import com.theveloper.pixelplay.data.model.SortOrder
 import com.theveloper.pixelplay.data.playlist.M3uManager
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
@@ -49,15 +50,17 @@ data class PlaylistUiState(
     val canLoadMoreSongsForSelection: Boolean = true, // Nuevo: para saber si hay más canciones para cargar
 
     //Sort option
-    val currentPlaylistSortOption: SortOption = SortOption.PlaylistNameAZ,
-    val currentPlaylistSongsSortOption: SortOption = SortOption.SongTitleAZ,
-    val playlistSongsOrderMode: PlaylistSongsOrderMode = PlaylistSongsOrderMode.Sorted(SortOption.SongTitleAZ),
+    val currentPlaylistSortOption: SortOption = SortOption.PlaylistName,
+    val currentPlaylistSortOrder: SortOrder = SortOrder.ASCENDING,
+    val currentPlaylistSongsSortOption: SortOption = SortOption.SongTitle,
+    val currentPlaylistSongsSortOrder: SortOrder = SortOrder.ASCENDING,
+    val playlistSongsOrderMode: PlaylistSongsOrderMode = PlaylistSongsOrderMode.Sorted(SortOption.SongTitle, SortOrder.ASCENDING),
     val playlistOrderModes: Map<String, PlaylistSongsOrderMode> = emptyMap()
 )
 
 sealed class PlaylistSongsOrderMode {
     object Manual : PlaylistSongsOrderMode()
-    data class Sorted(val option: SortOption) : PlaylistSongsOrderMode()
+    data class Sorted(val option: SortOption, val order: SortOrder) : PlaylistSongsOrderMode()
 }
 
 @HiltViewModel
@@ -82,11 +85,11 @@ class PlaylistViewModel @Inject constructor(
     }
 
     // Helper function to resolve stored playlist sort keys
-    private fun resolvePlaylistSortOption(optionKey: String?): SortOption {
+    private fun resolvePlaylistSortOption(optionKey: String?): Pair<SortOption, SortOrder> {
         return SortOption.fromStorageKey(
             optionKey,
             SortOption.PLAYLISTS,
-            SortOption.PlaylistNameAZ
+            SortOption.PlaylistName
         )
     }
 
@@ -110,32 +113,71 @@ class PlaylistViewModel @Inject constructor(
     private fun loadPlaylistsAndInitialSortOption() {
         viewModelScope.launch {
             // First, get the initial sort option
-            val initialSortOptionName = userPreferencesRepository.playlistsSortOptionFlow.first()
-            val initialSortOption = resolvePlaylistSortOption(initialSortOptionName)
-            _uiState.update { it.copy(currentPlaylistSortOption = initialSortOption) }
+            val initialSortOption = userPreferencesRepository.playlistsSortOptionFlow.first()
+            
+            // Override with explicit order if available
+            val storedOrder = userPreferencesRepository.playlistsSortOrderFlow.first()
+            val finalOrder = if (storedOrder != SortOrder.ASCENDING) storedOrder else SortOrder.ASCENDING
+
+            _uiState.update { 
+                it.copy(
+                    currentPlaylistSortOption = initialSortOption,
+                    currentPlaylistSortOrder = finalOrder
+                ) 
+            }
 
             // Then, collect playlists and apply the sort option
             userPreferencesRepository.userPlaylistsFlow.collect { playlists ->
-                val currentSortOption =
-                    _uiState.value.currentPlaylistSortOption // Use the most up-to-date sort option
+                val currentSortOption = _uiState.value.currentPlaylistSortOption
+                val currentSortOrder = _uiState.value.currentPlaylistSortOrder
                 val sortedPlaylists = when (currentSortOption) {
-                    SortOption.PlaylistNameAZ -> playlists.sortedBy { it.name.lowercase() }
-                    SortOption.PlaylistNameZA -> playlists.sortedByDescending { it.name.lowercase() }
-                    SortOption.PlaylistDateCreated -> playlists.sortedByDescending { it.lastModified }
-                    else -> playlists.sortedBy { it.name.lowercase() } // Default to NameAZ
+                    SortOption.PlaylistName -> if (currentSortOrder == SortOrder.ASCENDING) {
+                        playlists.sortedBy { it.name.lowercase() }
+                    } else {
+                        playlists.sortedByDescending { it.name.lowercase() }
+                    }
+                    SortOption.PlaylistDateCreated -> if (currentSortOrder == SortOrder.ASCENDING) {
+                        playlists.sortedBy { it.lastModified }
+                    } else {
+                        playlists.sortedByDescending { it.lastModified }
+                    }
+                    else -> playlists.sortedBy { it.name.lowercase() } // Default
                 }
                 _uiState.update { it.copy(playlists = sortedPlaylists) }
             }
         }
         // Collect subsequent changes to sort option from preferences
         viewModelScope.launch {
-            userPreferencesRepository.playlistsSortOptionFlow.collect { optionName ->
-                val newSortOption = resolvePlaylistSortOption(optionName)
+            userPreferencesRepository.playlistsSortOptionFlow.collect { newSortOption ->
+                // We don't automatically switch order on option change unless it's a migration
+                // But here we are just observing the option key.
+                // Ideally we should observe both option and order flows.
+                
+                // For now, let's just update if option changed, keeping existing order unless migration dictates otherwise?
+                // Actually, if we change option, we might want to keep the current order or reset to default.
+                // But since we are observing the stored value, we should respect what's stored.
+                
                 if (_uiState.value.currentPlaylistSortOption != newSortOption) {
-                    // If the option from preferences is different, re-sort the current list
-                    sortPlaylists(newSortOption)
+                     // If option changed externally (e.g. clear data), we might need to update.
+                     // But sortPlaylists updates both.
+                     // This observer is mainly for when other parts of app change it? 
+                     // Or initial load?
+                     // Let's rely on sortPlaylists to update state and persistence.
+                     // This observer might be redundant if we only change it via sortPlaylists.
+                     // But if we want to react to changes:
+                     
+                     // We need to also observe order.
                 }
             }
+        }
+        
+        // Observe sort order changes
+        viewModelScope.launch {
+             userPreferencesRepository.playlistsSortOrderFlow.collect { newOrder ->
+                 if (_uiState.value.currentPlaylistSortOrder != newOrder) {
+                     sortPlaylists(_uiState.value.currentPlaylistSortOption, newOrder)
+                 }
+             }
         }
     }
 
@@ -242,8 +284,8 @@ class PlaylistViewModel @Inject constructor(
                         _uiState.update {
                             it.copy(
                                 currentPlaylistDetails = pseudoPlaylist,
-                                currentPlaylistSongs = applySortToSongs(songsList, it.currentPlaylistSongsSortOption),
-                                playlistSongsOrderMode = PlaylistSongsOrderMode.Sorted(it.currentPlaylistSongsSortOption),
+                                currentPlaylistSongs = applySortToSongs(songsList, it.currentPlaylistSongsSortOption, it.currentPlaylistSongsSortOrder),
+                                playlistSongsOrderMode = PlaylistSongsOrderMode.Sorted(it.currentPlaylistSongsSortOption, it.currentPlaylistSongsSortOrder),
                                 isLoading = false,
                                 playlistNotFound = false
                             )
@@ -274,7 +316,7 @@ class PlaylistViewModel @Inject constructor(
                         }
 
                         val orderedSongs = when (orderMode) {
-                            is PlaylistSongsOrderMode.Sorted -> applySortToSongs(songsList, orderMode.option)
+                            is PlaylistSongsOrderMode.Sorted -> applySortToSongs(songsList, orderMode.option, orderMode.order)
                             PlaylistSongsOrderMode.Manual -> songsList
                         }
 
@@ -285,6 +327,8 @@ class PlaylistViewModel @Inject constructor(
                                 currentPlaylistSongs = orderedSongs,
                                 currentPlaylistSongsSortOption = (orderMode as? PlaylistSongsOrderMode.Sorted)?.option
                                     ?: it.currentPlaylistSongsSortOption,
+                                currentPlaylistSongsSortOrder = (orderMode as? PlaylistSongsOrderMode.Sorted)?.order
+                                    ?: it.currentPlaylistSongsSortOrder,
                                 playlistSongsOrderMode = orderMode,
                                 playlistOrderModes = it.playlistOrderModes + (playlistId to orderMode),
                                 isLoading = false,
@@ -664,14 +708,26 @@ class PlaylistViewModel @Inject constructor(
     }
 
     //Sort funs
-    fun sortPlaylists(sortOption: SortOption) {
-        _uiState.update { it.copy(currentPlaylistSortOption = sortOption) }
+    fun sortPlaylists(sortOption: SortOption, sortOrder: SortOrder) {
+        _uiState.update { 
+            it.copy(
+                currentPlaylistSortOption = sortOption,
+                currentPlaylistSortOrder = sortOrder
+            ) 
+        }
 
         val currentPlaylists = _uiState.value.playlists
         val sortedPlaylists = when (sortOption) {
-            SortOption.PlaylistNameAZ -> currentPlaylists.sortedBy { it.name.lowercase() }
-            SortOption.PlaylistNameZA -> currentPlaylists.sortedByDescending { it.name.lowercase() }
-            SortOption.PlaylistDateCreated -> currentPlaylists.sortedByDescending { it.lastModified }
+            SortOption.PlaylistName -> if (sortOrder == SortOrder.ASCENDING) {
+                currentPlaylists.sortedBy { it.name.lowercase() }
+            } else {
+                currentPlaylists.sortedByDescending { it.name.lowercase() }
+            }
+            SortOption.PlaylistDateCreated -> if (sortOrder == SortOrder.ASCENDING) {
+                currentPlaylists.sortedBy { it.lastModified }
+            } else {
+                currentPlaylists.sortedByDescending { it.lastModified }
+            }
             else -> currentPlaylists
         }.toList()
 
@@ -679,10 +735,11 @@ class PlaylistViewModel @Inject constructor(
 
         viewModelScope.launch {
             userPreferencesRepository.setPlaylistsSortOption(sortOption.storageKey)
+            userPreferencesRepository.setPlaylistsSortOrder(sortOrder)
         }
     }
 
-    fun sortPlaylistSongs(sortOption: SortOption) {
+    fun sortPlaylistSongs(sortOption: SortOption, sortOrder: SortOrder) {
         val playlistId = _uiState.value.currentPlaylistDetails?.id
         
         // If SongDefaultOrder is selected, reload the playlist to get original order
@@ -702,35 +759,38 @@ class PlaylistViewModel @Inject constructor(
         }
 
         val currentSongs = _uiState.value.currentPlaylistSongs
-        val sortedSongs = when (sortOption) {
-            SortOption.SongTitleAZ -> currentSongs.sortedBy { it.title.lowercase() }
-            SortOption.SongTitleZA -> currentSongs.sortedByDescending { it.title.lowercase() }
-            SortOption.SongArtist -> currentSongs.sortedBy { it.artist.lowercase() }
-            SortOption.SongAlbum -> currentSongs.sortedBy { it.album.lowercase() }
-            SortOption.SongDuration -> currentSongs.sortedBy { it.duration }
-            SortOption.SongDateAdded -> currentSongs.sortedByDescending { it.dateAdded }
-            else -> currentSongs
-        }
+        val sortedSongs = applySortToSongs(currentSongs, sortOption, sortOrder)
 
         _uiState.update {
             val updatedModes = if (playlistId != null) {
-                it.playlistOrderModes + (playlistId to PlaylistSongsOrderMode.Sorted(sortOption))
+                it.playlistOrderModes + (playlistId to PlaylistSongsOrderMode.Sorted(sortOption, sortOrder))
             } else {
                 it.playlistOrderModes
             }
             it.copy(
                 currentPlaylistSongs = sortedSongs,
                 currentPlaylistSongsSortOption = sortOption,
-                playlistSongsOrderMode = PlaylistSongsOrderMode.Sorted(sortOption),
+                currentPlaylistSongsSortOrder = sortOrder,
+                playlistSongsOrderMode = PlaylistSongsOrderMode.Sorted(sortOption, sortOrder),
                 playlistOrderModes = updatedModes
             )
         }
 
         if (playlistId != null) {
             viewModelScope.launch {
+                // We need to store both option and order.
+                // The current implementation stores a single string key.
+                // We might need to change how we store this or encode both in the key.
+                // Or use a delimiter.
+                // For now, let's assume we can store "optionKey:orderName" or similar if we want to stick to single string.
+                // OR we update UserPreferencesRepository to store order separately for playlists.
+                // BUT playlistSongOrderModes is a Map<String, String>.
+                
+                // Let's encode it as "storageKey|ASCENDING"
+                val encodedValue = "${sortOption.storageKey}|${sortOrder.name}"
                 userPreferencesRepository.setPlaylistSongOrderMode(
                     playlistId,
-                    sortOption.storageKey
+                    encodedValue
                 )
             }
         }
@@ -761,14 +821,33 @@ class PlaylistViewModel @Inject constructor(
         return songs + subFolders.flatMap { it.collectAllSongs() }
     }
 
-    private fun applySortToSongs(songs: List<Song>, sortOption: SortOption): List<Song> {
+    private fun applySortToSongs(songs: List<Song>, sortOption: SortOption, sortOrder: SortOrder): List<Song> {
         return when (sortOption) {
-            SortOption.SongTitleAZ -> songs.sortedBy { it.title.lowercase() }
-            SortOption.SongTitleZA -> songs.sortedByDescending { it.title.lowercase() }
-            SortOption.SongArtist -> songs.sortedBy { it.artist.lowercase() }
-            SortOption.SongAlbum -> songs.sortedBy { it.album.lowercase() }
-            SortOption.SongDuration -> songs.sortedBy { it.duration }
-            SortOption.SongDateAdded -> songs.sortedByDescending { it.dateAdded }
+            SortOption.SongTitle -> if (sortOrder == SortOrder.ASCENDING) {
+                songs.sortedBy { it.title.lowercase() }
+            } else {
+                songs.sortedByDescending { it.title.lowercase() }
+            }
+            SortOption.SongArtist -> if (sortOrder == SortOrder.ASCENDING) {
+                songs.sortedBy { it.artist.lowercase() }
+            } else {
+                songs.sortedByDescending { it.artist.lowercase() }
+            }
+            SortOption.SongAlbum -> if (sortOrder == SortOrder.ASCENDING) {
+                songs.sortedBy { it.album.lowercase() }
+            } else {
+                songs.sortedByDescending { it.album.lowercase() }
+            }
+            SortOption.SongDuration -> if (sortOrder == SortOrder.ASCENDING) {
+                songs.sortedBy { it.duration }
+            } else {
+                songs.sortedByDescending { it.duration }
+            }
+            SortOption.SongDateAdded -> if (sortOrder == SortOrder.ASCENDING) {
+                songs.sortedBy { it.dateAdded }
+            } else {
+                songs.sortedByDescending { it.dateAdded }
+            }
             else -> songs
         }
     }
@@ -777,8 +856,19 @@ class PlaylistViewModel @Inject constructor(
         return if (value == MANUAL_ORDER_MODE) {
             PlaylistSongsOrderMode.Manual
         } else {
-            val option = SortOption.fromStorageKey(value, SortOption.SONGS, SortOption.SongTitleAZ)
-            PlaylistSongsOrderMode.Sorted(option)
+            // Try to split by delimiter
+            val parts = value.split("|")
+            val optionKey = parts.getOrNull(0) ?: value
+            val orderName = parts.getOrNull(1)
+            
+            val option = SortOption.fromStorageKey(optionKey, SortOption.SONGS, SortOption.SongTitle).first
+            val order = if (orderName != null) {
+                try { SortOrder.valueOf(orderName) } catch (e: Exception) { SortOrder.ASCENDING }
+            } else {
+                SortOrder.ASCENDING
+            }
+            
+            PlaylistSongsOrderMode.Sorted(option, order)
         }
     }
 }

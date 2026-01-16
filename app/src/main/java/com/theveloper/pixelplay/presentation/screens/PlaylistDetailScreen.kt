@@ -44,6 +44,8 @@ import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.DragIndicator
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.AlertDialog
@@ -124,6 +126,7 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import com.theveloper.pixelplay.presentation.components.LibrarySortBottomSheet
 import com.theveloper.pixelplay.data.model.SortOption
+import com.theveloper.pixelplay.data.model.SortOrder
 import com.theveloper.pixelplay.data.model.PlaylistShapeType
 import kotlinx.coroutines.launch
 
@@ -266,15 +269,43 @@ fun PlaylistDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = {
-                            playerViewModel.showSortingSheet() 
+                    // Coupled buttons
+                    val currentPlaylistSongsSortOption = uiState.currentPlaylistSongsSortOption
+                    val currentPlaylistSongsSortOrder = uiState.currentPlaylistSongsSortOrder
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        FilledTonalIconButton(
+                            onClick = { playerViewModel.showSortingSheet() },
+                            shape = RoundedCornerShape(topStart = 26.dp, bottomStart = 26.dp, topEnd = 4.dp, bottomEnd = 4.dp),
+                            modifier = Modifier.width(48.dp),
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.Sort,
+                                contentDescription = "Sort Options",
+                            )
                         }
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.Sort,
-                            contentDescription = "Sort Songs"
-                        )
+                        FilledTonalIconButton(
+                            onClick = {
+                                val newOrder = if (currentPlaylistSongsSortOrder == SortOrder.ASCENDING) SortOrder.DESCENDING else SortOrder.ASCENDING
+                                playlistViewModel.sortPlaylistSongs(currentPlaylistSongsSortOption, newOrder)
+                            },
+                            shape = RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp, topEnd = 26.dp, bottomEnd = 26.dp),
+                            modifier = Modifier.width(48.dp),
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        ) {
+                            androidx.compose.animation.AnimatedContent(targetState = currentPlaylistSongsSortOrder, label = "SortOrderIcon") { order ->
+                                Icon(
+                                    imageVector = if (order == SortOrder.ASCENDING) Icons.Rounded.ArrowUpward else Icons.Rounded.ArrowDownward,
+                                    contentDescription = if (order == SortOrder.ASCENDING) "Ascending" else "Descending",
+                                )
+                            }
+                        }
                     }
                     if (!isFolderPlaylist) {
                         FilledTonalIconButton(
@@ -877,14 +908,13 @@ fun PlaylistDetailScreen(
         } else if ((isFolderPlaylist || currentPlaylist != null) && rawOption != null) {
             rawOption
         } else {
-            SortOption.SongTitleAZ
+            SortOption.SongTitle
         }
 
         // Build options list inline to avoid potential static initialization issues
         val songSortOptions = listOf(
             SortOption.SongDefaultOrder,
-            SortOption.SongTitleAZ,
-            SortOption.SongTitleZA,
+            SortOption.SongTitle,
             SortOption.SongArtist,
             SortOption.SongAlbum,
             SortOption.SongDateAdded,
@@ -897,7 +927,8 @@ fun PlaylistDetailScreen(
             selectedOption = currentSortOption,
             onDismiss = { playerViewModel.hideSortingSheet() },
             onOptionSelected = { option ->
-                 playlistViewModel.sortPlaylistSongs(option)
+                 val currentOrder = uiState.currentPlaylistSongsSortOrder
+                 playlistViewModel.sortPlaylistSongs(option, currentOrder)
                  playerViewModel.hideSortingSheet()
                  // Auto-scroll to first item after sorting (delay to allow list to update)
                  scope.launch {

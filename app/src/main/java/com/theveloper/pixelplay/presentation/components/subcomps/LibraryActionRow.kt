@@ -6,6 +6,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
@@ -32,6 +33,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.ButtonDefaults
@@ -45,7 +48,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.MusicFolder
 import com.theveloper.pixelplay.data.model.SortOption
+import com.theveloper.pixelplay.data.model.SortOrder
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import java.io.File
 
@@ -75,6 +82,8 @@ fun LibraryActionRow(
     iconRotation: Float,
     onSortClick: () -> Unit,
     showSortButton: Boolean,
+    sortOrder: SortOrder? = null,
+    onSortOrderClick: () -> Unit = {},
     showGenerateButton: Boolean = true,
     isPlaylistTab: Boolean,
     onGenerateWithAiClick: () -> Unit,
@@ -246,11 +255,56 @@ fun LibraryActionRow(
         Spacer(modifier = Modifier.width(8.dp))
 
         if (showSortButton) {
-            FilledTonalIconButton(onClick = onSortClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.Sort,
-                    contentDescription = "Sort Options",
-                )
+            if (sortOrder != null) {
+                // Coupled buttons
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    FilledTonalIconButton(
+                        onClick = onSortOrderClick,
+                        shape = RoundedCornerShape(topStart = 26.dp, bottomStart = 26.dp, topEnd = 4.dp, bottomEnd = 4.dp),
+                        modifier = Modifier.width(48.dp)
+                    ) {
+                        var rotation by remember { mutableFloatStateOf(if (sortOrder == SortOrder.ASCENDING) 0f else 180f) }
+                        var lastSortOrder by remember { mutableStateOf(sortOrder) }
+
+                        LaunchedEffect(sortOrder) {
+                            if (sortOrder != lastSortOrder) {
+                                rotation += 180f
+                                lastSortOrder = sortOrder
+                            }
+                        }
+
+                        val animatedRotation by animateFloatAsState(
+                            targetValue = rotation,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessLow
+                            ),
+                            label = "SortOrderRotation"
+                        )
+                        Icon(
+                            imageVector = Icons.Rounded.ArrowUpward,
+                            contentDescription = if (sortOrder == SortOrder.ASCENDING) "Ascending" else "Descending",
+                            modifier = Modifier.rotate(animatedRotation)
+                        )
+                    }
+                    FilledTonalIconButton(
+                        onClick = onSortClick,
+                        shape = RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp, topEnd = 26.dp, bottomEnd = 26.dp),
+                        modifier = Modifier.width(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.Sort,
+                            contentDescription = "Sort Options",
+                        )
+                    }
+                }
+            } else {
+                FilledTonalIconButton(onClick = onSortClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.Sort,
+                        contentDescription = "Sort Options",
+                    )
+                }
             }
         }
     }

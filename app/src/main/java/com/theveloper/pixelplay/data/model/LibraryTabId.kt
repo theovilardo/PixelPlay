@@ -8,11 +8,11 @@ enum class LibraryTabId(
     val title: String,
     val defaultSort: SortOption
 ) {
-    SONGS("SONGS", "SONGS", SortOption.SongTitleAZ),
-    ALBUMS("ALBUMS", "ALBUMS", SortOption.AlbumTitleAZ),
-    ARTISTS("ARTIST", "ARTIST", SortOption.ArtistNameAZ),
-    PLAYLISTS("PLAYLISTS", "PLAYLISTS", SortOption.PlaylistNameAZ),
-    FOLDERS("FOLDERS", "FOLDERS", SortOption.FolderNameAZ),
+    SONGS("SONGS", "SONGS", SortOption.SongTitle),
+    ALBUMS("ALBUMS", "ALBUMS", SortOption.AlbumTitle),
+    ARTISTS("ARTIST", "ARTIST", SortOption.ArtistName),
+    PLAYLISTS("PLAYLISTS", "PLAYLISTS", SortOption.PlaylistName),
+    FOLDERS("FOLDERS", "FOLDERS", SortOption.FolderName),
     LIKED("LIKED", "LIKED", SortOption.LikedSongDateLiked);
 
     companion object {
