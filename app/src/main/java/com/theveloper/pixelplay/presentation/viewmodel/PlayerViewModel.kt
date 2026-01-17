@@ -1710,6 +1710,14 @@ class PlayerViewModel @Inject constructor(
         castSessionManagerListener = object : SessionManagerListener<CastSession> {
             private fun transferPlayback(session: CastSession) {
                 viewModelScope.launch {
+                    if (_isCastConnecting.value || _isRemotePlaybackActive.value) {
+                        Timber.tag(CAST_LOG_TAG).w(
+                            "transferPlayback skipped: already connecting=%s remoteActive=%s",
+                            _isCastConnecting.value,
+                            _isRemotePlaybackActive.value
+                        )
+                        return@launch
+                    }
                     pendingCastRouteId = null
                     _isCastConnecting.value = true
                     startCastConnectionTimeout()
