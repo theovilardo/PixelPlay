@@ -273,6 +273,21 @@ class LyricsRepositoryImpl @Inject constructor(
                 }.getOrNull()
             }
 
+            // Strategy 4: Aggressive fallback - remove artist and trim title at separators (-, ,, (, ), $, #)
+            if (results.isNullOrEmpty()) {
+                 val separators = charArrayOf('-', ',', '(', ')', '$', '#')
+                 val index = cleanTitle.indexOfAny(separators)
+                 if (index != -1) {
+                     val superCleanTitle = cleanTitle.substring(0, index).trim()
+                     if (superCleanTitle.isNotEmpty()) {
+                          Log.d(TAG, "Strategy 4: Searching with super simplified title: '$superCleanTitle' (no artist)")
+                          results = runCatching {
+                                lrcLibApiService.searchLyrics(trackName = superCleanTitle)
+                          }.getOrNull()
+                     }
+                 }
+            }
+
             if (results.isNullOrEmpty()) {
                 Log.d(TAG, "No results from LRCLIB API")
                 return@withContext null
@@ -436,6 +451,11 @@ class LyricsRepositoryImpl @Inject constructor(
             if (parsedLyrics.isValid()) {
                 return@withContext parsedLyrics.copy(areFromRemote = false)
             }
+        }
+        
+        // Skip embedded lyrics for Telegram songs (not supported yet/streamed)
+        if (song.contentUriString.startsWith("telegram://") || song.contentUriString.isEmpty()) {
+            return@withContext null
         }
 
         // Then try to read from file metadata

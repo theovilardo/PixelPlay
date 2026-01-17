@@ -165,6 +165,10 @@ fun HomeScreen(
                     onBetaClick = {
                         showBetaInfoBottomSheet = true
                     },
+                    onTelegramClick = {
+                         val intent = android.content.Intent(context, com.theveloper.pixelplay.presentation.telegram.auth.TelegramLoginActivity::class.java)
+                         context.startActivity(intent)
+                    },
                     onMenuClick = {
                         // onOpenSidebar() // Disabled
                     }

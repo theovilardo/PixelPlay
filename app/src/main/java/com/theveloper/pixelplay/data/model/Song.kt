@@ -1,10 +1,13 @@
 package com.theveloper.pixelplay.data.model
 
 import android.net.Uri
+import android.os.Parcelable
 import androidx.compose.runtime.Immutable
 import com.theveloper.pixelplay.utils.splitArtistsByDelimiters
+import kotlinx.parcelize.Parcelize
 
 @Immutable
+@Parcelize
 data class Song(
     val id: String,
     val title: String,
@@ -32,7 +35,9 @@ data class Song(
     val mimeType: String?,
     val bitrate: Int?,
     val sampleRate: Int?,
-) {
+    val telegramFileId: Int? = null, // ID of the file in Telegram
+    val telegramChatId: Long? = null, // ID of the chat where the file is located
+) : Parcelable {
     private val defaultArtistDelimiters = listOf("/", ";", ",", "+", "&")
 
     /**
@@ -82,7 +87,9 @@ data class Song(
                 dateAdded = 0,
                 mimeType = "-",
                 bitrate = 0,
-                sampleRate = 0
+                sampleRate = 0,
+                telegramFileId = null,
+                telegramChatId = null
             )
         }
     }

@@ -28,6 +28,7 @@ import com.theveloper.pixelplay.data.database.toSearchHistoryItem
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.Playlist
 import com.theveloper.pixelplay.data.model.SearchFilterType
+import com.theveloper.pixelplay.data.database.TelegramChannelEntity
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
 import com.theveloper.pixelplay.data.model.SortOption
@@ -65,6 +66,10 @@ import kotlinx.coroutines.withContext
 // import kotlinx.coroutines.sync.withLock // May not be needed if directoryScanMutex logic changes
 import java.io.File
 
+import com.theveloper.pixelplay.data.database.TelegramDao
+import com.theveloper.pixelplay.data.database.toSong
+import com.theveloper.pixelplay.data.database.toTelegramEntity
+
 @OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
 class MusicRepositoryImpl @Inject constructor(
@@ -72,7 +77,10 @@ class MusicRepositoryImpl @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val searchHistoryDao: SearchHistoryDao,
     private val musicDao: MusicDao,
-    private val lyricsRepository: LyricsRepository
+    private val lyricsRepository: LyricsRepository,
+    private val telegramDao: TelegramDao,
+    private val telegramCacheManager: com.theveloper.pixelplay.data.telegram.TelegramCacheManager,
+    private val telegramRepository: com.theveloper.pixelplay.data.telegram.TelegramRepository
 ) : MusicRepository {
 
     private val directoryScanMutex = Mutex()
@@ -176,10 +184,27 @@ class MusicRepositoryImpl @Inject constructor(
         return combine(
             permittedSongsFlow,
             allArtistsFlow,
-            allCrossRefsFlow
-        ) { songs, artists, crossRefs ->
-            mapSongList(songs, null, artists, crossRefs)
+            allCrossRefsFlow,
+            telegramDao.getAllTelegramSongs(),
+            telegramDao.getAllChannels()
+        ) { songs, artists, crossRefs, telegramEntities, channels ->
+            val localSongs = mapSongList(songs, null, artists, crossRefs)
+            
+            val channelMap = channels.associateBy { it.chatId }
+            
+            val telegramSongs = telegramEntities.map { 
+                val channelTitle = channelMap[it.chatId]?.title
+                it.toSong(channelTitle = channelTitle) 
+            }
+            localSongs + telegramSongs
         }.flowOn(Dispatchers.IO)
+    }
+
+    override suspend fun saveTelegramSongs(songs: List<Song>) {
+         val entities = songs.mapNotNull { it.toTelegramEntity() }
+         if (entities.isNotEmpty()) {
+             telegramDao.insertSongs(entities)
+         }
     }
 
     override fun getAlbums(): Flow<List<Album>> {
@@ -309,7 +334,8 @@ class MusicRepositoryImpl @Inject constructor(
 
     override fun searchSongs(query: String): Flow<List<Song>> {
         if (query.isBlank()) return flowOf(emptyList())
-        return combine(
+        
+        val localSongsFlow = combine(
             musicDao.searchSongs(
                 query = query,
                 allowedParentDirs = emptyList(),
@@ -320,6 +346,21 @@ class MusicRepositoryImpl @Inject constructor(
             allCrossRefsFlow
         ) { songs, config, artists, crossRefs ->
             mapSongList(songs, config, artists, crossRefs)
+        }
+
+        val telegramSongsFlow = combine(
+            telegramDao.searchSongs(query),
+            telegramDao.getAllChannels()
+        ) { songs, channels ->
+            val channelMap = channels.associateBy { it.chatId }
+            songs.map { 
+                val title = channelMap[it.chatId]?.title
+                it.toSong(channelTitle = title)
+            }
+        }
+
+        return combine(localSongsFlow, telegramSongsFlow) { local, telegram ->
+            local + telegram
         }.conflate().flowOn(Dispatchers.IO)
     }
 
@@ -722,5 +763,25 @@ class MusicRepositoryImpl @Inject constructor(
 
     override suspend fun deleteById(id: Long) {
         musicDao.deleteById(id)
+    }
+
+    override suspend fun clearTelegramData() {
+        telegramDao.clearAll()
+        // Clear all Telegram caches (TDLib files, embedded art, memory)
+        telegramRepository.clearMemoryCache()
+        telegramCacheManager.clearAllCache()
+    }
+
+    override suspend fun saveTelegramChannel(channel: TelegramChannelEntity) {
+        telegramDao.insertChannel(channel)
+    }
+
+    override fun getAllTelegramChannels(): Flow<List<TelegramChannelEntity>> {
+        return telegramDao.getAllChannels()
+    }
+
+    override suspend fun deleteTelegramChannel(chatId: Long) {
+        telegramDao.deleteSongsByChatId(chatId) // Cascade delete songs
+        telegramDao.deleteChannel(chatId)
     }
 }

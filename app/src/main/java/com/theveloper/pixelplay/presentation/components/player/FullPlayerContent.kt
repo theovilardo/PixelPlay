@@ -94,6 +94,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.res.stringResource
 import androidx.media3.common.Player
@@ -583,14 +584,25 @@ fun FullPlayerContent(
                         val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
                         if (!isCastConnecting) {
                             AnimatedVisibility(visible = (!isRemotePlaybackActive)) {
-                                Text(
-                                    modifier = Modifier.padding(start = 18.dp),
-                                    text = "Now Playing",
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    style = MaterialTheme.typography.labelLargeEmphasized,
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        modifier = Modifier.padding(start = 18.dp),
+                                        text = "Now Playing",
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        style = MaterialTheme.typography.labelLargeEmphasized,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+
+                                    if (currentSong != null && (currentSong.telegramChatId != null || currentSong.contentUriString.startsWith("telegram:"))) {
+                                        Icon(
+                                            imageVector = androidx.compose.material.icons.Icons.Rounded.Cloud,
+                                            contentDescription = "Cloud Stream",
+                                            tint = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.6f),
+                                            modifier = Modifier.padding(start = 8.dp).size(16.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     },
@@ -1230,6 +1242,8 @@ private fun PlayerSongInfo(
         )
         Spacer(modifier = Modifier.height(4.dp))
 
+
+
         AutoScrollingTextOnDemand(
             text = artist,
             style = artistStyle,
@@ -1238,31 +1252,31 @@ private fun PlayerSongInfo(
             modifier = Modifier
                 .fillMaxWidth()
                 .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = {
-                    if (isNavigatingToArtist) return@combinedClickable
-                    coroutineScope.launch {
-                        isNavigatingToArtist = true
-                        try {
-                            onClickArtist()
-                        } finally {
-                            isNavigatingToArtist = false
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {
+                        if (isNavigatingToArtist) return@combinedClickable
+                        coroutineScope.launch {
+                            isNavigatingToArtist = true
+                            try {
+                                onClickArtist()
+                            } finally {
+                                isNavigatingToArtist = false
+                            }
+                        }
+                    },
+                    onLongClick = {
+                        if (isNavigatingToArtist) return@combinedClickable
+                        coroutineScope.launch {
+                            isNavigatingToArtist = true
+                            try {
+                                playerViewModel.triggerArtistNavigationFromPlayer(artistId)
+                            } finally {
+                                isNavigatingToArtist = false
+                            }
                         }
                     }
-                },
-                onLongClick = {
-                    if (isNavigatingToArtist) return@combinedClickable
-                    coroutineScope.launch {
-                        isNavigatingToArtist = true
-                        try {
-                            playerViewModel.triggerArtistNavigationFromPlayer(artistId)
-                        } finally {
-                            isNavigatingToArtist = false
-                        }
-                    }
-                }
-            )
+                )
         )
     }
 }

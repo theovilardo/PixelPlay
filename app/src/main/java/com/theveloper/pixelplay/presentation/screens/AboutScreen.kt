@@ -160,6 +160,7 @@ fun AboutScreen(
     // ... existing code ...
     val authors = listOf(
         Contributor(name = "Theo Vilardo", githubUrl = "https://github.com/theovilardo", telegramUrl = "https://t.me/thevelopersupport", avatarUrl = "https://avatars.githubusercontent.com/u/26845343?v=4"),
+        Contributor(name = "Dhruv Varia", githubUrl = "https://github.com/Dv1101", avatarUrl = "https://github.com/Dv1101.png")
     )
 
     // State to hold fetched contributors
@@ -383,7 +384,7 @@ fun AboutScreen(
                         .padding(horizontal = 16.dp)
                 ) {
                     Text(
-                        text = "Author",
+                        text = if (authors.size > 1) "Authors" else "Author",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -391,8 +392,8 @@ fun AboutScreen(
                 }
             }
 
-            item(key = authors[0].name) {
-                ContributorCard(authors[0])
+            items(items = authors, key = { it.name }) { author ->
+                ContributorCard(author)
             }
 
             item(key = "author_contributor_spacer") {

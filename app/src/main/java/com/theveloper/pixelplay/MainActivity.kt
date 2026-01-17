@@ -304,6 +304,20 @@ class MainActivity : ComponentActivity() {
                 }
                 clearExternalIntentPayload(intent)
             }
+            
+            intent.action == "com.theveloper.pixelplay.ACTION_PLAY_SONG" -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                     intent.getParcelableExtra("song", com.theveloper.pixelplay.data.model.Song::class.java)?.let { song ->
+                         playerViewModel.playSong(song)
+                     }
+                } else {
+                     @Suppress("DEPRECATION")
+                     intent.getParcelableExtra<com.theveloper.pixelplay.data.model.Song>("song")?.let { song ->
+                         playerViewModel.playSong(song)
+                     }
+                }
+                intent.action = null
+            }
         }
     }
     
@@ -338,7 +352,7 @@ class MainActivity : ComponentActivity() {
                 val takeFlags = intent.flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
                 if (takeFlags != 0) {
                     try {
-                        contentResolver.takePersistableUriPermission(uri, takeFlags)
+                        contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     } catch (securityException: SecurityException) {
                         Log.w("MainActivity", "Unable to persist URI permission for $uri", securityException)
                     } catch (illegalArgumentException: IllegalArgumentException) {
@@ -581,6 +595,11 @@ class MainActivity : ComponentActivity() {
                     }
                     DrawerDestination.Equalizer -> navController.navigate(Screen.Equalizer.route)
                     DrawerDestination.Settings -> navController.navigate(Screen.Settings.route)
+                    DrawerDestination.Telegram -> {
+                        val intent = Intent(this@MainActivity, com.theveloper.pixelplay.presentation.telegram.auth.TelegramLoginActivity::class.java)
+                        startActivity(intent)
+                    }
+                    else -> {}
                 }
             }
         ) {

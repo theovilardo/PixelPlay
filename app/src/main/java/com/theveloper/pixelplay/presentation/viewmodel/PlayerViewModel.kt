@@ -286,6 +286,7 @@ private data class ActiveSession(
 
 @UnstableApi
 @SuppressLint("LogNotTimber")
+@OptIn(coil.annotation.ExperimentalCoilApi::class)
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -300,7 +301,8 @@ class PlayerViewModel @Inject constructor(
     private val aiMetadataGenerator: AiMetadataGenerator,
     private val artistImageRepository: ArtistImageRepository,
     private val dualPlayerEngine: DualPlayerEngine,
-    private val appShortcutManager: com.theveloper.pixelplay.utils.AppShortcutManager
+    private val appShortcutManager: com.theveloper.pixelplay.utils.AppShortcutManager,
+    private val telegramCacheManager: com.theveloper.pixelplay.data.telegram.TelegramCacheManager
 ) : ViewModel() {
 
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -310,6 +312,21 @@ class PlayerViewModel @Inject constructor(
     private val _masterAllSongs = MutableStateFlow<ImmutableList<Song>>(persistentListOf())
     private val _stablePlayerState = MutableStateFlow(StablePlayerState())
     val stablePlayerState: StateFlow<StablePlayerState> = _stablePlayerState.asStateFlow()
+    
+    // Observe embedded art updates for Telegram songs - refresh colors when available
+    private val embeddedArtObserverJob = viewModelScope.launch {
+        telegramCacheManager.embeddedArtUpdated.collect { updatedArtUri ->
+            val currentSongArtUri = _stablePlayerState.value.currentSong?.albumArtUriString
+            if (currentSongArtUri == updatedArtUri) {
+                Timber.d("PlayerViewModel: Embedded art updated for current song, refreshing colors")
+                // Invalidate Coil cache for this URI
+                context.imageLoader.memoryCache?.remove(MemoryCache.Key(updatedArtUri))
+                context.imageLoader.diskCache?.remove(updatedArtUri)
+                // Re-extract colors
+                extractAndGenerateColorScheme(updatedArtUri.toUri(), isPreload = false)
+            }
+        }
+    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val currentSongArtists: StateFlow<List<Artist>> = stablePlayerState
@@ -5729,18 +5746,25 @@ class PlayerViewModel @Inject constructor(
         val updatedSong = currentSong.copy(lyrics = result.rawLyrics)
         updateSongInStates(updatedSong, result.lyrics)
 
-        viewModelScope.launch {
-            musicRepository.updateLyrics(
-                currentSong.id.toLong(),
-                result.rawLyrics
-            )
+        // Only update database for local songs (numeric IDs)
+        // Telegram songs have string IDs like "chatId_messageId"
+        val songIdLong = currentSong.id.toLongOrNull()
+        if (songIdLong != null) {
+            viewModelScope.launch {
+                musicRepository.updateLyrics(songIdLong, result.rawLyrics)
+            }
+        } else {
+            Timber.d("Skipping lyrics DB update for non-local song: ${currentSong.id}")
         }
     }
 
     fun resetLyricsForCurrentSong() {
         resetLyricsSearchState()
+        val songIdLong = stablePlayerState.value.currentSong?.id?.toLongOrNull()
         viewModelScope.launch {
-            musicRepository.resetLyrics(stablePlayerState.value.currentSong!!.id.toLong())
+            if (songIdLong != null) {
+                musicRepository.resetLyrics(songIdLong)
+            }
             _stablePlayerState.update { state -> state.copy(lyrics = null) }
             // loadLyricsForCurrentSong()
         }
@@ -5786,6 +5810,32 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             musicRepository.invalidateCachesDependentOnAllowedDirectories()
             resetAndLoadInitialData("Blocked directories changed")
+        }
+    }
+
+    fun playSong(song: Song) {
+        viewModelScope.launch {
+             val controller = mediaController ?: return@launch
+             
+             val mediaItem = MediaItem.Builder()
+                 .setMediaId(song.id)
+                 .setUri(Uri.parse(song.contentUriString ?: song.path))
+                 .setMediaMetadata(
+                     MediaMetadata.Builder()
+                         .setTitle(song.title)
+                         .setArtist(song.artist)
+                         .setArtworkUri(if (song.albumArtUriString != null) Uri.parse(song.albumArtUriString) else null)
+                         .build()
+                 )
+                 .build()
+                 
+             controller.setMediaItem(mediaItem)
+             controller.prepare()
+             controller.play()
+             
+             // Also ensure sheet is visible
+             _isSheetVisible.value = true
+             _sheetState.value = PlayerSheetState.EXPANDED
         }
     }
 }

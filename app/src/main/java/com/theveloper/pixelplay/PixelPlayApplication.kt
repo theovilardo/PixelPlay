@@ -24,6 +24,12 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
     @Inject
     lateinit var imageLoader: dagger.Lazy<ImageLoader>
 
+    @Inject
+    lateinit var telegramStreamProxy: com.theveloper.pixelplay.data.telegram.TelegramStreamProxy
+    
+    @Inject
+    lateinit var telegramCoilFetcherFactory: com.theveloper.pixelplay.data.image.TelegramCoilFetcher.Factory
+
     // AÑADE EL COMPANION OBJECT
     companion object {
         const val NOTIFICATION_CHANNEL_ID = "pixelplay_music_channel"
@@ -35,24 +41,9 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
         // Install crash handler to catch and save uncaught exceptions
         CrashHandler.install(this)
 
-//        if (BuildConfig.DEBUG) {
-//            Timber.plant(Timber.DebugTree())
-//            StrictMode.setThreadPolicy(
-//                StrictMode.ThreadPolicy.Builder()
-//                    .detectDiskReads()
-//                    .detectDiskWrites()
-//                    .detectNetwork()
-//                    .penaltyLog()
-//                    .build()
-//            )
-//            StrictMode.setVmPolicy(
-//                StrictMode.VmPolicy.Builder()
-//                    .detectLeakedSqlLiteObjects()
-//                    .detectLeakedClosableObjects()
-//                    .penaltyLog()
-//                    .build()
-//            )
-//        }
+        if (BuildConfig.DEBUG) {
+            Timber.plant(Timber.DebugTree())
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -63,10 +54,16 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(channel)
         }
+        
+        telegramStreamProxy.start()
     }
 
     override fun newImageLoader(): ImageLoader {
-        return imageLoader.get()
+        return imageLoader.get().newBuilder()
+            .components {
+                add(telegramCoilFetcherFactory)
+            }
+            .build()
     }
 
     // 3. Sobrescribe el método para proveer la configuración de WorkManager

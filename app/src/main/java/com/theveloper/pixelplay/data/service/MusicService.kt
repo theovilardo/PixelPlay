@@ -220,6 +220,7 @@ class MusicService : MediaSessionService() {
         mediaSession = MediaSession.Builder(this, engine.masterPlayer)
             .setSessionActivity(getOpenAppPendingIntent())
             .setCallback(callback)
+            .setBitmapLoader(CoilBitmapLoader(this))
             .build()
 
         setMediaNotificationProvider(
@@ -284,8 +285,16 @@ class MusicService : MediaSessionService() {
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            val player = engine.masterPlayer
+            Timber.tag(TAG).d("onIsPlayingChanged: $isPlaying. Duration: ${player.duration}, Seekable: ${player.isCurrentMediaItemSeekable}")
             requestWidgetFullUpdate()
             mediaSession?.let { refreshMediaSessionUi(it) }
+        }
+        
+        override fun onAvailableCommandsChanged(availableCommands: Player.Commands) {
+             val canSeek = availableCommands.contains(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
+             val player = engine.masterPlayer
+             Timber.tag(TAG).w("onAvailableCommandsChanged. Can Seek Command? $canSeek. IsSeekable? ${player.isCurrentMediaItemSeekable}. Duration: ${player.duration}")
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
