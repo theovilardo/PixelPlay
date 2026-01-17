@@ -14,6 +14,10 @@ import coil.ImageLoaderFactory
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import timber.log.Timber
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 @HiltAndroidApp
 class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Provider {
