@@ -94,7 +94,6 @@ class CastPlayer(private val castSession: CastSession) {
                 client.queueLoad(
                     mediaItems.toTypedArray(),
                     startIndex,
-                    startPosition,
                     repeatMode,
                     null
                 ).setResultCallback { result ->
@@ -144,20 +143,32 @@ class CastPlayer(private val castSession: CastSession) {
                     safeOnComplete(false)
                     return
                 }
-                attempts[index].invoke { success, statusCode, statusMessage ->
-                    Timber.tag(CAST_TAG).i(
-                        "Cast load attempt %d result: success=%s statusCode=%d statusMessage=%s",
-                        index + 1,
-                        success,
-                        statusCode,
-                        statusMessage
-                    )
-                    if (success) {
-                        safeOnComplete(true)
-                        client.requestStatus()
-                    } else {
-                        runAttempt(index + 1)
+                try {
+                    attempts[index].invoke { success, statusCode, statusMessage ->
+                        Timber.tag(CAST_TAG).i(
+                            "Cast load attempt %d result: success=%s statusCode=%d statusMessage=%s",
+                            index + 1,
+                            success,
+                            statusCode,
+                            statusMessage
+                        )
+                        if (success) {
+                            if (startPosition > 0L) {
+                                client.seek(
+                                    MediaSeekOptions.Builder()
+                                        .setPosition(startPosition)
+                                        .build()
+                                )
+                            }
+                            safeOnComplete(true)
+                            client.requestStatus()
+                        } else {
+                            runAttempt(index + 1)
+                        }
                     }
+                } catch (e: Exception) {
+                    Timber.tag(CAST_TAG).w(e, "Cast load attempt %d threw exception", index + 1)
+                    runAttempt(index + 1)
                 }
             }
 
