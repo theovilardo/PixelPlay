@@ -88,6 +88,12 @@ class CastPlayer(private val castSession: CastSession) {
                 safeOnComplete(false)
                 return
             }
+            val currentSongForLoad = songs[startIndex]
+            val minimalMediaInfo = currentSongForLoad.toMediaInfo(
+                serverAddress = serverAddress,
+                includeMetadata = false,
+                includeDuration = false
+            )
 
             val safeStartPosition = startPosition.coerceAtLeast(0L)
 
@@ -110,7 +116,7 @@ class CastPlayer(private val castSession: CastSession) {
             fun attemptLoadRequest(onResult: (Boolean, Int, String?) -> Unit) {
                 Timber.tag(CAST_TAG).i("Attempting load(MediaLoadRequestData) for current item")
                 val requestData = MediaLoadRequestData.Builder()
-                    .setMediaInfo(currentItem.media)
+                    .setMediaInfo(minimalMediaInfo)
                     .setAutoplay(autoPlay)
                     .build()
 
@@ -126,7 +132,7 @@ class CastPlayer(private val castSession: CastSession) {
             fun attemptLegacyLoad(onResult: (Boolean, Int, String?) -> Unit) {
                 Timber.tag(CAST_TAG).i("Attempting legacy client.load(MediaInfo)")
                 @Suppress("DEPRECATION")
-                client.load(currentItem.media, autoPlay, 0L)
+                client.load(minimalMediaInfo, autoPlay, 0L)
                     .setResultCallback { result ->
                         onResult(
                             result.status.isSuccess,
@@ -200,14 +206,28 @@ class CastPlayer(private val castSession: CastSession) {
     }
 
     private fun Song.toMediaQueueItem(serverAddress: String, itemId: Int): MediaQueueItem {
-        // Use MEDIA_TYPE_GENERIC for maximum compatibility (some receivers reject MUSIC_TRACK)
-        val mediaMetadata = MediaMetadata(MediaMetadata.MEDIA_TYPE_GENERIC)
-        mediaMetadata.putString(MediaMetadata.KEY_TITLE, this.title)
-        mediaMetadata.putString(MediaMetadata.KEY_SUBTITLE, this.artist) // Map Artist to Subtitle
-        // mediaMetadata.putString(MediaMetadata.KEY_ALBUM_TITLE, this.album) // Skip Album for GENERIC
-        val artUrl = "$serverAddress/art/${this.id}.jpg"
-        mediaMetadata.addImage(WebImage(Uri.parse(artUrl)))
-        mediaMetadata.putString(MediaMetadata.KEY_ALBUM_TITLE, this.album)
+        val mediaInfo = toMediaInfo(serverAddress, includeMetadata = true, includeDuration = true)
+        return MediaQueueItem.Builder(mediaInfo)
+            .setItemId(itemId)
+            .build()
+    }
+
+    private fun Song.toMediaInfo(
+        serverAddress: String,
+        includeMetadata: Boolean,
+        includeDuration: Boolean
+    ): MediaInfo {
+        val mediaMetadata = if (includeMetadata) {
+            MediaMetadata(MediaMetadata.MEDIA_TYPE_MUSIC_TRACK).apply {
+                putString(MediaMetadata.KEY_TITLE, this@toMediaInfo.title)
+                putString(MediaMetadata.KEY_SUBTITLE, this@toMediaInfo.artist)
+                putString(MediaMetadata.KEY_ALBUM_TITLE, this@toMediaInfo.album)
+                val artUrl = "$serverAddress/art/${this@toMediaInfo.id}.jpg"
+                addImage(WebImage(Uri.parse(artUrl)))
+            }
+        } else {
+            null
+        }
 
         // Determine extension for URL (helps some receivers like AirReceiver/DLNA)
         val extension = when {
@@ -218,22 +238,27 @@ class CastPlayer(private val castSession: CastSession) {
             else -> "mp3"
         }
         val mediaUrl = "$serverAddress/song/${this.id}.$extension"
-        
+
         // Use actual MIME type from the song, fallback to audio/mpeg if unknown
         val contentType = this.mimeType?.takeIf { it.isNotBlank() && it != "-" } ?: "audio/mpeg"
-        
-        Timber.tag(CAST_TAG).d("Generating MediaQueueItem: $mediaUrl | Mime: $contentType | Art: $artUrl")
-        
-    val mediaInfo = MediaInfo.Builder(mediaUrl)
-        .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
-        .setContentType(contentType)
-        .setStreamDuration(this.duration) // Restoring duration for valid seek
-        .setMetadata(mediaMetadata) // Restoring basic metadata - Receiver might require Title
-        .build()
 
-        return MediaQueueItem.Builder(mediaInfo)
-            .setItemId(itemId)
-            .build()
+        Timber.tag(CAST_TAG).d(
+            "Generating MediaInfo: $mediaUrl | Mime: $contentType | Metadata=%s",
+            includeMetadata
+        )
+
+        val builder = MediaInfo.Builder(mediaUrl)
+            .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
+            .setContentType(contentType)
+
+        if (includeDuration && this.duration > 0) {
+            builder.setStreamDuration(this.duration)
+        }
+        if (mediaMetadata != null) {
+            builder.setMetadata(mediaMetadata)
+        }
+
+        return builder.build()
     }
 
     fun seek(position: Long) {
