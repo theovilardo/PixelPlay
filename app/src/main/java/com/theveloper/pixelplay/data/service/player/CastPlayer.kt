@@ -96,7 +96,11 @@ class CastPlayer(private val castSession: CastSession) {
             )
 
             val castDeviceName = castSession.castDevice?.friendlyName?.lowercase()
-            val skipQueueLoad = castDeviceName?.contains("airreceiver") == true
+            val castDeviceModel = castSession.castDevice?.modelName?.lowercase()
+            val castDeviceVersion = castSession.castDevice?.deviceVersion?.lowercase()
+            val isAirReceiver = listOfNotNull(castDeviceName, castDeviceModel, castDeviceVersion)
+                .any { it.contains("airreceiver") }
+            val skipQueueLoad = isAirReceiver
 
             val safeStartPosition = startPosition.coerceAtLeast(0L)
 
@@ -148,14 +152,17 @@ class CastPlayer(private val castSession: CastSession) {
             val attempts = if (skipQueueLoad) {
                 Timber.tag(CAST_TAG).w(
                     "Skipping queueLoad for receiver=%s; using direct load fallbacks",
-                    castDeviceName
+                    castDeviceName ?: castDeviceModel ?: castDeviceVersion
                 )
                 listOf(::attemptLoadRequest, ::attemptLegacyLoad)
             } else {
                 listOf(::attemptQueueLoad, ::attemptLoadRequest, ::attemptLegacyLoad)
             }
 
-            val attemptDelayMs = 600L
+            val attemptDelayMs = if (skipQueueLoad) 1200L else 600L
+            val initialDelayMs = if (skipQueueLoad) 1500L else 400L
+            val readyTimeoutMs = if (skipQueueLoad) 8000L else 5000L
+            val readyPollMs = 250L
 
             lateinit var runAttempt: (Int) -> Unit
 
@@ -203,7 +210,18 @@ class CastPlayer(private val castSession: CastSession) {
 
             client.requestStatus()
             CoroutineScope(Dispatchers.Main).launch {
-                delay(400L)
+                var elapsedMs = 0L
+                while (!castSession.isConnected && elapsedMs < readyTimeoutMs) {
+                    delay(readyPollMs)
+                    elapsedMs += readyPollMs
+                }
+                if (!castSession.isConnected) {
+                    Timber.tag(CAST_TAG).w(
+                        "Cast session not connected after %dms; attempting load anyway",
+                        readyTimeoutMs
+                    )
+                }
+                delay(initialDelayMs)
                 runAttempt(0)
             }
         } catch (e: Exception) {
