@@ -70,9 +70,10 @@ class CastPlayer(private val castSession: CastSession) {
         mediaMetadata.addImage(WebImage(Uri.parse(artUrl)))
 
         val mediaUrl = "$serverAddress/song/${this.id}"
+        val resolvedMimeType = resolveMimeType()
         val mediaInfo = MediaInfo.Builder(mediaUrl)
             .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
-            .setContentType("audio/mpeg")
+            .setContentType(resolvedMimeType)
             .setStreamDuration(this.duration)
             .setMetadata(mediaMetadata)
             .build()
@@ -135,5 +136,27 @@ class CastPlayer(private val castSession: CastSession) {
 
     fun setRepeatMode(repeatMode: Int) {
         remoteMediaClient?.queueSetRepeatMode(repeatMode, null)
+    }
+
+    private fun Song.resolveMimeType(): String {
+        val normalizedMime = this.mimeType?.lowercase()?.trim()
+        if (!normalizedMime.isNullOrBlank()) {
+            return when (normalizedMime) {
+                "audio/mp3" -> "audio/mpeg"
+                "audio/x-m4a" -> "audio/mp4"
+                else -> normalizedMime
+            }
+        }
+
+        val extension = this.path.substringAfterLast('.', "").lowercase()
+        return when (extension) {
+            "mp3" -> "audio/mpeg"
+            "flac" -> "audio/flac"
+            "m4a", "mp4", "aac" -> "audio/mp4"
+            "ogg", "oga" -> "audio/ogg"
+            "wav" -> "audio/wav"
+            "opus" -> "audio/opus"
+            else -> "audio/mpeg"
+        }
     }
 }

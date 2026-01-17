@@ -76,17 +76,22 @@ class MediaFileHttpServerService : Service() {
                     server = embeddedServer(Netty, port = 8080, host = "0.0.0.0") {
                         routing {
                             get("/song/{songId}") {
-                                val songId = call.parameters["songId"]
-                                if (songId == null) {
+                                val rawSongId = call.parameters["songId"]
+                                if (rawSongId == null) {
                                     call.respond(HttpStatusCode.BadRequest, "Song ID is missing")
                                     return@get
                                 }
 
+                                val songId = rawSongId.substringBefore(".")
                                 val song = musicRepository.getSong(songId).firstOrNull()
                                 if (song == null) {
                                     call.respond(HttpStatusCode.NotFound, "Song not found")
                                     return@get
                                 }
+
+                                val resolvedContentType = runCatching {
+                                    song.mimeType?.let { ContentType.parse(it) }
+                                }.getOrNull() ?: ContentType.Audio.MPEG
 
                                 try {
                                     val uri = song.contentUriString.toUri()
@@ -144,14 +149,14 @@ class MediaFileHttpServerService : Service() {
                                                 inputStream.readNBytes(length.toInt())
                                             }
 
-                                            call.respondBytes(bytes, ContentType.Audio.MPEG, HttpStatusCode.PartialContent)
+                                            call.respondBytes(bytes, resolvedContentType, HttpStatusCode.PartialContent)
                                         } else {
                                             val inputStream = java.io.FileInputStream(pfd.fileDescriptor)
                                             call.response.header(HttpHeaders.AcceptRanges, "bytes")
                                             val bytes = withContext(Dispatchers.IO) {
                                                 inputStream.readBytes()
                                             }
-                                            call.respondBytes(bytes, ContentType.Audio.MPEG)
+                                            call.respondBytes(bytes, resolvedContentType)
                                         }
                                     } ?: run {
                                         call.respond(HttpStatusCode.NotFound, "File not found")
