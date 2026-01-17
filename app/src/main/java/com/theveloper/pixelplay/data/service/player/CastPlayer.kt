@@ -140,6 +140,8 @@ class CastPlayer(private val castSession: CastSession) {
 
             val attemptDelayMs = 600L
 
+            lateinit var runAttempt: (Int) -> Unit
+
             fun scheduleAttempt(index: Int) {
                 CoroutineScope(Dispatchers.Main).launch {
                     delay(attemptDelayMs)
@@ -147,7 +149,7 @@ class CastPlayer(private val castSession: CastSession) {
                 }
             }
 
-            fun runAttempt(index: Int) {
+            runAttempt = { index ->
                 if (index >= attempts.size) {
                     Timber.tag(CAST_TAG).e("All cast load attempts failed")
                     safeOnComplete(false)
