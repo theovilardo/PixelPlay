@@ -146,10 +146,10 @@ class MediaFileHttpServerService : Service() {
                             }
 
                             get("/song/{songId}") {
-                                serveSong(call)
+                                serveSong(call, sendBody = true)
                             }
                             head("/song/{songId}") {
-                                serveSong(call)
+                                serveSong(call, sendBody = false)
                             }
                             options("/song/{songId}") {
                                 Timber.tag("PixelPlayCastDebug").d("Handling OPTIONS for song")
@@ -157,10 +157,10 @@ class MediaFileHttpServerService : Service() {
                             }
                             
                             get("/art/{songId}") {
-                                serveArt(call)
+                                serveArt(call, sendBody = true)
                             }
                             head("/art/{songId}") {
-                                serveArt(call)
+                                serveArt(call, sendBody = false)
                             }
                             options("/art/{songId}") {
                                 Timber.tag("PixelPlayCastDebug").d("Handling OPTIONS for art")
@@ -269,7 +269,7 @@ class MediaFileHttpServerService : Service() {
         serviceJob.cancel()
     }
 
-    private suspend fun serveSong(call: ApplicationCall) {
+    private suspend fun serveSong(call: ApplicationCall, sendBody: Boolean) {
         // Strip optional extension (e.g. .mp3) provided for Cast compatibility
         val rawId = call.parameters["songId"]
         val songId = rawId?.substringBeforeLast(".")
@@ -352,19 +352,29 @@ class MediaFileHttpServerService : Service() {
                     call.response.header(HttpHeaders.ContentRange, "bytes $clampedStart-$clampedEnd/$fileSize")
                     call.response.header(HttpHeaders.AcceptRanges, "bytes")
 
-                    val bytes = withContext(Dispatchers.IO) {
-                        inputStream.readNBytes(length.toInt())
-                    }
+                    if (sendBody) {
+                        val bytes = withContext(Dispatchers.IO) {
+                            inputStream.readNBytes(length.toInt())
+                        }
 
-                    call.respondBytes(bytes, audioContentType, HttpStatusCode.PartialContent)
+                        call.respondBytes(bytes, audioContentType, HttpStatusCode.PartialContent)
+                    } else {
+                        call.response.header(HttpHeaders.ContentLength, length.toString())
+                        call.respond(HttpStatusCode.PartialContent)
+                    }
                 } else {
                     Timber.tag("PixelPlayCastDebug").d("Serving FULL content")
                     val inputStream = java.io.FileInputStream(pfd.fileDescriptor)
                     call.response.header(HttpHeaders.AcceptRanges, "bytes")
-                    val bytes = withContext(Dispatchers.IO) {
-                        inputStream.readBytes()
+                    if (sendBody) {
+                        val bytes = withContext(Dispatchers.IO) {
+                            inputStream.readBytes()
+                        }
+                        call.respondBytes(bytes, audioContentType)
+                    } else {
+                        call.response.header(HttpHeaders.ContentLength, fileSize.toString())
+                        call.respond(HttpStatusCode.OK)
                     }
-                    call.respondBytes(bytes, audioContentType)
                 }
             } ?: run {
                 Timber.tag("PixelPlayCastDebug").e("Could not open file descriptor for URI: $uri")
@@ -376,8 +386,9 @@ class MediaFileHttpServerService : Service() {
         }
     }
 
-    private suspend fun serveArt(call: ApplicationCall) {
-        val songId = call.parameters["songId"]
+    private suspend fun serveArt(call: ApplicationCall, sendBody: Boolean) {
+        val rawId = call.parameters["songId"]
+        val songId = rawId?.substringBeforeLast(".")
         if (songId == null) {
             call.respond(HttpStatusCode.BadRequest, "Song ID is missing")
             return
@@ -390,11 +401,26 @@ class MediaFileHttpServerService : Service() {
         }
 
         val artUri = song.albumArtUriString.toUri()
+        val contentType = contentResolver.getType(artUri)
+            ?.let { ContentType.parse(it) }
+            ?: ContentType.Image.JPEG
+
+        if (!sendBody) {
+            contentResolver.openFileDescriptor(artUri, "r")?.use { pfd ->
+                val fileSize = pfd.statSize.takeIf { it > 0 } ?: 0L
+                if (fileSize > 0) {
+                    call.response.header(HttpHeaders.ContentLength, fileSize.toString())
+                }
+                call.respond(HttpStatusCode.OK)
+                return
+            }
+        }
+
         contentResolver.openInputStream(artUri)?.use { inputStream ->
             val bytes = withContext(Dispatchers.IO) {
                 inputStream.readBytes()
             }
-            call.respondBytes(bytes, ContentType.Image.JPEG)
+            call.respondBytes(bytes, contentType)
         } ?: call.respond(HttpStatusCode.InternalServerError, "Could not open album art file")
     }
 

@@ -205,8 +205,9 @@ class CastPlayer(private val castSession: CastSession) {
         mediaMetadata.putString(MediaMetadata.KEY_TITLE, this.title)
         mediaMetadata.putString(MediaMetadata.KEY_SUBTITLE, this.artist) // Map Artist to Subtitle
         // mediaMetadata.putString(MediaMetadata.KEY_ALBUM_TITLE, this.album) // Skip Album for GENERIC
-        val artUrl = "$serverAddress/art/${this.id}"
+        val artUrl = "$serverAddress/art/${this.id}.jpg"
         mediaMetadata.addImage(WebImage(Uri.parse(artUrl)))
+        mediaMetadata.putString(MediaMetadata.KEY_ALBUM_TITLE, this.album)
 
         // Determine extension for URL (helps some receivers like AirReceiver/DLNA)
         val extension = when {
