@@ -684,7 +684,13 @@ fun FullPlayerContent(
                                         )
                                     )
                                     .background(castContainerColor)
-                                    .clickable { onShowCastClicked() },
+                                    .clickable {
+                                        if (isCastConnecting) {
+                                            playerViewModel.cancelCastConnection()
+                                        } else {
+                                            onShowCastClicked()
+                                        }
+                                    },
                                 contentAlignment = Alignment.CenterStart
                             ) {
                                 Row(
@@ -707,7 +713,7 @@ fun FullPlayerContent(
                                             Spacer(Modifier.width(8.dp))
                                             AnimatedContent(
                                                 targetState = when {
-                                                    isCastConnecting -> "Connecting…"
+                                                    isCastConnecting -> "Tap to cancel"
                                                     isRemotePlaybackActive && selectedRouteName != null -> selectedRouteName ?: ""
                                                     else -> ""
                                                 },

@@ -197,7 +197,8 @@ private const val EXTERNAL_EXTRA_DATE_ADDED = EXTERNAL_EXTRA_PREFIX + "DATE_ADDE
 private const val EXTERNAL_EXTRA_MIME_TYPE = EXTERNAL_EXTRA_PREFIX + "MIME_TYPE"
 private const val EXTERNAL_EXTRA_BITRATE = EXTERNAL_EXTRA_PREFIX + "BITRATE"
 private const val EXTERNAL_EXTRA_SAMPLE_RATE = EXTERNAL_EXTRA_PREFIX + "SAMPLE_RATE"
-private const val CAST_LOG_TAG = "PlayerCastTransfer"
+private const val CAST_LOG_TAG = "PixelPlayCastDebug"
+private const val CAST_CONNECTION_TIMEOUT_MS = 30_000L
 
 enum class PlayerSheetState {
     COLLAPSED,
@@ -501,6 +502,7 @@ class PlayerViewModel @Inject constructor(
     val isCastConnecting: StateFlow<Boolean> = _isCastConnecting.asStateFlow()
     private val castControlCategory = CastMediaControlIntent.categoryForCast(CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID)
     private var pendingCastRouteId: String? = null
+    private var castConnectionTimeoutJob: Job? = null
     private val _remotePosition = MutableStateFlow(0L)
     val remotePosition: StateFlow<Long> = _remotePosition.asStateFlow()
     private var lastRemoteMediaStatus: MediaStatus? = null
@@ -1710,7 +1712,9 @@ class PlayerViewModel @Inject constructor(
                 viewModelScope.launch {
                     pendingCastRouteId = null
                     _isCastConnecting.value = true
+                    startCastConnectionTimeout()
                     if (!ensureHttpServerRunning()) {
+                        cancelCastConnectionTimeout()
                         _isCastConnecting.value = false
                         disconnect()
                         return@launch
@@ -1719,8 +1723,41 @@ class PlayerViewModel @Inject constructor(
                     val serverAddress = MediaFileHttpServerService.serverAddress
                     val localPlayer = mediaController
                     val currentQueue = _playerUiState.value.currentPlaybackQueue
+                    
+                    Timber.tag(CAST_LOG_TAG).i("transferPlayback: serverAddress=%s queueSize=%d", serverAddress, currentQueue.size)
+                    
                     if (serverAddress == null || localPlayer == null || currentQueue.isEmpty()) {
+                        Timber.tag(CAST_LOG_TAG).e("transferPlayback aborted: serverAddress=%s localPlayer=%s queueEmpty=%s", 
+                            serverAddress, localPlayer != null, currentQueue.isEmpty())
+                        cancelCastConnectionTimeout()
                         _isCastConnecting.value = false
+                        return@launch
+                    }
+
+                    // Test HTTP server connectivity before attempting Cast
+                    val serverReachable = withContext(Dispatchers.IO) {
+                        try {
+                            val testUrl = java.net.URL(serverAddress)
+                            val connection = testUrl.openConnection() as java.net.HttpURLConnection
+                            connection.requestMethod = "GET"
+                            connection.connectTimeout = 3000
+                            connection.readTimeout = 3000
+                            connection.connect()
+                            val responseCode = connection.responseCode
+                            connection.disconnect()
+                            Timber.tag(CAST_LOG_TAG).i("HTTP server test: responseCode=%d", responseCode)
+                            responseCode in 200..499 // Server is responding
+                        } catch (e: Exception) {
+                            Timber.tag(CAST_LOG_TAG).e(e, "HTTP server unreachable: %s", serverAddress)
+                            false
+                        }
+                    }
+                    
+                    if (!serverReachable) {
+                        sendToast("Cast server not reachable. Check Wi-Fi connection.")
+                        cancelCastConnectionTimeout()
+                        _isCastConnecting.value = false
+                        disconnect()
                         return@launch
                     }
 
@@ -1754,6 +1791,10 @@ class PlayerViewModel @Inject constructor(
                     castPlayer = CastPlayer(session)
                     _castSession.value = session
                     _isRemotePlaybackActive.value = false
+                    
+                    val currentSong = currentQueue.getOrNull(currentSongIndex)
+                    Timber.tag(CAST_LOG_TAG).i("Loading queue: song=%s mimeType=%s index=%d position=%d", 
+                        currentSong?.title, currentSong?.mimeType, currentSongIndex, currentPosition)
 
                     castPlayer?.loadQueue(
                         songs = currentQueue,
@@ -1763,10 +1804,10 @@ class PlayerViewModel @Inject constructor(
                         serverAddress = serverAddress,
                         autoPlay = shouldAutoPlayOnCast,
                         onComplete = { success ->
+                            cancelCastConnectionTimeout()
                             if (!success) {
                                 sendToast("Failed to load media on cast device.")
                                 disconnect()
-                                _isCastConnecting.value = false
                             }
                             _isRemotePlaybackActive.value = success
                             _isCastConnecting.value = false
@@ -2092,6 +2133,7 @@ class PlayerViewModel @Inject constructor(
                 _isCastConnecting.value = true
             }
             override fun onSessionStartFailed(session: CastSession, error: Int) {
+                cancelCastConnectionTimeout()
                 pendingCastRouteId = null
                 _isCastConnecting.value = false
             }
@@ -2102,6 +2144,7 @@ class PlayerViewModel @Inject constructor(
                 _isCastConnecting.value = true
             }
             override fun onSessionResumeFailed(session: CastSession, error: Int) {
+                cancelCastConnectionTimeout()
                 pendingCastRouteId = null
                 _isCastConnecting.value = false
             }
@@ -5001,11 +5044,45 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    private fun startCastConnectionTimeout() {
+        castConnectionTimeoutJob?.cancel()
+        castConnectionTimeoutJob = viewModelScope.launch {
+            delay(CAST_CONNECTION_TIMEOUT_MS)
+            if (_isCastConnecting.value) {
+                Timber.tag(CAST_LOG_TAG).w("Cast connection timeout after ${CAST_CONNECTION_TIMEOUT_MS}ms")
+                _isCastConnecting.value = false
+                sendToast("Cast connection timed out. Please try again.")
+                disconnect(resetConnecting = false)
+            }
+        }
+    }
+
+    private fun cancelCastConnectionTimeout() {
+        castConnectionTimeoutJob?.cancel()
+        castConnectionTimeoutJob = null
+    }
+
+    fun cancelCastConnection() {
+        Timber.tag(CAST_LOG_TAG).i("User cancelled cast connection")
+        cancelCastConnectionTimeout()
+        _isCastConnecting.value = false
+        pendingCastRouteId = null
+
+        // End any pending session
+        sessionManager.currentCastSession?.let {
+            sessionManager.endCurrentSession(true)
+        }
+
+        sendToast("Cast connection cancelled.")
+    }
+
     private suspend fun ensureHttpServerRunning(): Boolean {
+        // If already running, return immediately
         if (MediaFileHttpServerService.isServerRunning && MediaFileHttpServerService.serverAddress != null) {
             return true
         }
 
+        // Network connectivity check
         val connectivityManager =
             context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val activeNetwork = connectivityManager.activeNetwork
@@ -5020,44 +5097,58 @@ class PlayerViewModel @Inject constructor(
             return false
         }
 
-        MediaFileHttpServerService.lastFailureReason = null
+        // Retry loop with exponential backoff
+        val maxAttempts = 3
+        for (attemptNum in 1..maxAttempts) {
+            Timber.tag(CAST_LOG_TAG).i("Starting HTTP server attempt $attemptNum of $maxAttempts")
+            MediaFileHttpServerService.lastFailureReason = null
 
-        context.startService(Intent(context, MediaFileHttpServerService::class.java).apply {
-            action = MediaFileHttpServerService.ACTION_START_SERVER
-        })
+            context.startService(Intent(context, MediaFileHttpServerService::class.java).apply {
+                action = MediaFileHttpServerService.ACTION_START_SERVER
+            })
 
-        val startTime = SystemClock.elapsedRealtime()
-        val backoffDelays = listOf(100L, 200L, 350L, 500L, 700L, 900L)
-        var attempt = 0
+            val startTime = SystemClock.elapsedRealtime()
+            val attemptTimeout = 4000L + (attemptNum * 1000L) // 5s, 6s, 7s
+            val backoffDelays = listOf(100L, 200L, 350L, 500L, 700L, 900L)
+            var pollIndex = 0
 
-        while (SystemClock.elapsedRealtime() - startTime < 5500L) {
-            if (MediaFileHttpServerService.isServerRunning && MediaFileHttpServerService.serverAddress != null) {
-                return true
-            }
-
-            when (MediaFileHttpServerService.lastFailureReason) {
-                MediaFileHttpServerService.FailureReason.NO_NETWORK_ADDRESS -> {
-                    sendToast("Could not find a local IP address. Verify Wi‑Fi connectivity and try again.")
-                    Timber.e("HTTP server failed: no network address available")
-                    return false
+            while (SystemClock.elapsedRealtime() - startTime < attemptTimeout) {
+                if (MediaFileHttpServerService.isServerRunning && MediaFileHttpServerService.serverAddress != null) {
+                    Timber.tag(CAST_LOG_TAG).i("HTTP server started successfully on attempt $attemptNum")
+                    return true
                 }
 
-                MediaFileHttpServerService.FailureReason.START_EXCEPTION -> {
-                    sendToast("Cast server failed to start. Check your network and try again.")
-                    Timber.e("HTTP server failed to start due to exception")
-                    return false
+                when (MediaFileHttpServerService.lastFailureReason) {
+                    MediaFileHttpServerService.FailureReason.NO_NETWORK_ADDRESS -> {
+                        if (attemptNum == maxAttempts) {
+                            sendToast("Could not find a local IP address. Verify Wi‑Fi connectivity and try again.")
+                        }
+                        Timber.e("HTTP server failed: no network address available (attempt $attemptNum)")
+                        break // Exit inner loop, try next attempt
+                    }
+                    MediaFileHttpServerService.FailureReason.START_EXCEPTION -> {
+                        if (attemptNum == maxAttempts) {
+                            sendToast("Cast server failed to start. Check your network and try again.")
+                        }
+                        Timber.e("HTTP server failed to start due to exception (attempt $attemptNum)")
+                        break
+                    }
+                    else -> {}
                 }
 
-                else -> {}
+                val delayDuration = backoffDelays.getOrElse(pollIndex) { 1000L }
+                delay(delayDuration)
+                pollIndex++
             }
 
-            val delayDuration = backoffDelays.getOrElse(attempt) { 1000L }
-            delay(delayDuration)
-            attempt++
+            if (attemptNum < maxAttempts) {
+                Timber.tag(CAST_LOG_TAG).i("HTTP server attempt $attemptNum failed, retrying after delay...")
+                delay(1000L * attemptNum) // Backoff between attempts: 1s, 2s
+            }
         }
 
-        sendToast("Starting cast server is taking longer than expected. Check Wi‑Fi and retry.")
-        Timber.e("HTTP server start timed out after waiting for address: %s", MediaFileHttpServerService.serverAddress)
+        sendToast("Cast server is not responding. Please check your Wi-Fi connection and try again.")
+        Timber.e("HTTP server start failed after $maxAttempts attempts")
         return false
     }
 
