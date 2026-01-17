@@ -15,6 +15,7 @@ import timber.log.Timber
 class CastPlayer(private val castSession: CastSession) {
 
     private val remoteMediaClient: RemoteMediaClient? = castSession.remoteMediaClient
+    private val logTag = "CastPlayer"
 
     fun loadQueue(
         songs: List<Song>,
@@ -27,11 +28,21 @@ class CastPlayer(private val castSession: CastSession) {
     ) {
         val client = remoteMediaClient
         if (client == null) {
+            Timber.tag(logTag).w("loadQueue aborted: remoteMediaClient is null")
             onComplete(false)
             return
         }
 
         try {
+            Timber.tag(logTag).i(
+                "loadQueue: size=%d startIndex=%d startPosition=%d repeatMode=%d autoPlay=%s server=%s",
+                songs.size,
+                startIndex,
+                startPosition,
+                repeatMode,
+                autoPlay,
+                serverAddress
+            )
             val mediaItems = songs.map { song ->
                 song.toMediaQueueItem(serverAddress)
             }.toTypedArray()
@@ -52,12 +63,16 @@ class CastPlayer(private val castSession: CastSession) {
                     onComplete(true)
                     client.requestStatus()
                 } else {
-                    Timber.e("Remote media client failed to load queue: ${result.status.statusMessage}")
+                    Timber.tag(logTag).e(
+                        "Remote media client failed to load queue: code=%d message=%s",
+                        result.status.statusCode,
+                        result.status.statusMessage
+                    )
                     onComplete(false)
                 }
             }
         } catch (e: Exception) {
-            Timber.e(e, "Error loading queue to cast device")
+            Timber.tag(logTag).e(e, "Error loading queue to cast device")
             onComplete(false)
         }
     }
@@ -71,6 +86,13 @@ class CastPlayer(private val castSession: CastSession) {
 
         val mediaUrl = "$serverAddress/song/${this.id}"
         val resolvedMimeType = resolveMimeType()
+        Timber.tag(logTag).d(
+            "MediaInfo: id=%s url=%s mime=%s duration=%d",
+            this.id,
+            mediaUrl,
+            resolvedMimeType,
+            this.duration
+        )
         val mediaInfo = MediaInfo.Builder(mediaUrl)
             .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
             .setContentType(resolvedMimeType)

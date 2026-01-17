@@ -1710,7 +1710,12 @@ class PlayerViewModel @Inject constructor(
                 viewModelScope.launch {
                     pendingCastRouteId = null
                     _isCastConnecting.value = true
+                    Timber.tag(CAST_LOG_TAG).i(
+                        "transferPlayback start: session=%s",
+                        session.sessionId
+                    )
                     if (!ensureHttpServerRunning()) {
+                        Timber.tag(CAST_LOG_TAG).w("transferPlayback aborted: HTTP server not running")
                         _isCastConnecting.value = false
                         disconnect()
                         return@launch
@@ -1720,6 +1725,12 @@ class PlayerViewModel @Inject constructor(
                     val localPlayer = mediaController
                     val currentQueue = _playerUiState.value.currentPlaybackQueue
                     if (serverAddress == null || localPlayer == null || currentQueue.isEmpty()) {
+                        Timber.tag(CAST_LOG_TAG).w(
+                            "transferPlayback aborted: server=%s localPlayer=%s queueSize=%d",
+                            serverAddress,
+                            localPlayer != null,
+                            currentQueue.size
+                        )
                         _isCastConnecting.value = false
                         return@launch
                     }
@@ -1729,6 +1740,14 @@ class PlayerViewModel @Inject constructor(
                     val currentPosition = localPlayer.currentPosition
 
                     val shouldAutoPlayOnCast = wasPlaying && !disableCastAutoplay.value
+                    Timber.tag(CAST_LOG_TAG).i(
+                        "transferPlayback queue=%d index=%d position=%d wasPlaying=%s autoPlay=%s",
+                        currentQueue.size,
+                        currentSongIndex,
+                        currentPosition,
+                        wasPlaying,
+                        shouldAutoPlayOnCast
+                    )
 
                     val castRepeatMode = if (localPlayer.shuffleModeEnabled) {
                         MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE
@@ -1763,6 +1782,7 @@ class PlayerViewModel @Inject constructor(
                         serverAddress = serverAddress,
                         autoPlay = shouldAutoPlayOnCast,
                         onComplete = { success ->
+                            Timber.tag(CAST_LOG_TAG).i("Cast loadQueue completed: success=%s", success)
                             if (!success) {
                                 sendToast("Failed to load media on cast device.")
                                 disconnect()
