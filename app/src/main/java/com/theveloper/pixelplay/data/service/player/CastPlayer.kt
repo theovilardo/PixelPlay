@@ -4,7 +4,6 @@ import android.net.Uri
 import com.google.android.gms.cast.MediaInfo
 import com.google.android.gms.cast.MediaLoadRequestData
 import com.google.android.gms.cast.MediaMetadata
-import com.google.android.gms.cast.MediaQueueData
 import com.google.android.gms.cast.MediaQueueItem
 import com.google.android.gms.cast.MediaSeekOptions
 import com.google.android.gms.cast.framework.CastSession
@@ -69,44 +68,100 @@ class CastPlayer(private val castSession: CastSession) {
             val mediaItems = songs.mapIndexed { index, song ->
                 song.toMediaQueueItem(serverAddress, index)
             }
-            
+
             Timber.tag(CAST_TAG).i("Created %d media items", mediaItems.size)
-            
+
             val currentSong = songs.getOrNull(startIndex)
             if (currentSong != null) {
-                Timber.tag(CAST_TAG).d("Starting song: %s (mimeType=%s, url=%s/song/%s)", 
-                    currentSong.title, currentSong.mimeType, serverAddress, currentSong.id)
+                Timber.tag(CAST_TAG).d(
+                    "Starting song: %s (mimeType=%s, url=%s/song/%s)",
+                    currentSong.title,
+                    currentSong.mimeType,
+                    serverAddress,
+                    currentSong.id
+                )
             }
 
-        // Legacy Single Item Load (v2 API)
-        // AirReceiver seems to dislike MediaLoadRequestData (v3).
-        // Now that Server supports HEAD/GET / correctly, we retry this legacy method.
-        val currentItem = mediaItems.getOrNull(startIndex)
-        if (currentItem == null) {
-             Timber.tag(CAST_TAG).e("loadQueue failed: Invalid startIndex")
-             safeOnComplete(false)
-             return
-        }
+            val currentItem = mediaItems.getOrNull(startIndex)
+            if (currentItem == null) {
+                Timber.tag(CAST_TAG).e("loadQueue failed: Invalid startIndex")
+                safeOnComplete(false)
+                return
+            }
 
-        Timber.tag(CAST_TAG).i("Calling client.load(MediaInfo) - Legacy Single Item Mode...")
-        
-        @Suppress("DEPRECATION")
-        ((currentItem.media)?.let {
-            client.load(it, autoPlay, 0L).setResultCallback { result ->
-                val statusCode = result.status.statusCode
-                val statusMessage = result.status.statusMessage
-                Timber.tag(CAST_TAG).i("legacyLoad result: isSuccess=%s statusCode=%d statusMessage=%s",
-                    result.status.isSuccess, statusCode, statusMessage)
-
-                if (result.status.isSuccess) {
-                    safeOnComplete(true)
-                    client.requestStatus()
-                } else {
-                    Timber.tag(CAST_TAG).e("legacyLoad FAILED: code=%d message=%s", statusCode, statusMessage)
-                    safeOnComplete(false)
+            fun attemptQueueLoad(onResult: (Boolean, Int, String?) -> Unit) {
+                Timber.tag(CAST_TAG).i("Attempting queueLoad for %d items", mediaItems.size)
+                client.queueLoad(
+                    mediaItems.toTypedArray(),
+                    startIndex,
+                    startPosition,
+                    repeatMode,
+                    null
+                ).setResultCallback { result ->
+                    onResult(
+                        result.status.isSuccess,
+                        result.status.statusCode,
+                        result.status.statusMessage
+                    )
                 }
             }
-        })
+
+            fun attemptLoadRequest(onResult: (Boolean, Int, String?) -> Unit) {
+                Timber.tag(CAST_TAG).i("Attempting load(MediaLoadRequestData) for current item")
+                val requestData = MediaLoadRequestData.Builder()
+                    .setMediaInfo(currentItem.media)
+                    .setAutoplay(autoPlay)
+                    .setCurrentTime((startPosition / 1000.0).coerceAtLeast(0.0))
+                    .build()
+
+                client.load(requestData).setResultCallback { result ->
+                    onResult(
+                        result.status.isSuccess,
+                        result.status.statusCode,
+                        result.status.statusMessage
+                    )
+                }
+            }
+
+            fun attemptLegacyLoad(onResult: (Boolean, Int, String?) -> Unit) {
+                Timber.tag(CAST_TAG).i("Attempting legacy client.load(MediaInfo)")
+                @Suppress("DEPRECATION")
+                client.load(currentItem.media, autoPlay, startPosition.coerceAtLeast(0L))
+                    .setResultCallback { result ->
+                        onResult(
+                            result.status.isSuccess,
+                            result.status.statusCode,
+                            result.status.statusMessage
+                        )
+                    }
+            }
+
+            val attempts = listOf(::attemptQueueLoad, ::attemptLoadRequest, ::attemptLegacyLoad)
+
+            fun runAttempt(index: Int) {
+                if (index >= attempts.size) {
+                    Timber.tag(CAST_TAG).e("All cast load attempts failed")
+                    safeOnComplete(false)
+                    return
+                }
+                attempts[index].invoke { success, statusCode, statusMessage ->
+                    Timber.tag(CAST_TAG).i(
+                        "Cast load attempt %d result: success=%s statusCode=%d statusMessage=%s",
+                        index + 1,
+                        success,
+                        statusCode,
+                        statusMessage
+                    )
+                    if (success) {
+                        safeOnComplete(true)
+                        client.requestStatus()
+                    } else {
+                        runAttempt(index + 1)
+                    }
+                }
+            }
+
+            runAttempt(0)
         } catch (e: Exception) {
             Timber.tag(CAST_TAG).e(e, "Error loading queue to cast device")
             safeOnComplete(false)
