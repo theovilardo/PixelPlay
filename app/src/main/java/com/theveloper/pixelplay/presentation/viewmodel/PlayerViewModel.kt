@@ -4857,13 +4857,13 @@ class PlayerViewModel @Inject constructor(
                             dismissAiPlaylistSheet()
                         }
                     } else {
-                        _aiError.value = "The AI couldn't find any songs for your prompt."
+                        _aiError.value = context.getString(R.string.ai_no_songs_found)
                     }
                 }.onFailure { error ->
                     _aiError.value = if (error.message?.contains("API Key") == true) {
-                        "Please, configure your Gemini API Key in Settings."
+                        context.getString(R.string.ai_error_api_key)
                     } else {
-                        "AI Error: ${error.message}"
+                        context.getString(R.string.ai_error_generic, error.message ?: "")
                     }
                 }
             } finally {
@@ -4875,7 +4875,7 @@ class PlayerViewModel @Inject constructor(
     fun regenerateDailyMixWithPrompt(prompt: String) {
         viewModelScope.launch {
             if (prompt.isBlank()) {
-                sendToast("Escribe una idea para tu Daily Mix")
+                sendToast(context.getString(R.string.ai_prompt_empty))
                 return@launch
             }
 
@@ -4905,13 +4905,13 @@ class PlayerViewModel @Inject constructor(
                         val updatedMix = generatedSongs.toImmutableList()
                         _dailyMixSongs.value = updatedMix
                         userPreferencesRepository.saveDailyMixSongIds(updatedMix.map { it.id })
-                        sendToast("Daily Mix actualizado con IA")
+                        sendToast(context.getString(R.string.ai_daily_mix_updated))
                     } else {
-                        sendToast("La IA no encontró canciones para este mix")
+                        sendToast(context.getString(R.string.ai_no_songs_for_mix))
                     }
                 }.onFailure { error ->
                     _aiError.value = error.message
-                    sendToast("No se pudo actualizar: ${error.message}")
+                    sendToast(context.getString(R.string.could_not_update, error.message ?: ""))
                 }
             } finally {
                 _isGeneratingAiPlaylist.value = false

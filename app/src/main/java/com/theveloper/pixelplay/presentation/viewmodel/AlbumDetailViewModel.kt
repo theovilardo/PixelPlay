@@ -1,12 +1,15 @@
 package com.theveloper.pixelplay.presentation.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.repository.MusicRepository // Importar MusicRepository
+import com.theveloper.pixelplay.R
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,6 +28,7 @@ data class AlbumDetailUiState(
 
 @HiltViewModel
 class AlbumDetailViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val musicRepository: MusicRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -39,10 +43,10 @@ class AlbumDetailViewModel @Inject constructor(
             if (albumId != null) {
                 loadAlbumData(albumId)
             } else {
-                _uiState.update { it.copy(error = "El ID del álbum no es válido.", isLoading = false) }
+                _uiState.update { it.copy(error = context.getString(R.string.invalid_album_id), isLoading = false) }
             }
         } else {
-            _uiState.update { it.copy(error = "Album ID no encontrado", isLoading = false) }
+            _uiState.update { it.copy(error = context.getString(R.string.album_id_not_found), isLoading = false) }
         }
     }
 
@@ -62,13 +66,18 @@ class AlbumDetailViewModel @Inject constructor(
                         )
                     } else {
                         AlbumDetailUiState(
-                            error = "No se pudo encontrar el álbum.",
+                            error = context.getString(R.string.album_not_found),
                             isLoading = false
                         )
                     }
                 }
                     .catch { e ->
-                        emit(AlbumDetailUiState(error = "Error al cargar datos del álbum: ${e.localizedMessage}", isLoading = false))
+                        emit(
+                            AlbumDetailUiState(
+                                error = context.getString(R.string.error_loading_album, e.localizedMessage ?: ""),
+                                isLoading = false
+                            )
+                        )
                     }
                     .collect { newState ->
                         _uiState.value = newState
@@ -77,7 +86,7 @@ class AlbumDetailViewModel @Inject constructor(
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
-                        error = "Error al cargar datos del álbum: ${e.localizedMessage}",
+                        error = context.getString(R.string.error_loading_album, e.localizedMessage ?: ""),
                         isLoading = false
                     )
                 }
