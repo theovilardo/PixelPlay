@@ -89,6 +89,8 @@ class CastPlayer(private val castSession: CastSession) {
                 return
             }
 
+            val safeStartPosition = startPosition.coerceAtLeast(0L)
+
             fun attemptQueueLoad(onResult: (Boolean, Int, String?) -> Unit) {
                 Timber.tag(CAST_TAG).i("Attempting queueLoad for %d items", mediaItems.size)
                 client.queueLoad(
@@ -110,7 +112,6 @@ class CastPlayer(private val castSession: CastSession) {
                 val requestData = MediaLoadRequestData.Builder()
                     .setMediaInfo(currentItem.media)
                     .setAutoplay(autoPlay)
-                    .setCurrentTime((startPosition / 1000.0).coerceAtLeast(0.0))
                     .build()
 
                 client.load(requestData).setResultCallback { result ->
@@ -125,7 +126,7 @@ class CastPlayer(private val castSession: CastSession) {
             fun attemptLegacyLoad(onResult: (Boolean, Int, String?) -> Unit) {
                 Timber.tag(CAST_TAG).i("Attempting legacy client.load(MediaInfo)")
                 @Suppress("DEPRECATION")
-                client.load(currentItem.media, autoPlay, startPosition.coerceAtLeast(0L))
+                client.load(currentItem.media, autoPlay, 0L)
                     .setResultCallback { result ->
                         onResult(
                             result.status.isSuccess,
@@ -136,6 +137,15 @@ class CastPlayer(private val castSession: CastSession) {
             }
 
             val attempts = listOf(::attemptQueueLoad, ::attemptLoadRequest, ::attemptLegacyLoad)
+
+            val attemptDelayMs = 600L
+
+            fun scheduleAttempt(index: Int) {
+                CoroutineScope(Dispatchers.Main).launch {
+                    delay(attemptDelayMs)
+                    runAttempt(index)
+                }
+            }
 
             fun runAttempt(index: Int) {
                 if (index >= attempts.size) {
@@ -153,26 +163,30 @@ class CastPlayer(private val castSession: CastSession) {
                             statusMessage
                         )
                         if (success) {
-                            if (startPosition > 0L) {
+                            if (safeStartPosition > 0L) {
                                 client.seek(
                                     MediaSeekOptions.Builder()
-                                        .setPosition(startPosition)
+                                        .setPosition(safeStartPosition)
                                         .build()
                                 )
                             }
                             safeOnComplete(true)
                             client.requestStatus()
                         } else {
-                            runAttempt(index + 1)
+                            scheduleAttempt(index + 1)
                         }
                     }
                 } catch (e: Exception) {
                     Timber.tag(CAST_TAG).w(e, "Cast load attempt %d threw exception", index + 1)
-                    runAttempt(index + 1)
+                    scheduleAttempt(index + 1)
                 }
             }
 
-            runAttempt(0)
+            client.requestStatus()
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(400L)
+                runAttempt(0)
+            }
         } catch (e: Exception) {
             Timber.tag(CAST_TAG).e(e, "Error loading queue to cast device")
             safeOnComplete(false)
