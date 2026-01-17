@@ -94,25 +94,37 @@ class CastPlayer(private val castSession: CastSession) {
             val castDeviceVersion = castSession.castDevice?.deviceVersion?.lowercase()
             val isAirReceiver = listOfNotNull(castDeviceName, castDeviceModel, castDeviceVersion)
                 .any { it.contains("airreceiver") }
-            val skipQueueLoad = isAirReceiver
+            val useMinimalQueue = isAirReceiver
+            if (useMinimalQueue) {
+                Timber.tag(CAST_TAG).w(
+                    "Using minimal queue for receiver=%s",
+                    castDeviceName ?: castDeviceModel ?: castDeviceVersion
+                )
+            }
             val minimalMediaInfo = currentSongForLoad.toMediaInfo(
                 serverAddress = serverAddress,
                 includeMetadata = false,
-                includeDuration = !isAirReceiver,
-                streamType = if (isAirReceiver) {
-                    MediaInfo.STREAM_TYPE_LIVE
-                } else {
-                    MediaInfo.STREAM_TYPE_BUFFERED
-                }
+                includeDuration = true,
+                streamType = MediaInfo.STREAM_TYPE_BUFFERED
             )
 
             val safeStartPosition = startPosition.coerceAtLeast(0L)
+            val startPositionSeconds = safeStartPosition / 1000.0
+            val mediaItemsForLoad = if (useMinimalQueue) {
+                listOf(
+                    MediaQueueItem.Builder(minimalMediaInfo)
+                        .setItemId(0)
+                        .build()
+                )
+            } else {
+                mediaItems
+            }
 
             fun attemptQueueLoad(onResult: (Boolean, Int, String?) -> Unit) {
-                Timber.tag(CAST_TAG).i("Attempting queueLoad for %d items", mediaItems.size)
+                Timber.tag(CAST_TAG).i("Attempting queueLoad for %d items", mediaItemsForLoad.size)
                 client.queueLoad(
-                    mediaItems.toTypedArray(),
-                    startIndex,
+                    mediaItemsForLoad.toTypedArray(),
+                    if (useMinimalQueue) 0 else startIndex,
                     repeatMode,
                     null
                 ).setResultCallback { result ->
@@ -129,6 +141,7 @@ class CastPlayer(private val castSession: CastSession) {
                 val requestData = MediaLoadRequestData.Builder()
                     .setMediaInfo(minimalMediaInfo)
                     .setAutoplay(autoPlay)
+                    .setCurrentTime(startPositionSeconds)
                     .build()
 
                 client.load(requestData).setResultCallback { result ->
@@ -143,7 +156,7 @@ class CastPlayer(private val castSession: CastSession) {
             fun attemptLegacyLoad(onResult: (Boolean, Int, String?) -> Unit) {
                 Timber.tag(CAST_TAG).i("Attempting legacy client.load(MediaInfo)")
                 @Suppress("DEPRECATION")
-                client.load(minimalMediaInfo, autoPlay, 0L)
+                client.load(minimalMediaInfo, autoPlay, safeStartPosition)
                     .setResultCallback { result ->
                         onResult(
                             result.status.isSuccess,
@@ -153,19 +166,11 @@ class CastPlayer(private val castSession: CastSession) {
                     }
             }
 
-            val attempts = if (skipQueueLoad) {
-                Timber.tag(CAST_TAG).w(
-                    "Skipping queueLoad for receiver=%s; using direct load fallbacks",
-                    castDeviceName ?: castDeviceModel ?: castDeviceVersion
-                )
-                listOf(::attemptLoadRequest, ::attemptLegacyLoad)
-            } else {
-                listOf(::attemptQueueLoad, ::attemptLoadRequest, ::attemptLegacyLoad)
-            }
+            val attempts = listOf(::attemptQueueLoad, ::attemptLoadRequest, ::attemptLegacyLoad)
 
-            val attemptDelayMs = if (skipQueueLoad) 1200L else 600L
-            val initialDelayMs = if (skipQueueLoad) 1500L else 400L
-            val readyTimeoutMs = if (skipQueueLoad) 8000L else 5000L
+            val attemptDelayMs = if (useMinimalQueue) 1200L else 600L
+            val initialDelayMs = if (useMinimalQueue) 1500L else 400L
+            val readyTimeoutMs = if (useMinimalQueue) 8000L else 5000L
             val readyPollMs = 250L
 
             lateinit var runAttempt: (Int) -> Unit
