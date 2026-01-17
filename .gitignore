@@ -16,3 +16,7 @@ local.properties
 misc.xml
 markdown.xml
 *.salive
+*.apk
+*.aab
+app/release/
+app/build/
