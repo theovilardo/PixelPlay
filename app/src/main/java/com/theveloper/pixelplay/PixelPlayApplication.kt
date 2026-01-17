@@ -28,6 +28,9 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
     lateinit var telegramStreamProxy: com.theveloper.pixelplay.data.telegram.TelegramStreamProxy
     
     @Inject
+    lateinit var telegramCacheManager: com.theveloper.pixelplay.data.telegram.TelegramCacheManager
+    
+    @Inject
     lateinit var telegramCoilFetcherFactory: com.theveloper.pixelplay.data.image.TelegramCoilFetcher.Factory
 
     // AÑADE EL COMPANION OBJECT
@@ -56,6 +59,19 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
         }
         
         telegramStreamProxy.start()
+        
+        // Trigger robust cache cleanup on startup to remove orphaned files from previous sessions
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                // Wait a bit for TDLib to initialize
+                kotlinx.coroutines.delay(5000)
+                Timber.d("Performing startup Telegram cache cleanup...")
+                telegramCacheManager.clearTdLibCache()
+                telegramCacheManager.trimEmbeddedArtCache()
+            } catch (e: Exception) {
+                Timber.e(e, "Error during startup cache cleanup")
+            }
+        }
     }
 
     override fun newImageLoader(): ImageLoader {

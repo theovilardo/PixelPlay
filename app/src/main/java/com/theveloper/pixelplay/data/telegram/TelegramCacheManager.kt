@@ -82,45 +82,65 @@ class TelegramCacheManager @Inject constructor(
      * Mark a file as currently being played.
      * This prevents it from being cleaned up.
      */
+    // LRU Cache for audio files to keep recent songs (Buffer of ~5 songs)
+    // This allows "Previous" / "Next" navigation without re-downloading, while keeping storage low.
+    private val audioFileHistory = java.util.Collections.synchronizedList(java.util.LinkedList<Int>())
+    private val HISTORY_CACHE_LIMIT = 5 
+
+    /**
+     * Mark a file as currently being played and manage the rolling cache.
+     */
     fun setActivePlayback(fileId: Int?) {
-        val previousFileId = activeFileId
-        activeFileId = fileId
+        if (fileId == null) return
         
-        // If switching from one file to another, clean up the previous
-        if (previousFileId != null && previousFileId != fileId) {
-            Timber.d("TelegramCacheManager: Playback switched from $previousFileId to $fileId")
-            recentlyPlayedFileIds.add(previousFileId)
-            cleanupPreviousAudioFile(previousFileId)
+        // LRU Logic: Move to end (most recent)
+        synchronized(audioFileHistory) {
+            if (audioFileHistory.contains(fileId)) {
+                audioFileHistory.remove(fileId)
+            }
+            audioFileHistory.add(fileId)
+            
+            Timber.d("TelegramCacheManager: Active file $fileId. History size: ${audioFileHistory.size}")
+            
+            // Trim One Oldest file if over limit
+            while (audioFileHistory.size > HISTORY_CACHE_LIMIT) {
+                val oldestFileId = audioFileHistory.removeAt(0) // Remove first (oldest)
+                Timber.d("TelegramCacheManager: Cache full. Deleting oldest file: $oldestFileId")
+                cleanupAudioFile(oldestFileId)
+            }
         }
+        
+        activeFileId = fileId
     }
     
     /**
-     * Called when playback stops completely (not just pausing).
+     * Called when playback stops completely.
+     * We do NOT delete immediately anymore; we let the LRU history handle it
+     * or the Startup Cleanup handle it. This improves "resume" performance.
      */
     fun onPlaybackStopped() {
         val fileId = activeFileId
         if (fileId != null) {
-            Timber.d("TelegramCacheManager: Playback stopped for fileId: $fileId")
-            recentlyPlayedFileIds.add(fileId)
+            Timber.d("TelegramCacheManager: Playback stopped (File retained in history buffer)")
             activeFileId = null
-            cleanupPreviousAudioFile(fileId)
         }
     }
     
     /**
-     * Clean up a specific audio file that is no longer being played.
+     * Clean up a specific audio file that is evicted from the history buffer.
      */
-    private fun cleanupPreviousAudioFile(fileId: Int) {
+    private fun cleanupAudioFile(fileId: Int) {
         scope.launch {
+            // No strict 10s delay needed here since we have a buffer of 4 other songs 
+            // before this one gets pushed out. But a small safety delay is always good.
+            kotlinx.coroutines.delay(2_000) 
+            
             try {
                 // Use TDLib's DeleteFile to remove the downloaded file
-                // This only deletes if the file is fully downloaded and not being used
                 @Suppress("UNUSED_VARIABLE")
                 val result: TdApi.Ok = telegramClientManager.sendRequest(TdApi.DeleteFile(fileId))
-                Timber.d("TelegramCacheManager: Deleted audio file $fileId")
-                recentlyPlayedFileIds.remove(fileId)
+                Timber.d("TelegramCacheManager: Deleted evicted audio file $fileId")
             } catch (e: Exception) {
-                // File might still be in use or already deleted
                 Timber.w("TelegramCacheManager: Could not delete file $fileId: ${e.message}")
             }
         }
