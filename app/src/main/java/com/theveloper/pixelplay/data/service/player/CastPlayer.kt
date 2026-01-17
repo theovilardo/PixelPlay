@@ -153,34 +153,34 @@ class CastPlayer(private val castSession: CastSession) {
                 if (index >= attempts.size) {
                     Timber.tag(CAST_TAG).e("All cast load attempts failed")
                     safeOnComplete(false)
-                    return
-                }
-                try {
-                    attempts[index].invoke { success, statusCode, statusMessage ->
-                        Timber.tag(CAST_TAG).i(
-                            "Cast load attempt %d result: success=%s statusCode=%d statusMessage=%s",
-                            index + 1,
-                            success,
-                            statusCode,
-                            statusMessage
-                        )
-                        if (success) {
-                            if (safeStartPosition > 0L) {
-                                client.seek(
-                                    MediaSeekOptions.Builder()
-                                        .setPosition(safeStartPosition)
-                                        .build()
-                                )
+                } else {
+                    try {
+                        attempts[index].invoke { success, statusCode, statusMessage ->
+                            Timber.tag(CAST_TAG).i(
+                                "Cast load attempt %d result: success=%s statusCode=%d statusMessage=%s",
+                                index + 1,
+                                success,
+                                statusCode,
+                                statusMessage
+                            )
+                            if (success) {
+                                if (safeStartPosition > 0L) {
+                                    client.seek(
+                                        MediaSeekOptions.Builder()
+                                            .setPosition(safeStartPosition)
+                                            .build()
+                                    )
+                                }
+                                safeOnComplete(true)
+                                client.requestStatus()
+                            } else {
+                                scheduleAttempt(index + 1)
                             }
-                            safeOnComplete(true)
-                            client.requestStatus()
-                        } else {
-                            scheduleAttempt(index + 1)
                         }
+                    } catch (e: Exception) {
+                        Timber.tag(CAST_TAG).w(e, "Cast load attempt %d threw exception", index + 1)
+                        scheduleAttempt(index + 1)
                     }
-                } catch (e: Exception) {
-                    Timber.tag(CAST_TAG).w(e, "Cast load attempt %d threw exception", index + 1)
-                    scheduleAttempt(index + 1)
                 }
             }
 
