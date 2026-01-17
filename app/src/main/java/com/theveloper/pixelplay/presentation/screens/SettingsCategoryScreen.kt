@@ -444,6 +444,14 @@ fun SettingsCategoryScreen(
                             }
                             Spacer(Modifier.height(4.dp))
                             SwitchSettingItem(
+                                title = "Persistent Shuffle",
+                                subtitle = "Remember shuffle setting even after closing the app.",
+                                checked = uiState.persistentShuffleEnabled,
+                                onCheckedChange = { settingsViewModel.setPersistentShuffleEnabled(it) },
+                                leadingIcon = { Icon(painterResource(R.drawable.rounded_shuffle_24), null, tint = MaterialTheme.colorScheme.secondary) }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            SwitchSettingItem(
                                 title = "Show queue history",
                                 subtitle = "Show previously played songs in the queue.",
                                 checked = uiState.showQueueHistory,

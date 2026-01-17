@@ -183,6 +183,7 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.random.Random
 
+
 private const val EXTERNAL_MEDIA_ID_PREFIX = "external:"
 private const val EXTERNAL_EXTRA_PREFIX = "com.theveloper.pixelplay.external."
 private const val EXTERNAL_EXTRA_FLAG = EXTERNAL_EXTRA_PREFIX + "FLAG"
@@ -1173,6 +1174,7 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun updateBluetoothName(forceClear: Boolean = false) {
         if (!hasBluetoothPermission()) {
             if (forceClear) _bluetoothName.value = null
@@ -1206,6 +1208,7 @@ class PlayerViewModel @Inject constructor(
         updateBluetoothAudioDevices()
     }
 
+    @SuppressLint("MissingPermission")
     private fun updateBluetoothAudioDevices() {
         if (!hasBluetoothPermission()) {
             _bluetoothAudioDevices.value = emptyList()
@@ -1338,6 +1341,18 @@ class PlayerViewModel @Inject constructor(
             sortAlbums(initialAlbumSort, persist = false)
             sortArtists(initialArtistSort, persist = false)
             sortFavoriteSongs(initialLikedSort, persist = false)
+        }
+
+        // --- PERSISTENT SHUFFLE: Load the saved state on startup ---
+        viewModelScope.launch {
+            // Check if the user has enabled the "Persistent Shuffle" feature in settings
+            val isPersistent = userPreferencesRepository.persistentShuffleEnabledFlow.first()
+            if (isPersistent) {
+                // If persistent shuffle is on, read the last used shuffle state (On/Off)
+                val savedShuffle = userPreferencesRepository.isShuffleOnFlow.first()
+                // Update the UI state so the shuffle button reflects the saved setting immediately
+                _stablePlayerState.update { it.copy(isShuffleEnabled = savedShuffle) }
+            }
         }
 
         launchColorSchemeProcessor()
@@ -2887,7 +2902,7 @@ class PlayerViewModel @Inject constructor(
         _trackVolume.value = playerCtrl.volume
         _stablePlayerState.update {
             it.copy(
-                isShuffleEnabled = playerCtrl.shuffleModeEnabled,
+                isShuffleEnabled = it.isShuffleEnabled,
                 repeatMode = playerCtrl.repeatMode,
                 isPlaying = playerCtrl.isPlaying
             )
@@ -3209,16 +3224,34 @@ class PlayerViewModel @Inject constructor(
             // This ensures playback continues seamlessly.
         }
     }
-
     fun playSongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None", playlistId: String? = null) {
         viewModelScope.launch {
             transitionSchedulerJob?.cancel()
-            // Store original queue order for unshuffling later
+            // Store the original order so we can "unshuffle" later if the user turns shuffle off
             _originalQueueOrder = songsToPlay.toList()
             _originalQueueName = queueName
-            // Reset shuffle state when starting a new queue
-            _stablePlayerState.update { it.copy(isShuffleEnabled = false) }
-            internalPlaySongs(songsToPlay, startSong, queueName, playlistId)
+
+            // Check if the user wants shuffle to be persistent across different albums
+            val isPersistent = userPreferencesRepository.persistentShuffleEnabledFlow.first()
+            // Check if shuffle is currently active in the player
+            val isShuffleOn = _stablePlayerState.value.isShuffleEnabled
+
+            // If Persistent Shuffle is OFF, we reset shuffle to "false" every time a new album starts
+            if (!isPersistent) {
+                _stablePlayerState.update { it.copy(isShuffleEnabled = false) }
+            }
+
+            // If shuffle is persistent and currently ON, we shuffle the new songs immediately
+            val finalSongsToPlay = if (isPersistent && isShuffleOn) {
+                // Shuffle the list but make sure the song you clicked stays at its current index or starts first
+                buildAnchoredShuffleQueue(songsToPlay, songsToPlay.indexOf(startSong).coerceAtLeast(0))
+            } else {
+                // Otherwise, just use the normal sequential order
+                songsToPlay
+            }
+
+            // Send the final list (shuffled or not) to the player engine
+            internalPlaySongs(finalSongsToPlay, startSong, queueName, playlistId)
         }
     }
 
@@ -3847,13 +3880,36 @@ class PlayerViewModel @Inject constructor(
 
                     _playerUiState.update { it.copy(currentPlaybackQueue = shuffledQueue.toImmutableList()) }
                     _stablePlayerState.update { it.copy(isShuffleEnabled = true) }
+                    viewModelScope.launch {
+                        if (userPreferencesRepository.persistentShuffleEnabledFlow.first()) {
+                            userPreferencesRepository.setShuffleOn(true)
+                        }
+                    }
                     Log.d("ShuffleDebug", "Shuffle enabled - queue size: ${shuffledQueue.size}")
                 } else {
                     Log.d("ShuffleDebug", "Disabling shuffle - restoring original order")
                     
                     if (_originalQueueOrder.isEmpty()) {
                         _stablePlayerState.update { it.copy(isShuffleEnabled = false) }
+
+                        // --- PERSISTENT SHUFFLE: Save the "OFF" state to the database ---
+                        viewModelScope.launch {
+                            // Check if the user enabled "Persistent Shuffle" in settings
+                            if (userPreferencesRepository.persistentShuffleEnabledFlow.first()) {
+                                // Save "false" to the database
+                                userPreferencesRepository.setShuffleOn(false)
+                            }
+                        }
                         return@launch
+                    }
+
+                    // --- PERSISTENT SHUFFLE: Save that shuffle is now OFF in the database ---
+                    viewModelScope.launch {
+                        // Check if the user enabled "Persistent Shuffle" in settings
+                        if (userPreferencesRepository.persistentShuffleEnabledFlow.first()) {
+                            // Save "false" to the database because shuffle was just turned off
+                            userPreferencesRepository.setShuffleOn(false)
+                        }
                     }
 
                     val originalQueue = _originalQueueOrder
