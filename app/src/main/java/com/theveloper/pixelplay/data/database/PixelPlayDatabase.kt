@@ -11,12 +11,15 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AlbumArtThemeEntity::class,
         SearchHistoryEntity::class,
         SongEntity::class,
+        SongFtsEntity::class,
         AlbumEntity::class,
+        AlbumFtsEntity::class,
         ArtistEntity::class,
+        ArtistFtsEntity::class,
         TransitionRuleEntity::class,
         SongArtistCrossRef::class
     ],
-    version = 11, // Incremented version for artist image support
+    version = 12, // Incremented version for FTS support
     exportSchema = false
 )
 abstract class PixelPlayDatabase : RoomDatabase() {
@@ -86,6 +89,44 @@ abstract class PixelPlayDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // Add image_url column to artists table for Deezer artist images
                 db.execSQL("ALTER TABLE artists ADD COLUMN image_url TEXT DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE VIRTUAL TABLE IF NOT EXISTS songs_fts
+                    USING fts4(
+                        title,
+                        artist_name,
+                        album_name,
+                        content='songs',
+                        content_rowid='id',
+                        tokenize='unicode61'
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    CREATE VIRTUAL TABLE IF NOT EXISTS albums_fts
+                    USING fts4(
+                        title,
+                        artist_name,
+                        content='albums',
+                        content_rowid='id',
+                        tokenize='unicode61'
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    CREATE VIRTUAL TABLE IF NOT EXISTS artists_fts
+                    USING fts4(
+                        name,
+                        content='artists',
+                        content_rowid='id',
+                        tokenize='unicode61'
+                    )
+                """.trimIndent())
+                db.execSQL("INSERT INTO songs_fts(songs_fts) VALUES('rebuild')")
+                db.execSQL("INSERT INTO albums_fts(albums_fts) VALUES('rebuild')")
+                db.execSQL("INSERT INTO artists_fts(artists_fts) VALUES('rebuild')")
             }
         }
     }

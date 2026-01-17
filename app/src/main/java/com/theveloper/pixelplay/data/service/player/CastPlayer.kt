@@ -15,6 +15,7 @@ import timber.log.Timber
 class CastPlayer(private val castSession: CastSession) {
 
     private val remoteMediaClient: RemoteMediaClient? = castSession.remoteMediaClient
+    private val logTag = "CastPlayer"
 
     fun loadQueue(
         songs: List<Song>,
@@ -27,11 +28,21 @@ class CastPlayer(private val castSession: CastSession) {
     ) {
         val client = remoteMediaClient
         if (client == null) {
+            Timber.tag(logTag).w("loadQueue aborted: remoteMediaClient is null")
             onComplete(false)
             return
         }
 
         try {
+            Timber.tag(logTag).i(
+                "loadQueue: size=%d startIndex=%d startPosition=%d repeatMode=%d autoPlay=%s server=%s",
+                songs.size,
+                startIndex,
+                startPosition,
+                repeatMode,
+                autoPlay,
+                serverAddress
+            )
             val mediaItems = songs.map { song ->
                 song.toMediaQueueItem(serverAddress)
             }.toTypedArray()
@@ -52,12 +63,16 @@ class CastPlayer(private val castSession: CastSession) {
                     onComplete(true)
                     client.requestStatus()
                 } else {
-                    Timber.e("Remote media client failed to load queue: ${result.status.statusMessage}")
+                    Timber.tag(logTag).e(
+                        "Remote media client failed to load queue: code=%d message=%s",
+                        result.status.statusCode,
+                        result.status.statusMessage
+                    )
                     onComplete(false)
                 }
             }
         } catch (e: Exception) {
-            Timber.e(e, "Error loading queue to cast device")
+            Timber.tag(logTag).e(e, "Error loading queue to cast device")
             onComplete(false)
         }
     }
@@ -70,9 +85,17 @@ class CastPlayer(private val castSession: CastSession) {
         mediaMetadata.addImage(WebImage(Uri.parse(artUrl)))
 
         val mediaUrl = "$serverAddress/song/${this.id}"
+        val resolvedMimeType = resolveMimeType()
+        Timber.tag(logTag).d(
+            "MediaInfo: id=%s url=%s mime=%s duration=%d",
+            this.id,
+            mediaUrl,
+            resolvedMimeType,
+            this.duration
+        )
         val mediaInfo = MediaInfo.Builder(mediaUrl)
             .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
-            .setContentType("audio/mpeg")
+            .setContentType(resolvedMimeType)
             .setStreamDuration(this.duration)
             .setMetadata(mediaMetadata)
             .build()
@@ -135,5 +158,27 @@ class CastPlayer(private val castSession: CastSession) {
 
     fun setRepeatMode(repeatMode: Int) {
         remoteMediaClient?.queueSetRepeatMode(repeatMode, null)
+    }
+
+    private fun Song.resolveMimeType(): String {
+        val normalizedMime = this.mimeType?.lowercase()?.trim()
+        if (!normalizedMime.isNullOrBlank()) {
+            return when (normalizedMime) {
+                "audio/mp3" -> "audio/mpeg"
+                "audio/x-m4a" -> "audio/mp4"
+                else -> normalizedMime
+            }
+        }
+
+        val extension = this.path.substringAfterLast('.', "").lowercase()
+        return when (extension) {
+            "mp3" -> "audio/mpeg"
+            "flac" -> "audio/flac"
+            "m4a", "mp4", "aac" -> "audio/mp4"
+            "ogg", "oga" -> "audio/ogg"
+            "wav" -> "audio/wav"
+            "opus" -> "audio/opus"
+            else -> "audio/mpeg"
+        }
     }
 }

@@ -44,6 +44,7 @@ class MediaFileHttpServerService : Service() {
         var serverAddress: String? = null
         @Volatile
         var lastFailureReason: FailureReason? = null
+        private const val LOG_TAG = "CastHttpServer"
     }
 
     enum class FailureReason {
@@ -65,35 +66,49 @@ class MediaFileHttpServerService : Service() {
                 try {
                     val ipAddress = getIpAddress(applicationContext)
                     if (ipAddress == null) {
-                        Timber.w("No suitable IP address found; cannot start HTTP server")
+                        Timber.tag(LOG_TAG).w("No suitable IP address found; cannot start HTTP server")
                         lastFailureReason = FailureReason.NO_NETWORK_ADDRESS
                         stopSelf()
                         return@launch
                     }
                     serverAddress = "http://$ipAddress:8080"
                     lastFailureReason = null
+                    Timber.tag(LOG_TAG).i("Starting HTTP cast server at %s", serverAddress)
 
                     server = embeddedServer(Netty, port = 8080, host = "0.0.0.0") {
                         routing {
                             get("/song/{songId}") {
-                                val songId = call.parameters["songId"]
-                                if (songId == null) {
+                                val rawSongId = call.parameters["songId"]
+                                if (rawSongId == null) {
                                     call.respond(HttpStatusCode.BadRequest, "Song ID is missing")
                                     return@get
                                 }
 
+                                val songId = rawSongId.substringBefore(".")
+                                Timber.tag(LOG_TAG).d("Incoming song request: raw=%s resolved=%s", rawSongId, songId)
                                 val song = musicRepository.getSong(songId).firstOrNull()
                                 if (song == null) {
                                     call.respond(HttpStatusCode.NotFound, "Song not found")
                                     return@get
                                 }
 
+                                val resolvedContentType = runCatching {
+                                    song.mimeType?.let { ContentType.parse(it) }
+                                }.getOrNull() ?: ContentType.Audio.MPEG
+                                val rangeHeader = call.request.headers[HttpHeaders.Range]
+                                Timber.tag(LOG_TAG).d(
+                                    "Serving song id=%s mime=%s range=%s sizeHint=%d",
+                                    songId,
+                                    resolvedContentType,
+                                    rangeHeader,
+                                    song.duration
+                                )
+
                                 try {
                                     val uri = song.contentUriString.toUri()
                                     // Use 'use' to ensure the FileDescriptor is closed
                                     contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
                                         val fileSize = pfd.statSize
-                                        val rangeHeader = call.request.headers[HttpHeaders.Range]
 
                                         if (rangeHeader != null) {
                                             val rangesSpecifier = io.ktor.http.parseRangesSpecifier(rangeHeader)
@@ -124,6 +139,13 @@ class MediaFileHttpServerService : Service() {
                                             val length = clampedEnd - clampedStart + 1
 
                                             if (length <= 0) {
+                                                Timber.tag(LOG_TAG).w(
+                                                    "Invalid range for song=%s start=%d end=%d size=%d",
+                                                    songId,
+                                                    clampedStart,
+                                                    clampedEnd,
+                                                    fileSize
+                                                )
                                                 call.respond(HttpStatusCode.RequestedRangeNotSatisfiable, "Range not satisfiable")
                                                 return@use
                                             }
@@ -144,14 +166,28 @@ class MediaFileHttpServerService : Service() {
                                                 inputStream.readNBytes(length.toInt())
                                             }
 
-                                            call.respondBytes(bytes, ContentType.Audio.MPEG, HttpStatusCode.PartialContent)
+                                            Timber.tag(LOG_TAG).d(
+                                                "Responding partial song=%s bytes=%d range=%d-%d/%d",
+                                                songId,
+                                                bytes.size,
+                                                clampedStart,
+                                                clampedEnd,
+                                                fileSize
+                                            )
+                                            call.respondBytes(bytes, resolvedContentType, HttpStatusCode.PartialContent)
                                         } else {
                                             val inputStream = java.io.FileInputStream(pfd.fileDescriptor)
                                             call.response.header(HttpHeaders.AcceptRanges, "bytes")
                                             val bytes = withContext(Dispatchers.IO) {
                                                 inputStream.readBytes()
                                             }
-                                            call.respondBytes(bytes, ContentType.Audio.MPEG)
+                                            Timber.tag(LOG_TAG).d(
+                                                "Responding full song=%s bytes=%d size=%d",
+                                                songId,
+                                                bytes.size,
+                                                fileSize
+                                            )
+                                            call.respondBytes(bytes, resolvedContentType)
                                         }
                                     } ?: run {
                                         call.respond(HttpStatusCode.NotFound, "File not found")
@@ -173,19 +209,22 @@ class MediaFileHttpServerService : Service() {
                                     return@get
                                 }
 
+                                Timber.tag(LOG_TAG).d("Incoming art request: song=%s", songId)
                                 val artUri = song.albumArtUriString.toUri()
                                 contentResolver.openInputStream(artUri)?.use { inputStream ->
                                     val bytes = withContext(Dispatchers.IO) {
                                         inputStream.readBytes()
                                     }
+                                    Timber.tag(LOG_TAG).d("Responding art song=%s bytes=%d", songId, bytes.size)
                                     call.respondBytes(bytes, ContentType.Image.JPEG)
                                 } ?: call.respond(HttpStatusCode.InternalServerError, "Could not open album art file")
                             }
                         }
                     }.start(wait = false)
                     isServerRunning = true
+                    Timber.tag(LOG_TAG).i("HTTP cast server started")
                 } catch (e: Exception) {
-                    Timber.e(e, "Failed to start HTTP cast server")
+                    Timber.tag(LOG_TAG).e(e, "Failed to start HTTP cast server")
                     lastFailureReason = FailureReason.START_EXCEPTION
                     stopSelf()
                 }
@@ -230,9 +269,9 @@ class MediaFileHttpServerService : Service() {
             try {
                 // Grace period 100ms, timeout 2000ms
                 serverInstance?.stop(100, 2000)
-                Timber.d("MediaFileHttpServerService: Ktor server stopped")
+                Timber.tag(LOG_TAG).d("Ktor server stopped")
             } catch (e: Exception) {
-                Timber.e(e, "MediaFileHttpServerService: Error stopping Ktor server")
+                Timber.tag(LOG_TAG).e(e, "Error stopping Ktor server")
             }
         }.start()
 

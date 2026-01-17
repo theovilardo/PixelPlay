@@ -137,9 +137,10 @@ interface MusicDao {
     fun getSongsByArtistId(artistId: Long): Flow<List<SongEntity>>
 
     @Query("""
-        SELECT * FROM songs
+        SELECT songs.* FROM songs
+        JOIN songs_fts ON songs_fts.rowid = songs.id
         WHERE (:applyDirectoryFilter = 0 OR parent_directory_path IN (:allowedParentDirs))
-        AND (title LIKE '%' || :query || '%' OR artist_name LIKE '%' || :query || '%')
+        AND songs_fts MATCH :query
         ORDER BY title ASC
     """)
     fun searchSongs(
@@ -199,8 +200,9 @@ interface MusicDao {
     @Query("""
         SELECT DISTINCT albums.* FROM albums
         INNER JOIN songs ON albums.id = songs.album_id
+        INNER JOIN albums_fts ON albums_fts.rowid = albums.id
         WHERE (:applyDirectoryFilter = 0 OR songs.parent_directory_path IN (:allowedParentDirs))
-        AND (albums.title LIKE '%' || :query || '%' OR albums.artist_name LIKE '%' || :query || '%')
+        AND albums_fts MATCH :query
         ORDER BY albums.title ASC
     """)
     fun searchAlbums(
@@ -257,8 +259,9 @@ interface MusicDao {
     @Query("""
         SELECT DISTINCT artists.* FROM artists
         INNER JOIN songs ON artists.id = songs.artist_id
+        INNER JOIN artists_fts ON artists_fts.rowid = artists.id
         WHERE (:applyDirectoryFilter = 0 OR songs.parent_directory_path IN (:allowedParentDirs))
-        AND artists.name LIKE '%' || :query || '%'
+        AND artists_fts MATCH :query
         ORDER BY artists.name ASC
     """)
     fun searchArtists(
