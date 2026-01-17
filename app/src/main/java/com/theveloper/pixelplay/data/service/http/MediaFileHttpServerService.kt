@@ -352,6 +352,7 @@ class MediaFileHttpServerService : Service() {
                     call.response.header(HttpHeaders.ContentRange, "bytes $clampedStart-$clampedEnd/$fileSize")
                     call.response.header(HttpHeaders.AcceptRanges, "bytes")
 
+                    call.response.header(HttpHeaders.ContentType, audioContentType.toString())
                     if (sendBody) {
                         val bytes = withContext(Dispatchers.IO) {
                             inputStream.readNBytes(length.toInt())
@@ -372,6 +373,7 @@ class MediaFileHttpServerService : Service() {
                         }
                         call.respondBytes(bytes, audioContentType)
                     } else {
+                        call.response.header(HttpHeaders.ContentType, audioContentType.toString())
                         call.response.header(HttpHeaders.ContentLength, fileSize.toString())
                         call.respond(HttpStatusCode.OK)
                     }
@@ -408,6 +410,7 @@ class MediaFileHttpServerService : Service() {
         if (!sendBody) {
             contentResolver.openFileDescriptor(artUri, "r")?.use { pfd ->
                 val fileSize = pfd.statSize.takeIf { it > 0 } ?: 0L
+                call.response.header(HttpHeaders.ContentType, contentType.toString())
                 if (fileSize > 0) {
                     call.response.header(HttpHeaders.ContentLength, fileSize.toString())
                 }
