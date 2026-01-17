@@ -308,10 +308,11 @@ class MusicRepositoryImpl @Inject constructor(
     // --- Métodos de Búsqueda ---
 
     override fun searchSongs(query: String): Flow<List<Song>> {
-        if (query.isBlank()) return flowOf(emptyList())
+        val ftsQuery = buildFtsQuery(query)
+        if (ftsQuery.isBlank()) return flowOf(emptyList())
         return combine(
             musicDao.searchSongs(
-                query = query,
+                query = ftsQuery,
                 allowedParentDirs = emptyList(),
                 applyDirectoryFilter = false
             ),
@@ -325,10 +326,11 @@ class MusicRepositoryImpl @Inject constructor(
 
 
     override fun searchAlbums(query: String): Flow<List<Album>> {
-        if (query.isBlank()) return flowOf(emptyList())
+        val ftsQuery = buildFtsQuery(query)
+        if (ftsQuery.isBlank()) return flowOf(emptyList())
         return combine(
             musicDao.searchAlbums(
-                query = query,
+                query = ftsQuery,
                 allowedParentDirs = emptyList(),
                 applyDirectoryFilter = false
             ),
@@ -342,10 +344,11 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     override fun searchArtists(query: String): Flow<List<Artist>> {
-        if (query.isBlank()) return flowOf(emptyList())
+        val ftsQuery = buildFtsQuery(query)
+        if (ftsQuery.isBlank()) return flowOf(emptyList())
         return combine(
             musicDao.searchArtists(
-                query = query,
+                query = ftsQuery,
                 allowedParentDirs = emptyList(),
                 applyDirectoryFilter = false
             ),
@@ -369,6 +372,19 @@ class MusicRepositoryImpl @Inject constructor(
             .filter { playlist ->
                 playlist.name.contains(query, ignoreCase = true)
             }
+    }
+
+    private fun buildFtsQuery(rawQuery: String): String {
+        val terms = rawQuery.trim()
+            .split(Regex("\\s+"))
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .mapNotNull { term ->
+                val cleaned = term.replace(Regex("[^\\p{L}\\p{N}]"), "")
+                cleaned.takeIf { it.isNotBlank() }?.let { "$it*" }
+            }
+
+        return terms.joinToString(" AND ")
     }
 
     override fun searchAll(query: String, filterType: SearchFilterType): Flow<List<SearchResultItem>> {
