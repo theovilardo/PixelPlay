@@ -109,4 +109,27 @@
 -dontwarn org.eclipse.jetty.npn.NextProtoNego$ClientProvider
 -dontwarn org.eclipse.jetty.npn.NextProtoNego$Provider
 -dontwarn org.eclipse.jetty.npn.NextProtoNego$ServerProvider
+-dontwarn org.eclipse.jetty.npn.NextProtoNego$ServerProvider
 -dontwarn org.eclipse.jetty.npn.NextProtoNego
+
+# TDLib (Telegram Database Library) rules
+-keep class org.drinkless.tdlib.** { *; }
+-keep interface org.drinkless.tdlib.** { *; }
+
+# Ktor & Netty Rules (Crucial for StreamProxy)
+-keep class io.ktor.** { *; }
+-keep class io.netty.** { *; }
+-keep class kotlinx.coroutines.** { *; }
+-keep class org.slf4j.** { *; }
+
+# Ktor Specific
+-dontwarn io.ktor.**
+-dontwarn kotlinx.coroutines.**
+-dontwarn io.netty.**
+
+# Reflection usage in Ktor/Netty
+-keepnames class io.ktor.** { *; }
+-keepnames class io.netty.** { *; }
+
+# Ensure internal server can start
+-keep class com.theveloper.pixelplay.data.telegram.TelegramStreamProxy { *; }
