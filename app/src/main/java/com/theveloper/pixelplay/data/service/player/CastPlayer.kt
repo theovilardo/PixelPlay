@@ -89,18 +89,22 @@ class CastPlayer(private val castSession: CastSession) {
                 return
             }
             val currentSongForLoad = songs[startIndex]
-            val minimalMediaInfo = currentSongForLoad.toMediaInfo(
-                serverAddress = serverAddress,
-                includeMetadata = false,
-                includeDuration = true
-            )
-
             val castDeviceName = castSession.castDevice?.friendlyName?.lowercase()
             val castDeviceModel = castSession.castDevice?.modelName?.lowercase()
             val castDeviceVersion = castSession.castDevice?.deviceVersion?.lowercase()
             val isAirReceiver = listOfNotNull(castDeviceName, castDeviceModel, castDeviceVersion)
                 .any { it.contains("airreceiver") }
             val skipQueueLoad = isAirReceiver
+            val minimalMediaInfo = currentSongForLoad.toMediaInfo(
+                serverAddress = serverAddress,
+                includeMetadata = false,
+                includeDuration = !isAirReceiver,
+                streamType = if (isAirReceiver) {
+                    MediaInfo.STREAM_TYPE_LIVE
+                } else {
+                    MediaInfo.STREAM_TYPE_BUFFERED
+                }
+            )
 
             val safeStartPosition = startPosition.coerceAtLeast(0L)
 
@@ -244,7 +248,8 @@ class CastPlayer(private val castSession: CastSession) {
     private fun Song.toMediaInfo(
         serverAddress: String,
         includeMetadata: Boolean,
-        includeDuration: Boolean
+        includeDuration: Boolean,
+        streamType: Int = MediaInfo.STREAM_TYPE_BUFFERED
     ): MediaInfo {
         val mediaMetadata = if (includeMetadata) {
             MediaMetadata(MediaMetadata.MEDIA_TYPE_MUSIC_TRACK).apply {
@@ -277,7 +282,7 @@ class CastPlayer(private val castSession: CastSession) {
         )
 
         val builder = MediaInfo.Builder(mediaUrl)
-            .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
+            .setStreamType(streamType)
             .setContentType(contentType)
 
         if (includeDuration && this.duration > 0) {
