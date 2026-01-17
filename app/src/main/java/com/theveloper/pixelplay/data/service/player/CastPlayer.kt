@@ -92,8 +92,11 @@ class CastPlayer(private val castSession: CastSession) {
             val minimalMediaInfo = currentSongForLoad.toMediaInfo(
                 serverAddress = serverAddress,
                 includeMetadata = false,
-                includeDuration = false
+                includeDuration = true
             )
+
+            val castDeviceName = castSession.castDevice?.friendlyName?.lowercase()
+            val skipQueueLoad = castDeviceName?.contains("airreceiver") == true
 
             val safeStartPosition = startPosition.coerceAtLeast(0L)
 
@@ -142,7 +145,15 @@ class CastPlayer(private val castSession: CastSession) {
                     }
             }
 
-            val attempts = listOf(::attemptQueueLoad, ::attemptLoadRequest, ::attemptLegacyLoad)
+            val attempts = if (skipQueueLoad) {
+                Timber.tag(CAST_TAG).w(
+                    "Skipping queueLoad for receiver=%s; using direct load fallbacks",
+                    castDeviceName
+                )
+                listOf(::attemptLoadRequest, ::attemptLegacyLoad)
+            } else {
+                listOf(::attemptQueueLoad, ::attemptLoadRequest, ::attemptLegacyLoad)
+            }
 
             val attemptDelayMs = 600L
 
