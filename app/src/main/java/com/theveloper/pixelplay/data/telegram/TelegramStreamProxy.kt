@@ -107,7 +107,7 @@ class TelegramStreamProxy @Inject constructor(
                     val raf = RandomAccessFile(file, "r")
                     try {
                         var currentPos = start
-                        val buffer = ByteArray(8192)
+                        val buffer = ByteArray(64 * 1024) // Increased to 64KB for smoother streaming
                         var noDataCount = 0
                         
                         raf.seek(currentPos)
