@@ -115,6 +115,14 @@ class CastPlayer(private val castSession: CastSession) {
                 includeDuration = true,
                 streamType = MediaInfo.STREAM_TYPE_BUFFERED
             )
+            Timber.tag(CAST_TAG).i(
+                "MediaInfo: url=%s mime=%s duration=%d streamType=%d hasMetadata=%s",
+                minimalMediaInfo.contentId,
+                minimalMediaInfo.contentType,
+                minimalMediaInfo.streamDuration,
+                minimalMediaInfo.streamType,
+                minimalMediaInfo.metadata != null
+            )
 
             val safeStartPosition = startPosition.coerceAtLeast(0L)
             val startPositionSeconds = safeStartPosition / 1000.0
@@ -149,6 +157,12 @@ class CastPlayer(private val castSession: CastSession) {
                     repeatMode,
                     null
                 ).setResultCallback { result ->
+                    Timber.tag(CAST_TAG).i(
+                        "queueLoad status: isSuccess=%s statusCode=%d statusMessage=%s",
+                        result.status.isSuccess,
+                        result.status.statusCode,
+                        result.status.statusMessage
+                    )
                     onResult(
                         result.status.isSuccess,
                         result.status.statusCode,
@@ -169,6 +183,12 @@ class CastPlayer(private val castSession: CastSession) {
                     .build()
 
                 client.load(requestData).setResultCallback { result ->
+                    Timber.tag(CAST_TAG).i(
+                        "load(MediaLoadRequestData) status: isSuccess=%s statusCode=%d statusMessage=%s",
+                        result.status.isSuccess,
+                        result.status.statusCode,
+                        result.status.statusMessage
+                    )
                     onResult(
                         result.status.isSuccess,
                         result.status.statusCode,
@@ -182,6 +202,12 @@ class CastPlayer(private val castSession: CastSession) {
                 @Suppress("DEPRECATION")
                 client.load(minimalMediaInfo, autoPlay, safeStartPosition)
                     .setResultCallback { result ->
+                        Timber.tag(CAST_TAG).i(
+                            "legacy load(MediaInfo) status: isSuccess=%s statusCode=%d statusMessage=%s",
+                            result.status.isSuccess,
+                            result.status.statusCode,
+                            result.status.statusMessage
+                        )
                         onResult(
                             result.status.isSuccess,
                             result.status.statusCode,

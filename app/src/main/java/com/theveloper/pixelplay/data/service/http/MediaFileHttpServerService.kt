@@ -391,10 +391,20 @@ class MediaFileHttpServerService : Service() {
                         val bytes = withContext(Dispatchers.IO) {
                             inputStream.readBytes()
                         }
+                        Timber.tag("PixelPlayCastDebug").d(
+                            "Responding FULL: contentType=%s contentLength=%d sendBody=true",
+                            audioContentType,
+                            bytes.size
+                        )
                         call.respondBytes(bytes, audioContentType)
                     } else {
                         call.response.header(HttpHeaders.ContentType, audioContentType.toString())
                         call.response.header(HttpHeaders.ContentLength, fileSize.toString())
+                        Timber.tag("PixelPlayCastDebug").d(
+                            "Responding FULL: contentType=%s contentLength=%d sendBody=false",
+                            audioContentType,
+                            fileSize
+                        )
                         call.respond(HttpStatusCode.OK)
                     }
                 }
