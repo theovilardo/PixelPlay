@@ -1711,12 +1711,22 @@ class PlayerViewModel @Inject constructor(
             private fun transferPlayback(session: CastSession) {
                 viewModelScope.launch {
                     if (_isCastConnecting.value || _isRemotePlaybackActive.value) {
-                        Timber.tag(CAST_LOG_TAG).w(
-                            "transferPlayback skipped: already connecting=%s remoteActive=%s",
-                            _isCastConnecting.value,
-                            _isRemotePlaybackActive.value
-                        )
-                        return@launch
+                        val activeSessionConnected = _castSession.value?.isConnected == true
+                        if (_isCastConnecting.value && !_isRemotePlaybackActive.value && !activeSessionConnected) {
+                            Timber.tag(CAST_LOG_TAG).w(
+                                "transferPlayback reset: stale connecting state (remoteActive=%s connected=%s)",
+                                _isRemotePlaybackActive.value,
+                                activeSessionConnected
+                            )
+                            _isCastConnecting.value = false
+                        } else {
+                            Timber.tag(CAST_LOG_TAG).w(
+                                "transferPlayback skipped: already connecting=%s remoteActive=%s",
+                                _isCastConnecting.value,
+                                _isRemotePlaybackActive.value
+                            )
+                            return@launch
+                        }
                     }
                     pendingCastRouteId = null
                     _isCastConnecting.value = true
