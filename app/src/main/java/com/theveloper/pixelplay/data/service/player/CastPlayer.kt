@@ -6,6 +6,7 @@ import com.google.android.gms.cast.MediaLoadRequestData
 import com.google.android.gms.cast.MediaMetadata
 import com.google.android.gms.cast.MediaQueueItem
 import com.google.android.gms.cast.MediaSeekOptions
+import com.google.android.gms.cast.MediaStatus
 import com.google.android.gms.cast.framework.CastSession
 import com.google.android.gms.cast.framework.media.RemoteMediaClient
 import com.google.android.gms.common.images.WebImage
@@ -92,6 +93,13 @@ class CastPlayer(private val castSession: CastSession) {
             val castDeviceName = castSession.castDevice?.friendlyName?.lowercase()
             val castDeviceModel = castSession.castDevice?.modelName?.lowercase()
             val castDeviceVersion = castSession.castDevice?.deviceVersion?.lowercase()
+            Timber.tag(CAST_TAG).i(
+                "Cast device: name=%s model=%s version=%s connected=%s",
+                castDeviceName,
+                castDeviceModel,
+                castDeviceVersion,
+                castSession.isConnected
+            )
             val isAirReceiver = listOfNotNull(castDeviceName, castDeviceModel, castDeviceVersion)
                 .any { it.contains("airreceiver") }
             val useMinimalQueue = isAirReceiver
@@ -120,8 +128,21 @@ class CastPlayer(private val castSession: CastSession) {
                 mediaItems
             }
 
+            Timber.tag(CAST_TAG).i(
+                "Load params: queueSize=%d startIndex=%d repeatMode=%d autoPlay=%s startPositionMs=%d",
+                mediaItemsForLoad.size,
+                if (useMinimalQueue) 0 else startIndex,
+                repeatMode,
+                autoPlay,
+                safeStartPosition
+            )
+
             fun attemptQueueLoad(onResult: (Boolean, Int, String?) -> Unit) {
-                Timber.tag(CAST_TAG).i("Attempting queueLoad for %d items", mediaItemsForLoad.size)
+                Timber.tag(CAST_TAG).i(
+                    "Attempting queueLoad for %d items (startIndex=%d)",
+                    mediaItemsForLoad.size,
+                    if (useMinimalQueue) 0 else startIndex
+                )
                 client.queueLoad(
                     mediaItemsForLoad.toTypedArray(),
                     if (useMinimalQueue) 0 else startIndex,
@@ -137,7 +158,10 @@ class CastPlayer(private val castSession: CastSession) {
             }
 
             fun attemptLoadRequest(onResult: (Boolean, Int, String?) -> Unit) {
-                Timber.tag(CAST_TAG).i("Attempting load(MediaLoadRequestData) for current item")
+                Timber.tag(CAST_TAG).i(
+                    "Attempting load(MediaLoadRequestData) for current item (currentTime=%.3f)",
+                    startPositionSeconds
+                )
                 val requestData = MediaLoadRequestData.Builder()
                     .setMediaInfo(minimalMediaInfo)
                     .setAutoplay(autoPlay)
@@ -196,6 +220,7 @@ class CastPlayer(private val castSession: CastSession) {
                                 statusCode,
                                 statusMessage
                             )
+                            logMediaStatus("After load attempt ${index + 1}", client.mediaStatus)
                             if (success) {
                                 if (safeStartPosition > 0L) {
                                     client.seek(
@@ -237,6 +262,23 @@ class CastPlayer(private val castSession: CastSession) {
             Timber.tag(CAST_TAG).e(e, "Error loading queue to cast device")
             safeOnComplete(false)
         }
+    }
+
+    private fun logMediaStatus(prefix: String, status: MediaStatus?) {
+        if (status == null) {
+            Timber.tag(CAST_TAG).d("%s: mediaStatus=null", prefix)
+            return
+        }
+        Timber.tag(CAST_TAG).d(
+            "%s: state=%d position=%d duration=%d repeat=%d queueCount=%d currentItemId=%d",
+            prefix,
+            status.playerState,
+            status.streamPosition,
+            status.mediaInfo?.streamDuration ?: -1,
+            status.queueRepeatMode,
+            status.queueItemCount,
+            status.currentItemId
+        )
     }
 
     companion object {

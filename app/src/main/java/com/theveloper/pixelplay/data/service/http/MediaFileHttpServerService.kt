@@ -313,7 +313,10 @@ class MediaFileHttpServerService : Service() {
                         return@use
                     }
                     
-                    Timber.tag("PixelPlayCastDebug").d("Serving PARTIAL content. Range: $rangeHeader")
+                    Timber.tag("PixelPlayCastDebug").d(
+                        "Serving PARTIAL content. Range: $rangeHeader fileSize=%d",
+                        fileSize
+                    )
 
                     // We only handle the first range request for simplicity
                     val range = ranges.first()
@@ -349,7 +352,8 @@ class MediaFileHttpServerService : Service() {
                         skipped += s
                     }
 
-                    call.response.header(HttpHeaders.ContentRange, "bytes $clampedStart-$clampedEnd/$fileSize")
+                    val contentRange = "bytes $clampedStart-$clampedEnd/$fileSize"
+                    call.response.header(HttpHeaders.ContentRange, contentRange)
                     call.response.header(HttpHeaders.AcceptRanges, "bytes")
 
                     call.response.header(HttpHeaders.ContentType, audioContentType.toString())
@@ -357,14 +361,30 @@ class MediaFileHttpServerService : Service() {
                         val bytes = withContext(Dispatchers.IO) {
                             inputStream.readNBytes(length.toInt())
                         }
-
+                        Timber.tag("PixelPlayCastDebug").d(
+                            "Responding PARTIAL: contentType=%s contentRange=%s contentLength=%d sendBody=true",
+                            audioContentType,
+                            contentRange,
+                            length
+                        )
                         call.respondBytes(bytes, audioContentType, HttpStatusCode.PartialContent)
                     } else {
                         call.response.header(HttpHeaders.ContentLength, length.toString())
+                        Timber.tag("PixelPlayCastDebug").d(
+                            "Responding PARTIAL: contentType=%s contentRange=%s contentLength=%d sendBody=false",
+                            audioContentType,
+                            contentRange,
+                            length
+                        )
                         call.respond(HttpStatusCode.PartialContent)
                     }
                 } else {
-                    Timber.tag("PixelPlayCastDebug").d("Serving FULL content")
+                    Timber.tag("PixelPlayCastDebug").d(
+                        "Serving FULL content. contentType=%s fileSize=%d sendBody=%s",
+                        audioContentType,
+                        fileSize,
+                        sendBody
+                    )
                     val inputStream = java.io.FileInputStream(pfd.fileDescriptor)
                     call.response.header(HttpHeaders.AcceptRanges, "bytes")
                     if (sendBody) {
