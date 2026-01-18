@@ -93,12 +93,16 @@ class CastPlayer(private val castSession: CastSession) {
             val castDeviceName = castSession.castDevice?.friendlyName?.lowercase()
             val castDeviceModel = castSession.castDevice?.modelName?.lowercase()
             val castDeviceVersion = castSession.castDevice?.deviceVersion?.lowercase()
+            val applicationId = castSession.applicationMetadata?.applicationId
+            val applicationName = castSession.applicationMetadata?.name
             Timber.tag(CAST_TAG).i(
-                "Cast device: name=%s model=%s version=%s connected=%s",
+                "Cast device: name=%s model=%s version=%s connected=%s appId=%s appName=%s",
                 castDeviceName,
                 castDeviceModel,
                 castDeviceVersion,
-                castSession.isConnected
+                castSession.isConnected,
+                applicationId,
+                applicationName
             )
             val isAirReceiver = listOfNotNull(castDeviceName, castDeviceModel, castDeviceVersion)
                 .any { it.contains("airreceiver") }
@@ -143,6 +147,11 @@ class CastPlayer(private val castSession: CastSession) {
                 repeatMode,
                 autoPlay,
                 safeStartPosition
+            )
+            Timber.tag(CAST_TAG).i(
+                "Load target: songId=%s title=%s",
+                currentSongForLoad.id,
+                currentSongForLoad.title
             )
 
             fun attemptQueueLoad(onResult: (Boolean, Int, String?) -> Unit) {
@@ -269,6 +278,7 @@ class CastPlayer(private val castSession: CastSession) {
             }
 
             client.requestStatus()
+            Timber.tag(CAST_TAG).d("Requested initial status before load attempts")
             CoroutineScope(Dispatchers.Main).launch {
                 var elapsedMs = 0L
                 while (!castSession.isConnected && elapsedMs < readyTimeoutMs) {
@@ -296,14 +306,16 @@ class CastPlayer(private val castSession: CastSession) {
             return
         }
         Timber.tag(CAST_TAG).d(
-            "%s: state=%d position=%d duration=%d repeat=%d queueCount=%d currentItemId=%d",
+            "%s: state=%d idleReason=%d position=%d duration=%d repeat=%d queueCount=%d currentItemId=%d contentId=%s",
             prefix,
             status.playerState,
+            status.idleReason,
             status.streamPosition,
             status.mediaInfo?.streamDuration ?: -1,
             status.queueRepeatMode,
             status.queueItemCount,
-            status.currentItemId
+            status.currentItemId,
+            status.mediaInfo?.contentId
         )
     }
 

@@ -125,11 +125,21 @@ class MediaFileHttpServerService : Service() {
                         // Add CORS headers manually - required for Chromecast to access media
                         // Global Request Logger
                         intercept(io.ktor.server.application.ApplicationCallPipeline.Monitoring) {
-                             val uri = call.request.uri
-                             val method = call.request.httpMethod.value
-                             val remoteHost = call.request.local.remoteHost
-                             val range = call.request.headers[HttpHeaders.Range]
-                             Timber.tag("PixelPlayCastDebug").d("Incoming Request: $method $uri from $remoteHost | Range: $range")
+                            val uri = call.request.uri
+                            val method = call.request.httpMethod.value
+                            val remoteHost = call.request.local.remoteHost
+                            val range = call.request.headers[HttpHeaders.Range]
+                            val userAgent = call.request.headers[HttpHeaders.UserAgent]
+                            val accept = call.request.headers[HttpHeaders.Accept]
+                            Timber.tag("PixelPlayCastDebug").d(
+                                "Incoming Request: %s %s from %s | Range: %s | UA: %s | Accept: %s",
+                                method,
+                                uri,
+                                remoteHost,
+                                range,
+                                userAgent,
+                                accept
+                            )
                         }
                         
                         // Add manual CORS headers - required for Chromecast
