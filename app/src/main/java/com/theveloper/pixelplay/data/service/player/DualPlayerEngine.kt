@@ -244,8 +244,21 @@ class DualPlayerEngine @Inject constructor(
                      }
 
                      if (fileId != null) {
-                         Timber.tag("DualPlayerEngine").d("Resolving Telegram URI via Proxy for fileId: $fileId, Size: $fileSize (Original: ${dataSpec.uri})")
+                         Timber.tag("DualPlayerEngine").d("Resolving Telegram URI for fileId: $fileId...")
                          
+                         // Fix: Check if file is already downloaded to use direct file access
+                         // This solves "plays fast" and skipping issues related to streaming completely downloaded files
+                         val fileInfo = kotlinx.coroutines.runBlocking {
+                             telegramRepository.getFile(fileId)
+                         }
+                         
+                         if (fileInfo?.local?.isDownloadingCompleted == true && fileInfo.local.path.isNotEmpty()) {
+                              Timber.tag("DualPlayerEngine").d("File $fileId is downloaded. Using direct file playback.")
+                              return dataSpec.buildUpon().setUri(android.net.Uri.fromFile(java.io.File(fileInfo.local.path))).build()
+                         }
+
+                         Timber.tag("DualPlayerEngine").d("File $fileId not downloaded or Check failed. Using StreamProxy.")
+
                          // Wait for StreamProxy to be ready before getting proxy URL
                          // This fixes playback failures when app restarts
                          if (!telegramStreamProxy.isReady()) {

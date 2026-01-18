@@ -477,23 +477,47 @@ class MusicRepositoryImpl @Inject constructor(
 
     override fun getSongsByIds(songIds: List<String>): Flow<List<Song>> {
         if (songIds.isEmpty()) return flowOf(emptyList())
-        val longIds = songIds.mapNotNull { it.toLongOrNull() }
-        if (longIds.isEmpty()) return flowOf(emptyList())
+        
+        val localIds = songIds.mapNotNull { it.toLongOrNull() }
+        val telegramIds = songIds.filter { it.toLongOrNull() == null }
 
-        return combine(
-            musicDao.getSongsByIds(
-                songIds = longIds,
-                allowedParentDirs = emptyList(),
-                applyDirectoryFilter = false
-            ),
-            directoryFilterConfig,
-            allArtistsFlow,
-            allCrossRefsFlow
-        ) { entities, config, artists, crossRefs ->
-            val permittedEntities = entities.filterBlocked(config)
-            val mapped = mapSongList(permittedEntities, null, artists, crossRefs)
-            val songsMap = mapped.associateBy { it.id }
-            songIds.mapNotNull { idToFind -> songsMap[idToFind] }
+        val localSongsFlow = if (localIds.isNotEmpty()) {
+            combine(
+                musicDao.getSongsByIds(
+                    songIds = localIds,
+                    allowedParentDirs = emptyList(),
+                    applyDirectoryFilter = false
+                ),
+                directoryFilterConfig,
+                allArtistsFlow,
+                allCrossRefsFlow
+            ) { entities, config, artists, crossRefs ->
+                val permittedEntities = entities.filterBlocked(config)
+                mapSongList(permittedEntities, null, artists, crossRefs)
+            }
+        } else {
+            flowOf(emptyList())
+        }
+
+        val telegramSongsFlow = if (telegramIds.isNotEmpty()) {
+             combine(
+                 telegramDao.getSongsByIds(telegramIds),
+                 telegramDao.getAllChannels()
+             ) { songs, channels ->
+                 val channelMap = channels.associateBy { it.chatId }
+                 songs.map { 
+                     val channelTitle = channelMap[it.chatId]?.title
+                     it.toSong(channelTitle = channelTitle) 
+                 }
+             }
+        } else {
+             flowOf(emptyList())
+        }
+
+        return combine(localSongsFlow, telegramSongsFlow) { local, telegram ->
+            val allSongsMap = (local + telegram).associateBy { it.id }
+            // Preserve original order of songIds
+            songIds.mapNotNull { id -> allSongsMap[id] }
         }.conflate().flowOn(Dispatchers.IO)
     }
 

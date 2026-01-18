@@ -14,6 +14,9 @@ interface TelegramDao {
     @Query("SELECT * FROM telegram_songs WHERE title LIKE '%' || :query || '%' OR artist LIKE '%' || :query || '%' ORDER BY date_added DESC")
     fun searchSongs(query: String): Flow<List<TelegramSongEntity>>
 
+    @Query("SELECT * FROM telegram_songs WHERE id IN (:ids)")
+    fun getSongsByIds(ids: List<String>): Flow<List<TelegramSongEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSongs(songs: List<TelegramSongEntity>)
     
