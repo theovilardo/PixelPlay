@@ -97,6 +97,8 @@ constructor(
         val IS_CROSSFADE_ENABLED = booleanPreferencesKey("is_crossfade_enabled")
         val CROSSFADE_DURATION = intPreferencesKey("crossfade_duration")
         val REPEAT_MODE = intPreferencesKey("repeat_mode")
+        val IS_SHUFFLE_ON = booleanPreferencesKey("is_shuffle_on")
+        val PERSISTENT_SHUFFLE_ENABLED = booleanPreferencesKey("persistent_shuffle_enabled")
         val DISABLE_CAST_AUTOPLAY = booleanPreferencesKey("disable_cast_autoplay")
         val SHOW_QUEUE_HISTORY = booleanPreferencesKey("show_queue_history")
         val FULL_PLAYER_DELAY_ALL = booleanPreferencesKey("full_player_delay_all")
@@ -274,6 +276,24 @@ constructor(
 
     suspend fun setRepeatMode(@Player.RepeatMode mode: Int) {
         dataStore.edit { preferences -> preferences[PreferencesKeys.REPEAT_MODE] = mode }
+    }
+
+    val isShuffleOnFlow: Flow<Boolean> =
+            dataStore.data.map { preferences ->
+                preferences[PreferencesKeys.IS_SHUFFLE_ON] ?: false
+            }
+
+    suspend fun setShuffleOn(on: Boolean) {
+        dataStore.edit { preferences -> preferences[PreferencesKeys.IS_SHUFFLE_ON] = on }
+    }
+
+    val persistentShuffleEnabledFlow: Flow<Boolean> =
+            dataStore.data.map { preferences ->
+                preferences[PreferencesKeys.PERSISTENT_SHUFFLE_ENABLED] ?: false
+            }
+
+    suspend fun setPersistentShuffleEnabled(enabled: Boolean) {
+        dataStore.edit { preferences -> preferences[PreferencesKeys.PERSISTENT_SHUFFLE_ENABLED] = enabled }
     }
 
     // ===== Multi-Artist Settings =====
