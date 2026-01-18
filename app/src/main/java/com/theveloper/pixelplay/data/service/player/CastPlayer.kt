@@ -67,7 +67,7 @@ class CastPlayer(private val castSession: CastSession) {
         try {
             // Build MediaQueueItems for all songs
             val mediaItems = songs.mapIndexed { index, song ->
-                song.toMediaQueueItem(serverAddress, index)
+                song.toMediaQueueItem(serverAddress, index + 1)
             }
 
             Timber.tag(CAST_TAG).i("Created %d media items", mediaItems.size)
@@ -133,7 +133,7 @@ class CastPlayer(private val castSession: CastSession) {
             val mediaItemsForLoad = if (useMinimalQueue) {
                 listOf(
                     MediaQueueItem.Builder(minimalMediaInfo)
-                        .setItemId(0)
+                        .setItemId(1)
                         .build()
                 )
             } else {
