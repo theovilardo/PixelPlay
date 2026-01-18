@@ -114,16 +114,14 @@ class CastPlayer(private val castSession: CastSession) {
                     castDeviceName ?: castDeviceModel ?: castDeviceVersion
                 )
             }
+            val effectiveAutoPlay = if (useMinimalQueue) true else autoPlay
             val minimalMediaInfo = currentSongForLoad.toMediaInfo(
                 serverAddress = serverAddress,
                 includeMetadata = true,
-                includeDuration = !useMinimalQueue,
+                includeImages = !useMinimalQueue,
+                includeDuration = true,
                 includeCustomData = !useMinimalQueue,
-                streamType = if (useMinimalQueue) {
-                    MediaInfo.STREAM_TYPE_LIVE
-                } else {
-                    MediaInfo.STREAM_TYPE_BUFFERED
-                }
+                streamType = MediaInfo.STREAM_TYPE_BUFFERED
             )
             Timber.tag(CAST_TAG).i(
                 "MediaInfo: url=%s mime=%s duration=%d streamType=%d hasMetadata=%s",
@@ -151,7 +149,7 @@ class CastPlayer(private val castSession: CastSession) {
                 mediaItemsForLoad.size,
                 if (useMinimalQueue) 0 else startIndex,
                 repeatMode,
-                autoPlay,
+                effectiveAutoPlay,
                 safeStartPosition
             )
             Timber.tag(CAST_TAG).i(
@@ -193,7 +191,7 @@ class CastPlayer(private val castSession: CastSession) {
                 )
                 val requestData = MediaLoadRequestData.Builder()
                     .setMediaInfo(minimalMediaInfo)
-                    .setAutoplay(autoPlay)
+                    .setAutoplay(effectiveAutoPlay)
                     .setCurrentTime(startPositionSeconds)
                     .build()
 
@@ -215,7 +213,7 @@ class CastPlayer(private val castSession: CastSession) {
             fun attemptLegacyLoad(onResult: (Boolean, Int, String?) -> Unit) {
                 Timber.tag(CAST_TAG).i("Attempting legacy client.load(MediaInfo)")
                 @Suppress("DEPRECATION")
-                client.load(minimalMediaInfo, autoPlay, safeStartPosition)
+                client.load(minimalMediaInfo, effectiveAutoPlay, safeStartPosition)
                     .setResultCallback { result ->
                         Timber.tag(CAST_TAG).i(
                             "legacy load(MediaInfo) status: isSuccess=%s statusCode=%d statusMessage=%s",
@@ -337,6 +335,7 @@ class CastPlayer(private val castSession: CastSession) {
         val mediaInfo = toMediaInfo(
             serverAddress = serverAddress,
             includeMetadata = true,
+            includeImages = true,
             includeDuration = true,
             includeCustomData = true
         )
@@ -349,6 +348,7 @@ class CastPlayer(private val castSession: CastSession) {
     private fun Song.toMediaInfo(
         serverAddress: String,
         includeMetadata: Boolean,
+        includeImages: Boolean,
         includeDuration: Boolean,
         includeCustomData: Boolean,
         streamType: Int = MediaInfo.STREAM_TYPE_BUFFERED
@@ -358,8 +358,10 @@ class CastPlayer(private val castSession: CastSession) {
                 putString(MediaMetadata.KEY_TITLE, this@toMediaInfo.title)
                 putString(MediaMetadata.KEY_SUBTITLE, this@toMediaInfo.artist)
                 putString(MediaMetadata.KEY_ALBUM_TITLE, this@toMediaInfo.album)
-                val artUrl = "$serverAddress/art/${this@toMediaInfo.id}.jpg"
-                addImage(WebImage(Uri.parse(artUrl)))
+                if (includeImages) {
+                    val artUrl = "$serverAddress/art/${this@toMediaInfo.id}.jpg"
+                    addImage(WebImage(Uri.parse(artUrl)))
+                }
             }
         } else {
             null
