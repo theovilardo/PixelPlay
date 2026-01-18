@@ -834,11 +834,20 @@ fun LibraryScreen(
 
     val allSongs by playerViewModel.allSongsFlow.collectAsState(initial = emptyList())
 
+    // AI Playlist Sheet state - must be declared before CreatePlaylistDialog which uses it
+    var showAiSheet by remember { mutableStateOf(false) }
+    val playlistUiState by playlistViewModel.uiState.collectAsState()
+    val isGeneratingAiPlaylist = playlistUiState.isAiGenerating
+    val aiError = playlistUiState.aiGenerationError
 
     CreatePlaylistDialog(
         visible = showCreatePlaylistDialog,
         allSongs = allSongs,
         onDismiss = { showCreatePlaylistDialog = false },
+        onGenerateClick = {
+            showCreatePlaylistDialog = false
+            showAiSheet = true
+        },
         onCreate = { name, imageUri, color, icon, songIds, cropScale, cropPanX, cropPanY, shapeType, d1, d2, d3, d4 ->
             playlistViewModel.createPlaylist(
                 name = name,
@@ -860,20 +869,25 @@ fun LibraryScreen(
         }
     )
 
-
-    val showAiSheet by playerViewModel.showAiPlaylistSheet.collectAsState()
-    val isGeneratingAiPlaylist by playerViewModel.isGeneratingAiPlaylist.collectAsState()
-    val aiError by playerViewModel.aiError.collectAsState()
+    LaunchedEffect(Unit) {
+        playlistViewModel.playlistCreationEvent.collect { success ->
+            if (success) {
+                showAiSheet = false
+            }
+        }
+    }
 
     if (showAiSheet) {
         AiPlaylistSheet(
-            onDismiss = { playerViewModel.dismissAiPlaylistSheet() },
+            onDismiss = { 
+                showAiSheet = false
+                playlistViewModel.clearAiError()
+            },
             onGenerateClick = { prompt, minLength, maxLength ->
-                playerViewModel.generateAiPlaylist(
+                playlistViewModel.generateAiPlaylist(
                     prompt = prompt,
-                    minLength = minLength,
-                    maxLength = maxLength,
-                    saveAsPlaylist = true
+                    minLength = minLength, 
+                    maxLength = maxLength
                 )
             },
             isGenerating = isGeneratingAiPlaylist,

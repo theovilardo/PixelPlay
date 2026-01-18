@@ -1,69 +1,62 @@
 package com.theveloper.pixelplay.data.repository
 
-import android.content.ContentResolver
-import android.content.ContentUris
+// import kotlinx.coroutines.withContext // May not be needed for Flow transformations
+
+// import kotlinx.coroutines.sync.withLock // May not be needed if directoryScanMutex logic changes
+
 import android.content.Context
-import android.database.Cursor
 import android.net.Uri
-import android.os.Build
-import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
-import com.theveloper.pixelplay.data.model.Song
-import com.theveloper.pixelplay.data.database.MusicDao
-import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
-// import kotlinx.coroutines.withContext // May not be needed for Flow transformations
-import javax.inject.Inject
-import javax.inject.Singleton
 import androidx.core.net.toUri
-import com.theveloper.pixelplay.data.model.Album
+import com.theveloper.pixelplay.data.database.ArtistEntity
+import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.SearchHistoryDao
 import com.theveloper.pixelplay.data.database.SearchHistoryEntity
+import com.theveloper.pixelplay.data.database.SongArtistCrossRef
+import com.theveloper.pixelplay.data.database.SongEntity
+import com.theveloper.pixelplay.data.database.TelegramChannelEntity
+import com.theveloper.pixelplay.data.database.TelegramDao
+import com.theveloper.pixelplay.data.database.toAlbum
+import com.theveloper.pixelplay.data.database.toArtist
 import com.theveloper.pixelplay.data.database.toSearchHistoryItem
+import com.theveloper.pixelplay.data.database.toSong
+import com.theveloper.pixelplay.data.database.toSongWithArtistRefs
+import com.theveloper.pixelplay.data.database.toTelegramEntity
+import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
+import com.theveloper.pixelplay.data.model.Genre
+import com.theveloper.pixelplay.data.model.Lyrics
+import com.theveloper.pixelplay.data.model.LyricsSourcePreference
+import com.theveloper.pixelplay.data.model.MusicFolder
 import com.theveloper.pixelplay.data.model.Playlist
 import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
-import com.theveloper.pixelplay.data.model.SortOption
+import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
-import androidx.sqlite.db.SimpleSQLiteQuery
-
-import com.theveloper.pixelplay.data.model.Genre
-import com.theveloper.pixelplay.data.database.SongEntity
-import com.theveloper.pixelplay.data.database.SongArtistCrossRef
-import com.theveloper.pixelplay.data.database.ArtistEntity
-import com.theveloper.pixelplay.data.database.toAlbum
-import com.theveloper.pixelplay.data.database.toArtist
-import com.theveloper.pixelplay.data.database.toSong
-import com.theveloper.pixelplay.data.database.toSongWithArtistRefs
-import com.theveloper.pixelplay.data.model.Lyrics
-import com.theveloper.pixelplay.data.model.LyricsSourcePreference
-import com.theveloper.pixelplay.data.model.SyncedLine
-import com.theveloper.pixelplay.utils.LogUtils
-import com.theveloper.pixelplay.data.model.MusicFolder
-import com.theveloper.pixelplay.utils.LyricsUtils
 import com.theveloper.pixelplay.utils.DirectoryRuleResolver
-import kotlinx.coroutines.flow.conflate
+import com.theveloper.pixelplay.utils.LogUtils
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first // Still needed for initialSetupDoneFlow.first() if used that way
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-// import kotlinx.coroutines.sync.withLock // May not be needed if directoryScanMutex logic changes
 import java.io.File
+import javax.inject.Inject
+import javax.inject.Singleton
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
@@ -72,7 +65,10 @@ class MusicRepositoryImpl @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val searchHistoryDao: SearchHistoryDao,
     private val musicDao: MusicDao,
-    private val lyricsRepository: LyricsRepository
+    private val lyricsRepository: LyricsRepository,
+    private val telegramDao: TelegramDao,
+    private val telegramCacheManager: com.theveloper.pixelplay.data.telegram.TelegramCacheManager,
+    private val telegramRepository: com.theveloper.pixelplay.data.telegram.TelegramRepository
 ) : MusicRepository {
 
     private val directoryScanMutex = Mutex()
@@ -176,10 +172,27 @@ class MusicRepositoryImpl @Inject constructor(
         return combine(
             permittedSongsFlow,
             allArtistsFlow,
-            allCrossRefsFlow
-        ) { songs, artists, crossRefs ->
-            mapSongList(songs, null, artists, crossRefs)
+            allCrossRefsFlow,
+            telegramDao.getAllTelegramSongs(),
+            telegramDao.getAllChannels()
+        ) { songs, artists, crossRefs, telegramEntities, channels ->
+            val localSongs = mapSongList(songs, null, artists, crossRefs)
+            
+            val channelMap = channels.associateBy { it.chatId }
+            
+            val telegramSongs = telegramEntities.map { 
+                val channelTitle = channelMap[it.chatId]?.title
+                it.toSong(channelTitle = channelTitle) 
+            }
+            localSongs + telegramSongs
         }.flowOn(Dispatchers.IO)
+    }
+
+    override suspend fun saveTelegramSongs(songs: List<Song>) {
+         val entities = songs.mapNotNull { it.toTelegramEntity() }
+         if (entities.isNotEmpty()) {
+             telegramDao.insertSongs(entities)
+         }
     }
 
     override fun getAlbums(): Flow<List<Album>> {
@@ -309,7 +322,8 @@ class MusicRepositoryImpl @Inject constructor(
 
     override fun searchSongs(query: String): Flow<List<Song>> {
         if (query.isBlank()) return flowOf(emptyList())
-        return combine(
+        
+        val localSongsFlow = combine(
             musicDao.searchSongs(
                 query = query,
                 allowedParentDirs = emptyList(),
@@ -320,6 +334,21 @@ class MusicRepositoryImpl @Inject constructor(
             allCrossRefsFlow
         ) { songs, config, artists, crossRefs ->
             mapSongList(songs, config, artists, crossRefs)
+        }
+
+        val telegramSongsFlow = combine(
+            telegramDao.searchSongs(query),
+            telegramDao.getAllChannels()
+        ) { songs, channels ->
+            val channelMap = channels.associateBy { it.chatId }
+            songs.map { 
+                val title = channelMap[it.chatId]?.title
+                it.toSong(channelTitle = title)
+            }
+        }
+
+        return combine(localSongsFlow, telegramSongsFlow) { local, telegram ->
+            local + telegram
         }.conflate().flowOn(Dispatchers.IO)
     }
 
@@ -448,23 +477,47 @@ class MusicRepositoryImpl @Inject constructor(
 
     override fun getSongsByIds(songIds: List<String>): Flow<List<Song>> {
         if (songIds.isEmpty()) return flowOf(emptyList())
-        val longIds = songIds.mapNotNull { it.toLongOrNull() }
-        if (longIds.isEmpty()) return flowOf(emptyList())
+        
+        val localIds = songIds.mapNotNull { it.toLongOrNull() }
+        val telegramIds = songIds.filter { it.toLongOrNull() == null }
 
-        return combine(
-            musicDao.getSongsByIds(
-                songIds = longIds,
-                allowedParentDirs = emptyList(),
-                applyDirectoryFilter = false
-            ),
-            directoryFilterConfig,
-            allArtistsFlow,
-            allCrossRefsFlow
-        ) { entities, config, artists, crossRefs ->
-            val permittedEntities = entities.filterBlocked(config)
-            val mapped = mapSongList(permittedEntities, null, artists, crossRefs)
-            val songsMap = mapped.associateBy { it.id }
-            songIds.mapNotNull { idToFind -> songsMap[idToFind] }
+        val localSongsFlow = if (localIds.isNotEmpty()) {
+            combine(
+                musicDao.getSongsByIds(
+                    songIds = localIds,
+                    allowedParentDirs = emptyList(),
+                    applyDirectoryFilter = false
+                ),
+                directoryFilterConfig,
+                allArtistsFlow,
+                allCrossRefsFlow
+            ) { entities, config, artists, crossRefs ->
+                val permittedEntities = entities.filterBlocked(config)
+                mapSongList(permittedEntities, null, artists, crossRefs)
+            }
+        } else {
+            flowOf(emptyList())
+        }
+
+        val telegramSongsFlow = if (telegramIds.isNotEmpty()) {
+             combine(
+                 telegramDao.getSongsByIds(telegramIds),
+                 telegramDao.getAllChannels()
+             ) { songs, channels ->
+                 val channelMap = channels.associateBy { it.chatId }
+                 songs.map { 
+                     val channelTitle = channelMap[it.chatId]?.title
+                     it.toSong(channelTitle = channelTitle) 
+                 }
+             }
+        } else {
+             flowOf(emptyList())
+        }
+
+        return combine(localSongsFlow, telegramSongsFlow) { local, telegram ->
+            val allSongsMap = (local + telegram).associateBy { it.id }
+            // Preserve original order of songIds
+            songIds.mapNotNull { id -> allSongsMap[id] }
         }.conflate().flowOn(Dispatchers.IO)
     }
 
@@ -722,5 +775,25 @@ class MusicRepositoryImpl @Inject constructor(
 
     override suspend fun deleteById(id: Long) {
         musicDao.deleteById(id)
+    }
+
+    override suspend fun clearTelegramData() {
+        telegramDao.clearAll()
+        // Clear all Telegram caches (TDLib files, embedded art, memory)
+        telegramRepository.clearMemoryCache()
+        telegramCacheManager.clearAllCache()
+    }
+
+    override suspend fun saveTelegramChannel(channel: TelegramChannelEntity) {
+        telegramDao.insertChannel(channel)
+    }
+
+    override fun getAllTelegramChannels(): Flow<List<TelegramChannelEntity>> {
+        return telegramDao.getAllChannels()
+    }
+
+    override suspend fun deleteTelegramChannel(chatId: Long) {
+        telegramDao.deleteSongsByChatId(chatId) // Cascade delete songs
+        telegramDao.deleteChannel(chatId)
     }
 }

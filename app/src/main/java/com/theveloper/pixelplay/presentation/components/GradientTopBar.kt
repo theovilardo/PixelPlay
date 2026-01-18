@@ -14,6 +14,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LargeTopAppBar
@@ -92,6 +94,7 @@ fun HomeGradientTopBar(
     onNavigationIconClick: () -> Unit,
     onMoreOptionsClick: () -> Unit,
     onBetaClick: () -> Unit,
+    onTelegramClick: () -> Unit,
     onMenuClick: () -> Unit = {},
 ) {
     // 1) Pinta la status bar con el color surface
@@ -174,6 +177,24 @@ fun HomeGradientTopBar(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                         contentColor = MaterialTheme.colorScheme.onSurface
                     ),
+                    onClick = onTelegramClick
+                ) {
+                     // Using Cloud icon as proxy for Telegram if generic, or maybe something better?
+                     // I will assume Icons.Rounded.Cloud is available or verify imports.
+                     // The previous file View showed `Icons` import.
+                     // I'll use a resource or standard icon.
+                     // Since I don't have a Telegram drawable confirmed, I'll use Cloud.
+                    Icon(
+                         imageVector = androidx.compose.material.icons.Icons.Rounded.Cloud,
+                         contentDescription = "Telegram"
+                    )
+                }
+                androidx.compose.foundation.layout.Spacer(Modifier.size(8.dp))
+                FilledIconButton(
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    ),
                     onClick = onMoreOptionsClick
                 ) {
                     Icon(
@@ -182,6 +203,7 @@ fun HomeGradientTopBar(
                         contentDescription = "Changelog"
                     )
                 }
+                androidx.compose.foundation.layout.Spacer(Modifier.size(8.dp))
                 FilledIconButton(
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,

@@ -1,16 +1,14 @@
 package com.theveloper.pixelplay.data.ai
 
 import com.google.ai.client.generativeai.GenerativeModel
+import com.google.ai.client.generativeai.type.SerializationException
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
-import com.google.ai.client.generativeai.type.SerializationException
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import timber.log.Timber
 import javax.inject.Inject
-import kotlin.Result
 
 @Serializable
 data class SongMetadata(

@@ -56,6 +56,7 @@ import android.os.Trace // Import Trace
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
@@ -327,7 +328,7 @@ fun DailyMixScreen(
                 .clip(CircleShape)
         ) {
             Icon(
-                imageVector = Icons.Rounded.ArrowBack,
+                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                 contentDescription = "Volver"
             )
         }

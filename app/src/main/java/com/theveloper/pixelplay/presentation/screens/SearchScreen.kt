@@ -84,6 +84,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.ui.platform.LocalDensity
@@ -1000,7 +1001,7 @@ fun SearchResultPlaylistItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Rounded.PlaylistPlay,
+                imageVector = Icons.AutoMirrored.Rounded.PlaylistPlay,
                 contentDescription = "Playlist",
                 modifier = Modifier
                     .size(56.dp)

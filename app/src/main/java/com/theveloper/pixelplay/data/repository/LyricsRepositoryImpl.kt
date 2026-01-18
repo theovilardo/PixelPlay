@@ -273,6 +273,21 @@ class LyricsRepositoryImpl @Inject constructor(
                 }.getOrNull()
             }
 
+            // Strategy 4: Aggressive fallback - remove artist and trim title at separators (-, ,, (, ), $, #, :, %)
+            if (results.isNullOrEmpty()) {
+                 val separators = charArrayOf('-', ',', '(', ')', '$', '#', ':', '%')
+                 val index = cleanTitle.indexOfAny(separators)
+                 if (index != -1) {
+                     val superCleanTitle = cleanTitle.substring(0, index).trim()
+                     if (superCleanTitle.isNotEmpty()) {
+                          Log.d(TAG, "Strategy 4: Searching with super simplified title: '$superCleanTitle' (no artist)")
+                          results = runCatching {
+                                lrcLibApiService.searchLyrics(trackName = superCleanTitle)
+                          }.getOrNull()
+                     }
+                 }
+            }
+
             if (results.isNullOrEmpty()) {
                 Log.d(TAG, "No results from LRCLIB API")
                 return@withContext null
@@ -298,8 +313,13 @@ class LyricsRepositoryImpl @Inject constructor(
                     if (parsedLyrics.isValid()) {
                         Log.d(TAG, "LRCLIB lyrics found - Synced: ${!bestMatch.syncedLyrics.isNullOrBlank()}, Plain: ${!bestMatch.plainLyrics.isNullOrBlank()}")
                         
-                        // Save to database
-                        musicDao.updateLyrics(song.id.toLong(), rawLyrics)
+                        // Save to database (only if ID is numeric/local)
+                        try {
+                            val songIdLong = song.id.toLong()
+                            musicDao.updateLyrics(songIdLong, rawLyrics)
+                        } catch (e: NumberFormatException) {
+                            Log.w(TAG, "Skipping database save for non-numeric song ID: ${song.id} (likely Telegram song). Lyrics will be cached in JSON.")
+                        }
                         
                         return@withContext parsedLyrics
                     }
@@ -437,6 +457,11 @@ class LyricsRepositoryImpl @Inject constructor(
                 return@withContext parsedLyrics.copy(areFromRemote = false)
             }
         }
+        
+        // Skip embedded lyrics for Telegram songs (not supported yet/streamed)
+        if (song.contentUriString.startsWith("telegram://") || song.contentUriString.isEmpty()) {
+            return@withContext null
+        }
 
         // Then try to read from file metadata
         return@withContext try {
@@ -488,7 +513,11 @@ class LyricsRepositoryImpl @Inject constructor(
                     val best = results.first()
                     val rawLyricsToSave = best.rawLyrics
 
-                    musicDao.updateLyrics(song.id.toLong(), rawLyricsToSave)
+                    try {
+                        musicDao.updateLyrics(song.id.toLong(), rawLyricsToSave)
+                    } catch (e: NumberFormatException) {
+                        Log.w(TAG, "Skipping DB update for non-numeric ID: ${song.id}")
+                    }
 
                     val cacheKey = generateCacheKey(song.id)
                     synchronized(lyricsCache) {
@@ -516,7 +545,11 @@ class LyricsRepositoryImpl @Inject constructor(
                     return@withContext Result.failure(LyricsException("Parsed lyrics are empty"))
                 }
 
-                musicDao.updateLyrics(song.id.toLong(), rawLyricsToSave)
+                try {
+                    musicDao.updateLyrics(song.id.toLong(), rawLyricsToSave)
+                } catch (e: NumberFormatException) {
+                    Log.w(TAG, "Skipping DB update for non-numeric ID in fallback: ${song.id}")
+                }
 
                 val cacheKey = generateCacheKey(song.id)
                 synchronized(lyricsCache) {
@@ -677,7 +710,11 @@ class LyricsRepositoryImpl @Inject constructor(
         synchronized(lyricsCache) {
             lyricsCache.remove(cacheKey)
         }
-        musicDao.resetLyrics(songId)
+        try {
+            musicDao.resetLyrics(songId)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error resetting DB lyrics for ID: $songId", e)
+        }
         
         // Also remove JSON cache
         try {
@@ -762,9 +799,13 @@ class LyricsRepositoryImpl @Inject constructor(
                                     val content = foundFile.readText()
                                     // Verify validity
                                     if (LyricsUtils.parseLyrics(content).isValid()) {
-                                        musicDao.updateLyrics(song.id.toLong(), content)
-                                        updatedCount.incrementAndGet()
-                                        LogUtils.d(this@LyricsRepositoryImpl, "Auto-assigned lyrics from ${foundFile.name}")
+                                        try {
+                                            musicDao.updateLyrics(song.id.toLong(), content)
+                                            updatedCount.incrementAndGet()
+                                            LogUtils.d(this@LyricsRepositoryImpl, "Auto-assigned lyrics from ${foundFile.name}")
+                                        } catch (e: NumberFormatException) {
+                                            Log.w(TAG, "Skipping DB update for non-numeric ID in scanner: ${song.id}")
+                                        }
                                     }
                                 }
                             }

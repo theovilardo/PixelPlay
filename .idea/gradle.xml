@@ -6,7 +6,6 @@
       <GradleProjectSettings>
         <option name="testRunner" value="CHOOSE_PER_TEST" />
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
-        <option name="gradleHome" value="/usr/share/java/gradle" />
         <option name="gradleJvm" value="jbr-21" />
         <option name="modules">
           <set>
@@ -15,7 +14,9 @@
             <option value="$PROJECT_DIR$/baselineprofile" />
           </set>
         </option>
+        <option name="resolveExternalAnnotations" value="true" />
       </GradleProjectSettings>
     </option>
+    <option name="parallelModelFetch" value="true" />
   </component>
 </project>

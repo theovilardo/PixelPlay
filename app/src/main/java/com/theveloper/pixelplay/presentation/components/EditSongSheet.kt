@@ -50,6 +50,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.ui.platform.LocalContext
@@ -489,7 +490,7 @@ private fun EditSongContent(
                             shape = textFieldShape,
                             onValueChange = { lyrics = it },
                             placeholder = { Text("Lyrics") },
-                            leadingIcon = { Icon(Icons.Rounded.Notes, tint = MaterialTheme.colorScheme.primary, contentDescription = "Lyrics Icon") },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Notes, tint = MaterialTheme.colorScheme.primary, contentDescription = "Lyrics Icon") },
                             modifier = Modifier
                                 .weight(1f)
                                 .height(150.dp)

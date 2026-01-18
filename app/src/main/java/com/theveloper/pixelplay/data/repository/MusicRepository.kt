@@ -11,6 +11,7 @@ import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
 import com.theveloper.pixelplay.data.model.Song
 import kotlinx.coroutines.flow.Flow
+import com.theveloper.pixelplay.data.database.TelegramChannelEntity
 
 interface MusicRepository {
     /**
@@ -169,4 +170,12 @@ interface MusicRepository {
     fun getMusicFolders(): Flow<List<com.theveloper.pixelplay.data.model.MusicFolder>>
 
     suspend fun deleteById(id: Long)
+    
+    suspend fun saveTelegramSongs(songs: List<Song>)
+    
+    suspend fun clearTelegramData()
+
+    suspend fun saveTelegramChannel(channel: TelegramChannelEntity)
+    fun getAllTelegramChannels(): Flow<List<TelegramChannelEntity>>
+    suspend fun deleteTelegramChannel(chatId: Long)
 }

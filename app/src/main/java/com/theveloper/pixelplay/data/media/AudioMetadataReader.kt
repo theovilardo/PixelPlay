@@ -6,7 +6,6 @@ import android.os.ParcelFileDescriptor
 import com.kyant.taglib.TagLib
 import timber.log.Timber
 import java.io.File
-import java.io.FileOutputStream
 
 data class AudioMetadata(
     val title: String?,

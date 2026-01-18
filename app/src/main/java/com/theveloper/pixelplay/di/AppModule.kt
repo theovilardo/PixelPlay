@@ -81,7 +81,9 @@ object AppModule {
             PixelPlayDatabase.MIGRATION_4_5,
             PixelPlayDatabase.MIGRATION_6_7,
             PixelPlayDatabase.MIGRATION_9_10,
-            PixelPlayDatabase.MIGRATION_10_11
+            PixelPlayDatabase.MIGRATION_10_11,
+            PixelPlayDatabase.MIGRATION_11_12,
+            PixelPlayDatabase.MIGRATION_12_13
         )
             .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
@@ -148,6 +150,12 @@ object AppModule {
         )
     }
 
+    @Singleton
+    @Provides
+    fun provideTelegramDao(database: PixelPlayDatabase): com.theveloper.pixelplay.data.database.TelegramDao {
+        return database.telegramDao()
+    }
+
     @Provides
     @Singleton
     fun provideMusicRepository(
@@ -155,14 +163,20 @@ object AppModule {
         userPreferencesRepository: UserPreferencesRepository,
         searchHistoryDao: SearchHistoryDao,
         musicDao: MusicDao, // Añadir MusicDao como parámetro
-        lyricsRepository: LyricsRepository
+        lyricsRepository: LyricsRepository,
+        telegramDao: com.theveloper.pixelplay.data.database.TelegramDao,
+        telegramCacheManager: com.theveloper.pixelplay.data.telegram.TelegramCacheManager,
+        telegramRepository: com.theveloper.pixelplay.data.telegram.TelegramRepository
     ): MusicRepository {
         return MusicRepositoryImpl(
             context = context,
             userPreferencesRepository = userPreferencesRepository,
             searchHistoryDao = searchHistoryDao,
             musicDao = musicDao,
-            lyricsRepository = lyricsRepository
+            lyricsRepository = lyricsRepository,
+            telegramDao = telegramDao,
+            telegramCacheManager = telegramCacheManager,
+            telegramRepository = telegramRepository
         )
     }
 
