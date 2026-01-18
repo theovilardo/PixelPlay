@@ -1,16 +1,18 @@
-
 package com.theveloper.pixelplay.presentation.viewmodel
 
+import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.repository.ArtistImageRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -39,6 +41,7 @@ data class ArtistAlbumSection(
 
 @HiltViewModel
 class ArtistDetailViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val musicRepository: MusicRepository,
     private val artistImageRepository: ArtistImageRepository,
     savedStateHandle: SavedStateHandle
@@ -54,10 +57,10 @@ class ArtistDetailViewModel @Inject constructor(
             if (artistId != null) {
                 loadArtistData(artistId)
             } else {
-                _uiState.update { it.copy(error = "El ID del artista no es válido.", isLoading = false) }
+                _uiState.update { it.copy(error = context.getString(R.string.invalid_artist_id), isLoading = false) }
             }
         } else {
-            _uiState.update { it.copy(error = "Artist ID no encontrado", isLoading = false) }
+            _uiState.update { it.copy(error = context.getString(R.string.artist_id_not_found), isLoading = false) }
         }
     }
 
@@ -82,13 +85,20 @@ class ArtistDetailViewModel @Inject constructor(
                         )
                     } else {
                         ArtistDetailUiState(
-                            error = "No se pudo encontrar el artista.",
+                            error = context.getString(R.string.could_not_find_artist),
                             isLoading = false
                         )
                     }
                 }
                     .catch { e ->
-                        emit(ArtistDetailUiState(error = "Error al cargar datos del artista: ${e.localizedMessage}", isLoading = false))
+                        emit(
+                            ArtistDetailUiState(
+                                error = context.getString(
+                                    R.string.error_loading_artist,
+                                    e.localizedMessage ?: ""
+                                ), isLoading = false
+                            )
+                        )
                     }
                     .collect { newState ->
                         _uiState.value = newState
@@ -115,7 +125,7 @@ class ArtistDetailViewModel @Inject constructor(
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
-                        error = "Error al cargar datos del artista: ${e.localizedMessage}",
+                        error = context.getString(R.string.error_loading_artist, e.localizedMessage ?: ""),
                         isLoading = false
                     )
                 }

@@ -43,6 +43,7 @@ data class SettingsUiState(
     val showQueueHistory: Boolean = true,
     val isCrossfadeEnabled: Boolean = true,
     val crossfadeDuration: Int = 6000,
+    val persistentShuffleEnabled: Boolean = false,
     val lyricsSourcePreference: LyricsSourcePreference = LyricsSourcePreference.EMBEDDED_FIRST,
     val autoScanLrcFiles: Boolean = false,
     val blockedDirectories: Set<String> = emptySet(),
@@ -206,6 +207,12 @@ class SettingsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            userPreferencesRepository.persistentShuffleEnabledFlow.collect { enabled ->
+                _uiState.update { it.copy(persistentShuffleEnabled = enabled) }
+            }
+        }
+
+        viewModelScope.launch {
             userPreferencesRepository.lyricsSourcePreferenceFlow.collect { preference ->
                 _uiState.update { it.copy(lyricsSourcePreference = preference) }
             }
@@ -339,6 +346,12 @@ class SettingsViewModel @Inject constructor(
     fun setCrossfadeDuration(duration: Int) {
         viewModelScope.launch {
             userPreferencesRepository.setCrossfadeDuration(duration)
+        }
+    }
+
+    fun setPersistentShuffleEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setPersistentShuffleEnabled(enabled)
         }
     }
 

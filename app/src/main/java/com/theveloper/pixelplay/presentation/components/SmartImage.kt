@@ -92,8 +92,6 @@ fun SmartImage(
             .diskCachePolicy(if (useDiskCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
             .memoryCachePolicy(if (useMemoryCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
             .allowHardware(allowHardware)
-            .memoryCacheKey(model?.toString()?.plus("_${targetSize.width}x${targetSize.height}"))
-            .diskCacheKey(model?.toString()?.plus("_${targetSize.width}x${targetSize.height}"))
             .apply {
                 size(targetSize)
             }
