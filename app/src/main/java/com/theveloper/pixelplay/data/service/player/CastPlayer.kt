@@ -15,6 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import timber.log.Timber
 
 class CastPlayer(private val castSession: CastSession) {
@@ -115,7 +116,7 @@ class CastPlayer(private val castSession: CastSession) {
             }
             val minimalMediaInfo = currentSongForLoad.toMediaInfo(
                 serverAddress = serverAddress,
-                includeMetadata = false,
+                includeMetadata = true,
                 includeDuration = true,
                 streamType = MediaInfo.STREAM_TYPE_BUFFERED
             )
@@ -327,6 +328,7 @@ class CastPlayer(private val castSession: CastSession) {
         val mediaInfo = toMediaInfo(serverAddress, includeMetadata = true, includeDuration = true)
         return MediaQueueItem.Builder(mediaInfo)
             .setItemId(itemId)
+            .setCustomData(buildCastCustomData())
             .build()
     }
 
@@ -369,6 +371,7 @@ class CastPlayer(private val castSession: CastSession) {
         val builder = MediaInfo.Builder(mediaUrl)
             .setStreamType(streamType)
             .setContentType(contentType)
+            .setCustomData(buildCastCustomData())
 
         if (includeDuration && this.duration > 0) {
             builder.setStreamDuration(this.duration)
@@ -378,6 +381,15 @@ class CastPlayer(private val castSession: CastSession) {
         }
 
         return builder.build()
+    }
+
+    private fun Song.buildCastCustomData(): JSONObject {
+        return JSONObject().apply {
+            put("songId", id)
+            put("title", title)
+            put("artist", artist)
+            put("album", album)
+        }
     }
 
     fun seek(position: Long) {
