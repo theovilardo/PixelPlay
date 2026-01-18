@@ -398,6 +398,8 @@ class MediaFileHttpServerService : Service() {
                     val inputStream = java.io.FileInputStream(pfd.fileDescriptor)
                     call.response.header(HttpHeaders.AcceptRanges, "bytes")
                     if (sendBody) {
+                        call.response.header(HttpHeaders.ContentType, audioContentType.toString())
+                        call.response.header(HttpHeaders.ContentLength, fileSize.toString())
                         val bytes = withContext(Dispatchers.IO) {
                             inputStream.readBytes()
                         }
@@ -463,6 +465,8 @@ class MediaFileHttpServerService : Service() {
             val bytes = withContext(Dispatchers.IO) {
                 inputStream.readBytes()
             }
+            call.response.header(HttpHeaders.ContentType, contentType.toString())
+            call.response.header(HttpHeaders.ContentLength, bytes.size.toString())
             call.respondBytes(bytes, contentType)
         } ?: call.respond(HttpStatusCode.InternalServerError, "Could not open album art file")
     }
