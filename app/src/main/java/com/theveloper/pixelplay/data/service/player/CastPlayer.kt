@@ -358,18 +358,10 @@ class CastPlayer(private val castSession: CastSession) {
             null
         }
 
-        // Determine extension for URL (helps some receivers like AirReceiver/DLNA)
-        val extension = when {
-            this.mimeType.equals("audio/flac", ignoreCase = true) -> "flac"
-            this.mimeType.equals("audio/mp4", ignoreCase = true) -> "m4a"
-            this.mimeType.equals("audio/x-m4a", ignoreCase = true) -> "m4a"
-            this.mimeType.equals("audio/ogg", ignoreCase = true) -> "ogg"
-            else -> "mp3"
-        }
+        val extension = resolveCastExtension()
         val mediaUrl = "$serverAddress/song/${this.id}.$extension"
 
-        // Use actual MIME type from the song, fallback to audio/mpeg if unknown
-        val contentType = this.mimeType?.takeIf { it.isNotBlank() && it != "-" } ?: "audio/mpeg"
+        val contentType = resolveCastMimeType()
 
         Timber.tag(CAST_TAG).d(
             "Generating MediaInfo: $mediaUrl | Mime: $contentType | Metadata=%s",
@@ -389,6 +381,43 @@ class CastPlayer(private val castSession: CastSession) {
         }
 
         return builder.build()
+    }
+
+    private fun Song.resolveCastExtension(): String {
+        val mime = mimeType?.takeIf { it.isNotBlank() && it != "-" }
+        if (mime != null) {
+            return when {
+                mime.equals("audio/flac", ignoreCase = true) -> "flac"
+                mime.equals("audio/mp4", ignoreCase = true) -> "m4a"
+                mime.equals("audio/x-m4a", ignoreCase = true) -> "m4a"
+                mime.equals("audio/ogg", ignoreCase = true) -> "ogg"
+                mime.equals("audio/wav", ignoreCase = true) -> "wav"
+                mime.equals("audio/aac", ignoreCase = true) -> "aac"
+                else -> "mp3"
+            }
+        }
+        val pathExtension = path.substringAfterLast('.', "").lowercase()
+        return when (pathExtension) {
+            "flac", "m4a", "mp3", "ogg", "wav", "aac" -> pathExtension
+            "mp4" -> "m4a"
+            else -> "mp3"
+        }
+    }
+
+    private fun Song.resolveCastMimeType(): String {
+        val mime = mimeType?.takeIf { it.isNotBlank() && it != "-" }
+        if (mime != null) {
+            return mime
+        }
+        return when (val pathExtension = path.substringAfterLast('.', "").lowercase()) {
+            "flac" -> "audio/flac"
+            "m4a", "mp4" -> "audio/mp4"
+            "ogg" -> "audio/ogg"
+            "wav" -> "audio/wav"
+            "aac" -> "audio/aac"
+            "mp3" -> "audio/mpeg"
+            else -> "audio/mpeg"
+        }
     }
 
     private fun Song.buildCastCustomData(): JSONObject {
