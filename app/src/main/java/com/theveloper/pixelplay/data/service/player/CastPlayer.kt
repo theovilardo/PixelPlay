@@ -118,6 +118,7 @@ class CastPlayer(private val castSession: CastSession) {
                 serverAddress = serverAddress,
                 includeMetadata = true,
                 includeDuration = !useMinimalQueue,
+                includeCustomData = !useMinimalQueue,
                 streamType = if (useMinimalQueue) {
                     MediaInfo.STREAM_TYPE_LIVE
                 } else {
@@ -333,7 +334,12 @@ class CastPlayer(private val castSession: CastSession) {
     }
 
     private fun Song.toMediaQueueItem(serverAddress: String, itemId: Int): MediaQueueItem {
-        val mediaInfo = toMediaInfo(serverAddress, includeMetadata = true, includeDuration = true)
+        val mediaInfo = toMediaInfo(
+            serverAddress = serverAddress,
+            includeMetadata = true,
+            includeDuration = true,
+            includeCustomData = true
+        )
         return MediaQueueItem.Builder(mediaInfo)
             .setItemId(itemId)
             .setCustomData(buildCastCustomData())
@@ -344,6 +350,7 @@ class CastPlayer(private val castSession: CastSession) {
         serverAddress: String,
         includeMetadata: Boolean,
         includeDuration: Boolean,
+        includeCustomData: Boolean,
         streamType: Int = MediaInfo.STREAM_TYPE_BUFFERED
     ): MediaInfo {
         val mediaMetadata = if (includeMetadata) {
@@ -371,7 +378,9 @@ class CastPlayer(private val castSession: CastSession) {
         val builder = MediaInfo.Builder(mediaUrl)
             .setStreamType(streamType)
             .setContentType(contentType)
-            .setCustomData(buildCastCustomData())
+        if (includeCustomData) {
+            builder.setCustomData(buildCastCustomData())
+        }
 
         if (includeDuration && this.duration > 0) {
             builder.setStreamDuration(this.duration)
