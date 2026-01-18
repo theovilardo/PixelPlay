@@ -5,8 +5,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -44,6 +46,8 @@ import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.DragIndicator
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.AlertDialog
@@ -77,12 +81,14 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -124,6 +130,7 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import com.theveloper.pixelplay.presentation.components.LibrarySortBottomSheet
 import com.theveloper.pixelplay.data.model.SortOption
+import com.theveloper.pixelplay.data.model.SortOrder
 import com.theveloper.pixelplay.data.model.PlaylistShapeType
 import kotlinx.coroutines.launch
 
@@ -266,15 +273,60 @@ fun PlaylistDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = {
-                            playerViewModel.showSortingSheet() 
+                    // Coupled buttons
+                    val currentPlaylistSongsSortOption = uiState.currentPlaylistSongsSortOption
+                    val currentPlaylistSongsSortOrder = uiState.currentPlaylistSongsSortOrder
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FilledTonalIconButton(
+                            onClick = {
+                                val newOrder = if (currentPlaylistSongsSortOrder == SortOrder.ASCENDING) SortOrder.DESCENDING else SortOrder.ASCENDING
+                                playlistViewModel.sortPlaylistSongs(currentPlaylistSongsSortOption, newOrder)
+                            },
+                            shape = RoundedCornerShape(topStart = 26.dp, bottomStart = 26.dp, topEnd = 4.dp, bottomEnd = 4.dp),
+                            modifier = Modifier.width(48.dp),
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        ) {
+                            var rotation by remember { mutableFloatStateOf(if (currentPlaylistSongsSortOrder == SortOrder.ASCENDING) 0f else 180f) }
+                            var lastSortOrder by remember { mutableStateOf(currentPlaylistSongsSortOrder) }
+
+                            LaunchedEffect(currentPlaylistSongsSortOrder) {
+                                if (currentPlaylistSongsSortOrder != lastSortOrder) {
+                                    rotation += 180f
+                                    lastSortOrder = currentPlaylistSongsSortOrder
+                                }
+                            }
+
+                            val animatedRotation by animateFloatAsState(
+                                targetValue = rotation,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessLow
+                                ),
+                                label = "SortOrderRotation"
+                            )
+                            Icon(
+                                imageVector = Icons.Rounded.ArrowUpward,
+                                contentDescription = if (currentPlaylistSongsSortOrder == SortOrder.ASCENDING) "Ascending" else "Descending",
+                                modifier = Modifier.rotate(animatedRotation)
+                            )
                         }
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.Sort,
-                            contentDescription = "Sort Songs"
-                        )
+                        FilledTonalIconButton(
+                            onClick = { playerViewModel.showSortingSheet() },
+                            shape = RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp, topEnd = 26.dp, bottomEnd = 26.dp),
+                            modifier = Modifier.width(48.dp),
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.Sort,
+                                contentDescription = "Sort Options",
+                            )
+                        }
                     }
                     if (!isFolderPlaylist) {
                         FilledTonalIconButton(
@@ -877,18 +929,18 @@ fun PlaylistDetailScreen(
         } else if ((isFolderPlaylist || currentPlaylist != null) && rawOption != null) {
             rawOption
         } else {
-            SortOption.SongTitleAZ
+            SortOption.SongTitle
         }
 
         // Build options list inline to avoid potential static initialization issues
         val songSortOptions = listOf(
             SortOption.SongDefaultOrder,
-            SortOption.SongTitleAZ,
-            SortOption.SongTitleZA,
+            SortOption.SongTitle,
             SortOption.SongArtist,
             SortOption.SongAlbum,
             SortOption.SongDateAdded,
-            SortOption.SongDuration
+            SortOption.SongDuration,
+            SortOption.SongReleaseYear
         )
 
         LibrarySortBottomSheet(
@@ -897,7 +949,8 @@ fun PlaylistDetailScreen(
             selectedOption = currentSortOption,
             onDismiss = { playerViewModel.hideSortingSheet() },
             onOptionSelected = { option ->
-                 playlistViewModel.sortPlaylistSongs(option)
+                 val currentOrder = uiState.currentPlaylistSongsSortOrder
+                 playlistViewModel.sortPlaylistSongs(option, currentOrder)
                  playerViewModel.hideSortingSheet()
                  // Auto-scroll to first item after sorting (delay to allow list to update)
                  scope.launch {

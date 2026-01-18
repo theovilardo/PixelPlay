@@ -13,7 +13,8 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.media3.common.Player
 import com.theveloper.pixelplay.data.model.Playlist
-import com.theveloper.pixelplay.data.model.SortOption // Added import
+import com.theveloper.pixelplay.data.model.SortOption
+import com.theveloper.pixelplay.data.model.SortOrder // Added import
 import com.theveloper.pixelplay.data.model.LyricsSourcePreference
 import com.theveloper.pixelplay.data.model.TransitionSettings
 import com.theveloper.pixelplay.data.equalizer.EqualizerPreset // Added import
@@ -75,6 +76,13 @@ constructor(
         val ARTISTS_SORT_OPTION = stringPreferencesKey("artists_sort_option")
         val PLAYLISTS_SORT_OPTION = stringPreferencesKey("playlists_sort_option")
         val LIKED_SONGS_SORT_OPTION = stringPreferencesKey("liked_songs_sort_option")
+
+        // Sort Order Keys
+        val SONGS_SORT_ORDER = stringPreferencesKey("songs_sort_order")
+        val ALBUMS_SORT_ORDER = stringPreferencesKey("albums_sort_order")
+        val ARTISTS_SORT_ORDER = stringPreferencesKey("artists_sort_order")
+        val PLAYLISTS_SORT_ORDER = stringPreferencesKey("playlists_sort_order")
+        val LIKED_SONGS_SORT_ORDER = stringPreferencesKey("liked_songs_sort_order")
 
         // UI State Keys
         val LAST_LIBRARY_TAB_INDEX =
@@ -524,6 +532,12 @@ constructor(
                         ?: ThemePreference.ALBUM_ART // Default to Album Art
             }
 
+    suspend fun setPlayerThemePreference(theme: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.PLAYER_THEME_PREFERENCE] = theme
+        }
+    }
+
     val appThemeModeFlow: Flow<String> =
             dataStore.data.map { preferences ->
                 preferences[PreferencesKeys.APP_THEME_MODE] ?: AppThemeMode.FOLLOW_SYSTEM
@@ -821,12 +835,6 @@ constructor(
         }
     }
 
-    suspend fun setPlayerThemePreference(themeMode: String) {
-        dataStore.edit { preferences ->
-            preferences[PreferencesKeys.PLAYER_THEME_PREFERENCE] = themeMode
-        }
-    }
-
     suspend fun setAppThemeMode(themeMode: String) {
         dataStore.edit { preferences -> preferences[PreferencesKeys.APP_THEME_MODE] = themeMode }
     }
@@ -853,67 +861,101 @@ constructor(
     }
 
     // Flows for Sort Options
-    val songsSortOptionFlow: Flow<String> =
-            dataStore.data.map { preferences ->
-                SortOption.fromStorageKey(
-                                preferences[PreferencesKeys.SONGS_SORT_OPTION],
-                                SortOption.SONGS,
-                                SortOption.SongTitleAZ
-                        )
-                        .storageKey
-            }
+    val songsSortOptionFlow: Flow<SortOption> = dataStore.data.map { preferences ->
+        val raw = preferences[PreferencesKeys.SONGS_SORT_OPTION]
+        val (resolved, _) = SortOption.fromStorageKey(raw, SortOption.SONGS, SortOption.SongTitle)
+        resolved
+    }
 
-    val albumsSortOptionFlow: Flow<String> =
-            dataStore.data.map { preferences ->
-                SortOption.fromStorageKey(
-                                preferences[PreferencesKeys.ALBUMS_SORT_OPTION],
-                                SortOption.ALBUMS,
-                                SortOption.AlbumTitleAZ
-                        )
-                        .storageKey
-            }
+    val albumsSortOptionFlow: Flow<SortOption> = dataStore.data.map { preferences ->
+        val raw = preferences[PreferencesKeys.ALBUMS_SORT_OPTION]
+        val (resolved, _) = SortOption.fromStorageKey(raw, SortOption.ALBUMS, SortOption.AlbumTitle)
+        resolved
+    }
 
-    val artistsSortOptionFlow: Flow<String> =
-            dataStore.data.map { preferences ->
-                SortOption.fromStorageKey(
-                                preferences[PreferencesKeys.ARTISTS_SORT_OPTION],
-                                SortOption.ARTISTS,
-                                SortOption.ArtistNameAZ
-                        )
-                        .storageKey
-            }
+    val artistsSortOptionFlow: Flow<SortOption> = dataStore.data.map { preferences ->
+        val raw = preferences[PreferencesKeys.ARTISTS_SORT_OPTION]
+        val (resolved, _) = SortOption.fromStorageKey(raw, SortOption.ARTISTS, SortOption.ArtistName)
+        resolved
+    }
 
-    val playlistsSortOptionFlow: Flow<String> =
-            dataStore.data.map { preferences ->
-                SortOption.fromStorageKey(
-                                preferences[PreferencesKeys.PLAYLISTS_SORT_OPTION],
-                                SortOption.PLAYLISTS,
-                                SortOption.PlaylistNameAZ
-                        )
-                        .storageKey
-            }
+    val playlistsSortOptionFlow: Flow<SortOption> = dataStore.data.map { preferences ->
+        val raw = preferences[PreferencesKeys.PLAYLISTS_SORT_OPTION]
+        val (resolved, _) = SortOption.fromStorageKey(raw, SortOption.PLAYLISTS, SortOption.PlaylistName)
+        resolved
+    }
 
-    val likedSongsSortOptionFlow: Flow<String> =
-            dataStore.data.map { preferences ->
-                SortOption.fromStorageKey(
-                                preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION],
-                                SortOption.LIKED,
-                                SortOption.LikedSongDateLiked
-                        )
-                        .storageKey
-            }
+    val likedSongsSortOptionFlow: Flow<SortOption> = dataStore.data.map { preferences ->
+        val raw = preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION]
+        val (resolved, _) = SortOption.fromStorageKey(raw, SortOption.LIKED, SortOption.LikedSongDateLiked)
+        resolved
+    }
 
-    // Functions to update Sort Options
-    suspend fun setSongsSortOption(optionKey: String) {
+    // Flows for Sort Orders
+    val songsSortOrderFlow: Flow<SortOrder> = dataStore.data.map { preferences ->
+        val raw = preferences[PreferencesKeys.SONGS_SORT_ORDER]
+        if (raw != null) SortOrder.valueOf(raw) else SortOrder.ASCENDING
+    }
+
+    val albumsSortOrderFlow: Flow<SortOrder> = dataStore.data.map { preferences ->
+        val raw = preferences[PreferencesKeys.ALBUMS_SORT_ORDER]
+        if (raw != null) SortOrder.valueOf(raw) else SortOrder.ASCENDING
+    }
+
+    val artistsSortOrderFlow: Flow<SortOrder> = dataStore.data.map { preferences ->
+        val raw = preferences[PreferencesKeys.ARTISTS_SORT_ORDER]
+        if (raw != null) SortOrder.valueOf(raw) else SortOrder.ASCENDING
+    }
+
+    val playlistsSortOrderFlow: Flow<SortOrder> = dataStore.data.map { preferences ->
+        val raw = preferences[PreferencesKeys.PLAYLISTS_SORT_ORDER]
+        if (raw != null) SortOrder.valueOf(raw) else SortOrder.ASCENDING
+    }
+
+    val likedSongsSortOrderFlow: Flow<SortOrder> = dataStore.data.map { preferences ->
+        val raw = preferences[PreferencesKeys.LIKED_SONGS_SORT_ORDER]
+        if (raw != null) SortOrder.valueOf(raw) else SortOrder.DESCENDING // Default to descending for liked songs (recent first)
+    }
+
+    suspend fun setSongsSortOption(option: SortOption) {
         dataStore.edit { preferences ->
-            preferences[PreferencesKeys.SONGS_SORT_OPTION] = optionKey
-            preferences[PreferencesKeys.SONGS_SORT_OPTION_MIGRATED] = true
+            preferences[PreferencesKeys.SONGS_SORT_OPTION] = option.storageKey
         }
     }
 
-    suspend fun setAlbumsSortOption(optionKey: String) {
+    suspend fun setSongsSortOrder(order: SortOrder) {
         dataStore.edit { preferences ->
-            preferences[PreferencesKeys.ALBUMS_SORT_OPTION] = optionKey
+            preferences[PreferencesKeys.SONGS_SORT_ORDER] = order.name
+        }
+    }
+
+    suspend fun setAlbumsSortOption(option: SortOption) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.ALBUMS_SORT_OPTION] = option.storageKey
+        }
+    }
+
+    suspend fun setAlbumsSortOrder(order: SortOrder) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.ALBUMS_SORT_ORDER] = order.name
+        }
+    }
+
+    suspend fun setArtistsSortOrder(order: SortOrder) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.ARTISTS_SORT_ORDER] = order.name
+        }
+    }
+
+    suspend fun setPlaylistsSortOrder(order: SortOrder) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.PLAYLISTS_SORT_ORDER] = order.name
+        }
+    }
+
+    suspend fun setLikedSongsSortOrder(order: SortOrder) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.LIKED_SONGS_SORT_ORDER] = order.name
         }
     }
 
@@ -939,17 +981,17 @@ constructor(
         dataStore.edit { preferences ->
             val songsMigrated = preferences[PreferencesKeys.SONGS_SORT_OPTION_MIGRATED] ?: false
             val rawSongSort = preferences[PreferencesKeys.SONGS_SORT_OPTION]
-            val resolvedSongSort =
-                    SortOption.fromStorageKey(rawSongSort, SortOption.SONGS, SortOption.SongTitleAZ)
+            val (resolvedSongSort, _) =
+                    SortOption.fromStorageKey(rawSongSort, SortOption.SONGS, SortOption.SongTitle)
             val shouldForceSongDefault =
                     !songsMigrated &&
                             (rawSongSort.isNullOrBlank() ||
-                                    rawSongSort == SortOption.SongTitleZA.storageKey ||
-                                    rawSongSort == SortOption.SongTitleZA.displayName)
+                                    rawSongSort == "song_title_za" || // Hardcoded old key
+                                    rawSongSort == "Title (Z-A)") // Hardcoded old display name
 
             preferences[PreferencesKeys.SONGS_SORT_OPTION] =
                     if (shouldForceSongDefault) {
-                        SortOption.SongTitleAZ.storageKey
+                        SortOption.SongTitle.storageKey
                     } else {
                         resolvedSongSort.storageKey
                     }
@@ -961,25 +1003,25 @@ constructor(
                     preferences,
                     PreferencesKeys.SONGS_SORT_OPTION,
                     SortOption.SONGS,
-                    SortOption.SongTitleAZ
+                    SortOption.SongTitle
             )
             migrateSortPreference(
                     preferences,
                     PreferencesKeys.ALBUMS_SORT_OPTION,
                     SortOption.ALBUMS,
-                    SortOption.AlbumTitleAZ
+                    SortOption.AlbumTitle
             )
             migrateSortPreference(
                     preferences,
                     PreferencesKeys.ARTISTS_SORT_OPTION,
                     SortOption.ARTISTS,
-                    SortOption.ArtistNameAZ
+                    SortOption.ArtistName
             )
             migrateSortPreference(
                     preferences,
                     PreferencesKeys.PLAYLISTS_SORT_OPTION,
                     SortOption.PLAYLISTS,
-                    SortOption.PlaylistNameAZ
+                    SortOption.PlaylistName
             )
             migrateSortPreference(
                     preferences,
@@ -996,7 +1038,7 @@ constructor(
             allowed: Collection<SortOption>,
             fallback: SortOption
     ) {
-        val resolved = SortOption.fromStorageKey(preferences[key], allowed, fallback)
+        val (resolved, _) = SortOption.fromStorageKey(preferences[key], allowed, fallback)
         if (preferences[key] != resolved.storageKey) {
             preferences[key] = resolved.storageKey
         }
