@@ -117,8 +117,12 @@ class CastPlayer(private val castSession: CastSession) {
             val minimalMediaInfo = currentSongForLoad.toMediaInfo(
                 serverAddress = serverAddress,
                 includeMetadata = true,
-                includeDuration = true,
-                streamType = MediaInfo.STREAM_TYPE_BUFFERED
+                includeDuration = !useMinimalQueue,
+                streamType = if (useMinimalQueue) {
+                    MediaInfo.STREAM_TYPE_LIVE
+                } else {
+                    MediaInfo.STREAM_TYPE_BUFFERED
+                }
             )
             Timber.tag(CAST_TAG).i(
                 "MediaInfo: url=%s mime=%s duration=%d streamType=%d hasMetadata=%s",
@@ -129,7 +133,7 @@ class CastPlayer(private val castSession: CastSession) {
                 minimalMediaInfo.metadata != null
             )
 
-            val safeStartPosition = startPosition.coerceAtLeast(0L)
+            val safeStartPosition = if (useMinimalQueue) 0L else startPosition.coerceAtLeast(0L)
             val startPositionSeconds = safeStartPosition / 1000.0
             val mediaItemsForLoad = if (useMinimalQueue) {
                 listOf(
@@ -226,7 +230,11 @@ class CastPlayer(private val castSession: CastSession) {
                     }
             }
 
-            val attempts = listOf(::attemptQueueLoad, ::attemptLoadRequest, ::attemptLegacyLoad)
+            val attempts = if (useMinimalQueue) {
+                listOf(::attemptLegacyLoad)
+            } else {
+                listOf(::attemptQueueLoad, ::attemptLoadRequest, ::attemptLegacyLoad)
+            }
 
             val attemptDelayMs = if (useMinimalQueue) 1200L else 600L
             val initialDelayMs = if (useMinimalQueue) 1500L else 400L
