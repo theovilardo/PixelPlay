@@ -38,6 +38,19 @@ class TelegramRepository @Inject constructor(
         Timber.d("TelegramRepository: Memory cache cleared")
     }
 
+    /**
+     * Quick check if TDLib is ready to process requests.
+     */
+    fun isReady(): Boolean = clientManager.isReady()
+
+    /**
+     * Suspends until the TDLib client is ready.
+     * @param timeoutMs Maximum time to wait
+     * @return true if ready, false if timed out
+     */
+    suspend fun awaitReady(timeoutMs: Long = 30_000L): Boolean = 
+        clientManager.awaitReady(timeoutMs)
+
     fun sendPhoneNumber(phoneNumber: String) {
         clientManager.sendPhoneNumber(phoneNumber)
     }
@@ -84,7 +97,7 @@ class TelegramRepository @Inject constructor(
                 request.filter = TdApi.SearchMessagesFilterAudio()
                 
                 val response = clientManager.sendRequest<TdApi.FoundChatMessages>(request)
-                Timber.d("SearchChatMessages batch (fromId $nextFromMessageId): found ${response.messages.size} / total ${response.totalCount}")
+                // Timber.d("SearchChatMessages batch (fromId $nextFromMessageId): found ${response.messages.size} / total ${response.totalCount}")
                 
                 if (response.messages.isEmpty()) {
                     break
@@ -114,7 +127,7 @@ class TelegramRepository @Inject constructor(
         return when (content) {
             is TdApi.MessageAudio -> {
                 val audio = content.audio
-                Timber.d("Mapping MessageAudio: ${audio.fileName} (${audio.title} - ${audio.performer})")
+                // Timber.d("Mapping MessageAudio: ${audio.fileName} (${audio.title} - ${audio.performer})")
                 
                 var albumArtPath: String? = null
                 // Priority 1: Main album cover thumbnail (embedded)
@@ -129,14 +142,10 @@ class TelegramRepository @Inject constructor(
                 if (thumbnail != null) {
                      // Use custom URI scheme for Coil Fetcher with ChatID/MessageID for robust lookup
                      albumArtPath = "telegram_art://${message.chatId}/${message.id}"
-                     Timber.d("MessageAudio has thumbnail: $albumArtPath (fileId=${thumbnail.file.id}, size=${thumbnail.file.size})")
-                     
                      // OPTIMIZATION: Populate cache if already downloaded
                      if (thumbnail.file.local.isDownloadingCompleted && thumbnail.file.local.path.isNotEmpty()) {
                          resolvedPathCache[thumbnail.file.id] = thumbnail.file.local.path
                      }
-                } else {
-                     Timber.d("MessageAudio has NO thumbnail")
                 }
                 
                 Song(
@@ -209,10 +218,7 @@ class TelegramRepository @Inject constructor(
                     null
                 }
             }
-            else -> {
-                Timber.d("Skipped message ${message.id} with content: ${content.javaClass.simpleName}")
-                null
-            }
+            else -> null
         }
     }
 
@@ -242,7 +248,12 @@ class TelegramRepository @Inject constructor(
         }
     }
 
-    suspend fun resolveTelegramUri(uriString: String): Int? {
+    suspend fun resolveTelegramUri(uriString: String): Pair<Int, Long>? {
+        // 1. Check Memory Cache
+        uriResolutionCache[uriString]?.let {
+             return it
+        }
+
         val uri = android.net.Uri.parse(uriString)
         if (uri.scheme != "telegram") return null
         
@@ -255,10 +266,35 @@ class TelegramRepository @Inject constructor(
         // we use getMessage which internally calls TdApi.GetMessage
         val message = getMessage(chatId, messageId) ?: return null
         
-        return when (val content = message.content) {
-            is TdApi.MessageAudio -> content.audio.audio.id
-            is TdApi.MessageDocument -> content.document.document.id
+        val result = when (val content = message.content) {
+            is TdApi.MessageAudio -> Pair(content.audio.audio.id, content.audio.audio.size)
+            is TdApi.MessageDocument -> Pair(content.document.document.id, content.document.document.size)
             else -> null
+        }
+        
+        // 2. Populate Cache
+        if (result != null) {
+            uriResolutionCache[uriString] = result
+        }
+        
+        return result
+    }
+
+    /**
+     * Non-blocking (or fire-and-forget) method to populate cache for a URI.
+     * Useful for pre-fetching next/prev songs.
+     */
+    fun preResolveTelegramUri(uriString: String) {
+        if (uriResolutionCache.containsKey(uriString)) return
+        
+        repositoryScope.launch {
+            try {
+                // This calls the suspending resolve which populates the cache
+                resolveTelegramUri(uriString)
+                // Timber.d("Pre-resolved $uriString")
+            } catch (e: Exception) {
+                // Ignore pre-fetch errors
+            }
         }
     }
 
@@ -283,6 +319,10 @@ class TelegramRepository @Inject constructor(
 
     // Cache for resolved paths to avoid repeated IPC calls
     private val resolvedPathCache = java.util.concurrent.ConcurrentHashMap<Int, String>()
+    
+    // Cache for resolved FileId+Size to avoid getMessage calls
+    private val uriResolutionCache = java.util.concurrent.ConcurrentHashMap<String, Pair<Int, Long>>()
+    
     private val repositoryScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
     private val activeDownloads = java.util.concurrent.ConcurrentHashMap<Int, kotlinx.coroutines.Deferred<String?>>()
     
@@ -322,7 +362,7 @@ class TelegramRepository @Inject constructor(
                     val isSmallFile = initialFile?.size == 0L || (initialFile?.size ?: 0) < 1024 * 1024
                     
                     if (isSmallFile) {
-                        Timber.d("Starting SYNCHRONOUS download for fileId: $fileId (Priority $priority)")
+                        Timber.v("Sync download starting for fileId: $fileId")
                         return@withPermit try {
                             // 15 seconds timeout for sync download
                             val resultFile = withTimeout(15_000L) {
@@ -330,25 +370,29 @@ class TelegramRepository @Inject constructor(
                             }
                             
                             if (resultFile.local.isDownloadingCompleted && resultFile.local.path.isNotEmpty()) {
-                                Timber.d("Sync download SUCCESS for $fileId. Path: ${resultFile.local.path}")
                                 resolvedPathCache[fileId] = resultFile.local.path
                                 resultFile.local.path
                             } else {
-                                Timber.w("Sync download returned incomplete for $fileId")
                                 null
                             }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            // Normal during fast scrolling - don't log
+                            throw e
                         } catch (e: Exception) {
-                            Timber.e(e, "Sync download FAILED for $fileId")
+                            // Only log unexpected errors (not cancellations or file-not-found)
+                            if (e.message?.contains("canceled") != true && e.message?.contains("has failed") != true) {
+                                Timber.w("Sync download failed for $fileId: ${e.message}")
+                            }
                             null
                         }
                     }
 
                     // Fallback to Async for larger files (if needed in future)
-                    Timber.d("Starting Async Download for fileId: $fileId (Large file)")
+                    Timber.v("Async download starting for fileId: $fileId")
                     try {
                         clientManager.sendRequest<TdApi.File>(TdApi.DownloadFile(fileId, priority, 0, 0, false))
                     } catch(e: Exception) {
-                        Timber.e(e, "DownloadFile request FAILED for $fileId")
+                        Timber.w("Async download request failed for $fileId: ${e.message}")
                         return@withPermit null
                     }
                     
@@ -381,10 +425,12 @@ class TelegramRepository @Inject constructor(
                         null
                     }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // Normal during fast scrolling - propagate without logging
+                throw e
             } catch (e: Exception) {
-                if (e !is kotlinx.coroutines.CancellationException) {
-                    Timber.e(e, "Error in downloadFileAwait for fileId: $fileId")
-                }
+                // Only log truly unexpected errors
+                Timber.w("downloadFileAwait error for $fileId: ${e.message}")
                 throw e
             } finally {
                 activeDownloads.remove(fileId)

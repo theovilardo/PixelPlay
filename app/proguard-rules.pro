@@ -133,3 +133,30 @@
 
 # Ensure internal server can start
 -keep class com.theveloper.pixelplay.data.telegram.TelegramStreamProxy { *; }
+
+# =============================================================================
+# TIMBER LOGGING OPTIMIZATION FOR RELEASE BUILDS
+# =============================================================================
+# Strip VERBOSE and DEBUG log calls entirely from release builds.
+# This removes the method calls at bytecode level, eliminating any overhead
+# from string concatenation or log message building.
+
+-assumenosideeffects class timber.log.Timber {
+    public static void v(...);
+    public static void d(...);
+    public static void i(...);
+}
+
+# Also strip Timber.Tree methods used by custom trees (belt and suspenders)
+-assumenosideeffects class timber.log.Timber$Tree {
+    public void v(...);
+    public void d(...);
+    public void i(...);
+}
+
+# Strip Android Log.v and Log.d calls as well
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}

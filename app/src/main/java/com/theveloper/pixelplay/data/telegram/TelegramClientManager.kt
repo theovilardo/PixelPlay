@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
 import timber.log.Timber
@@ -172,6 +174,33 @@ class TelegramClientManager @Inject constructor(
     private val defaultHandler = Client.ResultHandler { result ->
         if (result is TdApi.Error) {
             Timber.e("TDLib Error: ${result.code} - ${result.message}")
+        }
+    }
+
+    /**
+     * Quick check if TDLib is ready to process requests.
+     */
+    fun isReady(): Boolean = _authorizationState.value is TdApi.AuthorizationStateReady
+
+    /**
+     * Suspends until the TDLib client reaches AuthorizationStateReady.
+     * @param timeoutMs Maximum time to wait (default 30 seconds)
+     * @return true if ready, false if timed out or closed
+     */
+    suspend fun awaitReady(timeoutMs: Long = 30_000L): Boolean {
+        // Quick check first
+        if (isReady()) return true
+        
+        return try {
+            withTimeoutOrNull(timeoutMs) {
+                authorizationState.first { state ->
+                    state is TdApi.AuthorizationStateReady ||
+                    state is TdApi.AuthorizationStateClosed
+                }
+            } is TdApi.AuthorizationStateReady
+        } catch (e: Exception) {
+            Timber.w("awaitReady failed: ${e.message}")
+            false
         }
     }
 }

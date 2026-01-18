@@ -28,6 +28,11 @@ import javax.inject.Inject
  * 1. Embedded art from downloaded audio file (MediaMetadataRetriever)
  * 2. TDLib albumCoverThumbnail (from message)
  * 3. TDLib externalAlbumCovers (Spotify/Apple Music metadata)
+ * 
+ * Log levels:
+ * - VERBOSE: Per-request fetch attempts (very frequent, disabled by default)
+ * - DEBUG: Success paths, significant state changes
+ * - WARN/ERROR: Failures that need attention (logged sparingly to avoid spam)
  */
 class TelegramCoilFetcher(
     private val context: Context,
@@ -37,8 +42,30 @@ class TelegramCoilFetcher(
     private val telegramCacheManager: com.theveloper.pixelplay.data.telegram.TelegramCacheManager?
 ) : Fetcher {
 
+    companion object {
+        // Track recent failures to avoid spamming logs
+        private val recentlyLoggedFailures = java.util.concurrent.ConcurrentHashMap<String, Long>()
+        private const val LOG_FAILURE_COOLDOWN_MS = 60_000L // Only log same failure once per minute
+        
+        private fun shouldLogFailure(key: String): Boolean {
+            val now = System.currentTimeMillis()
+            val lastLogged = recentlyLoggedFailures[key]
+            return if (lastLogged == null || now - lastLogged > LOG_FAILURE_COOLDOWN_MS) {
+                recentlyLoggedFailures[key] = now
+                // Cleanup old entries periodically
+                if (recentlyLoggedFailures.size > 100) {
+                    recentlyLoggedFailures.entries.removeIf { now - it.value > LOG_FAILURE_COOLDOWN_MS }
+                }
+                true
+            } else {
+                false
+            }
+        }
+    }
+
     override suspend fun fetch(): FetchResult? {
-        Timber.d("TelegramCoilFetcher: Fetching $uri")
+        // Use VERBOSE for per-request logging (can be filtered out in production)
+        Timber.v("TelegramCoilFetcher: Fetching $uri")
 
         // Parse URI: telegram_art://chatId/messageId
         val chatId = uri.host?.toLongOrNull()
@@ -52,7 +79,7 @@ class TelegramCoilFetcher(
         // Priority 1: Try embedded art from downloaded audio file
         val embeddedArtPath = tryExtractEmbeddedArt(chatId, messageId)
         if (embeddedArtPath != null) {
-            Timber.d("TelegramCoilFetcher: Using embedded art from audio file: $embeddedArtPath")
+            Timber.v("TelegramCoilFetcher: Using embedded art for $uri")
             return SourceResult(
                 source = coil.decode.ImageSource(
                     file = embeddedArtPath.toPath(),
@@ -74,15 +101,14 @@ class TelegramCoilFetcher(
         if (!isRecentlyFailed) {
             val fileId = extractFileIdFromContent(message.content)
             if (fileId != null) {
-                Timber.d("TelegramCoilFetcher: Resolved TDLib thumbnail fileId: $fileId from $uri")
+                Timber.v("TelegramCoilFetcher: Attempting download fileId: $fileId for $uri")
                 downloadPath = downloadWithRetry(fileId, chatId, messageId)
             }
-        } else {
-             Timber.d("TelegramCoilFetcher: Skipping high-res download (recently failed): $uri")
         }
+        // Removed verbose "skipping" log - the cache hit is self-explanatory
 
         if (downloadPath != null) {
-            Timber.d("TelegramCoilFetcher: Success with TDLib thumbnail! Path: $downloadPath")
+            Timber.v("TelegramCoilFetcher: Downloaded thumbnail for $uri")
             return SourceResult(
                 source = coil.decode.ImageSource(
                     file = downloadPath.toPath(),
@@ -94,10 +120,9 @@ class TelegramCoilFetcher(
         }
         
         // Priority 3: Minithumbnail Fallback (Low Res - embedded in message)
-        // This runs if download failed OR was skipped due to failure cache
         val minithumbnailData = extractMinithumbnail(message.content)
         if (minithumbnailData != null) {
-             Timber.d("TelegramCoilFetcher: Using Minithumbnail fallback for $uri")
+             Timber.v("TelegramCoilFetcher: Using minithumbnail for $uri")
              val bitmap = BitmapFactory.decodeByteArray(minithumbnailData, 0, minithumbnailData.size)
              if (bitmap != null) {
                  return DrawableResult(
@@ -108,7 +133,10 @@ class TelegramCoilFetcher(
              }
         }
         
-        Timber.w("TelegramCoilFetcher: No art found (High-res failed/missing, No embedded, No minithumbnail)")
+        // Only log "no art found" once per URI per minute to avoid spam
+        if (shouldLogFailure("no_art_$uri")) {
+            Timber.w("TelegramCoilFetcher: No art available for $uri")
+        }
         return null
     }
 
@@ -145,12 +173,12 @@ class TelegramCoilFetcher(
         val audioFile = telegramRepository.getFile(audioFileId)
         if (audioFile?.local?.isDownloadingCompleted != true || audioFile.local.path.isNullOrEmpty()) {
             // Audio not downloaded yet - don't wait, just return null to use thumbnail fallback
-            Timber.d("TelegramCoilFetcher: Audio file not downloaded yet, using thumbnail fallback")
+            // No logging needed - this is the normal path for undownloaded files
             return null
         }
 
         val audioFilePath = audioFile.local.path
-        Timber.d("TelegramCoilFetcher: Attempting embedded art extraction from: $audioFilePath")
+        Timber.v("TelegramCoilFetcher: Extracting embedded art from: $audioFilePath")
 
         // Extract embedded art using MediaMetadataRetriever
         val extractedPath = extractAndCacheEmbeddedArt(audioFilePath, cachedArtFile, noArtMarker)
@@ -158,6 +186,7 @@ class TelegramCoilFetcher(
         // Notify that embedded art was extracted (for UI color refresh)
         if (extractedPath != null) {
             telegramCacheManager?.notifyEmbeddedArtExtracted(chatId, messageId)
+            Timber.d("TelegramCoilFetcher: Cached embedded art for $chatId/$messageId")
         }
         
         return extractedPath
@@ -198,20 +227,21 @@ class TelegramCoilFetcher(
                     FileOutputStream(cacheFile).use { fos ->
                         fos.write(embeddedPicture)
                     }
-                    Timber.d("TelegramCoilFetcher: Extracted and cached embedded art (${options.outWidth}x${options.outHeight})")
+                    Timber.v("TelegramCoilFetcher: Extracted embedded art (${options.outWidth}x${options.outHeight})")
                     cacheFile.absolutePath
                 } else {
-                    Timber.w("TelegramCoilFetcher: Embedded picture data is not a valid image")
                     noArtMarker.createNewFile()
                     null
                 }
             } else {
-                Timber.d("TelegramCoilFetcher: No embedded picture in audio file")
                 noArtMarker.createNewFile()
                 null
             }
         } catch (e: Exception) {
-            Timber.e(e, "TelegramCoilFetcher: Failed to extract embedded art from $audioFilePath")
+            // Only log extraction failures once per file
+            if (shouldLogFailure("extract_$audioFilePath")) {
+                Timber.w("TelegramCoilFetcher: Failed to extract embedded art from $audioFilePath: ${e.message}")
+            }
             noArtMarker.createNewFile()
             null
         } finally {
@@ -268,41 +298,42 @@ class TelegramCoilFetcher(
             val path = telegramRepository.downloadFileAwait(initialFileId, 32)
             if (path != null) return path
         } catch (e: kotlinx.coroutines.CancellationException) {
-            Timber.w("TelegramCoilFetcher: Request cancelled for fileId: $initialFileId")
+            // Don't log cancellations - they're normal during fast scrolling
             throw e
         } catch (e: Exception) {
-            Timber.e(e, "TelegramCoilFetcher: First download attempt failed for fileId: $initialFileId")
+            // Only log first attempt failures with sampling
+            Timber.v("TelegramCoilFetcher: First download attempt failed for fileId: $initialFileId")
         }
 
         // Attempt 2: Refresh message and retry with fresh file ID
-        Timber.d("TelegramCoilFetcher: Attempting refresh for message $messageId")
         val refreshedMessage = telegramRepository.refreshMessage(chatId, messageId)
         val refreshedFileId = extractFileIdFromContent(refreshedMessage?.content)
 
         if (refreshedFileId == null) {
-            Timber.e("TelegramCoilFetcher: Refresh failed - no thumbnail in refreshed message")
+            // Log refresh failures with sampling to avoid spam
+            if (shouldLogFailure("refresh_$chatId/$messageId")) {
+                Timber.w("TelegramCoilFetcher: Refresh failed - no thumbnail in message $messageId")
+            }
             telegramCacheManager?.markArtFailed(chatId, messageId)
             return null
         }
 
-        // Logic Change: Retry even if file ID is same, as refresh might have fixed internal access hash/file state
-        if (refreshedFileId == initialFileId) {
-             Timber.d("TelegramCoilFetcher: Retrying download after refresh (same fileId: $refreshedFileId)")
-        } else {
-             Timber.d("TelegramCoilFetcher: Refreshed fileId: $refreshedFileId (was: $initialFileId)")
-        }
+        // Retry with refreshed file ID
+        Timber.v("TelegramCoilFetcher: Retrying with ${if (refreshedFileId == initialFileId) "same" else "new"} fileId")
 
         return try {
             val result = telegramRepository.downloadFileAwait(refreshedFileId, 32)
             if (result == null) {
-                // If it fails twice, mark as failed to avoid immediate retries
                 telegramCacheManager?.markArtFailed(chatId, messageId)
             }
             result
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            Timber.e(e, "TelegramCoilFetcher: Retry download failed for fileId: $refreshedFileId")
+            // Log retry failures with sampling
+            if (shouldLogFailure("retry_$refreshedFileId")) {
+                Timber.w("TelegramCoilFetcher: Retry download failed for fileId: $refreshedFileId")
+            }
             telegramCacheManager?.markArtFailed(chatId, messageId)
             null
         }

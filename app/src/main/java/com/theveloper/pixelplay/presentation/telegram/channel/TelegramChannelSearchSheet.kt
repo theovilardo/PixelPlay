@@ -1,28 +1,40 @@
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 package com.theveloper.pixelplay.presentation.telegram.channel
 
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.theveloper.pixelplay.data.model.Song
-import org.drinkless.tdlib.TdApi
+import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun TelegramChannelSearchSheet(
     onDismissRequest: () -> Unit,
@@ -36,92 +48,275 @@ fun TelegramChannelSearchSheet(
     val statusMessage by viewModel.statusMessage.collectAsState()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    val inputShape = AbsoluteSmoothCornerShape(
+        cornerRadiusTR = 20.dp, cornerRadiusTL = 20.dp,
+        cornerRadiusBR = 20.dp, cornerRadiusBL = 20.dp,
+        smoothnessAsPercentTR = 60, smoothnessAsPercentTL = 60,
+        smoothnessAsPercentBR = 60, smoothnessAsPercentBL = 60
+    )
+
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = MaterialTheme.colorScheme.surface,
+        dragHandle = {
+            // Expressive drag handle
+            Box(
+                modifier = Modifier
+                    .padding(vertical = 16.dp)
+                    .width(48.dp)
+                    .height(4.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.outlineVariant)
+            )
+        }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
-                .heightIn(min = 400.dp) // Ensure some height
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp)
+                .heightIn(min = 450.dp)
         ) {
+            // Header with expressive typography
             Text(
-                text = "Search Telegram Channel",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                text = "Add Channel",
+                style = MaterialTheme.typography.headlineMedium,
+                fontFamily = GoogleSansRounded,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
             )
-            Spacer(modifier = Modifier.height(16.dp))
             
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = "Search for a public Telegram channel to sync its music",
+                style = MaterialTheme.typography.bodyLarge,
+                fontFamily = GoogleSansRounded,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // Expressive Search Input
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = viewModel::onQueryChanged,
-                    label = { Text("Channel Username (e.g. @MyMusic)") },
+                    placeholder = { 
+                        Text(
+                            "@channelname",
+                            fontFamily = GoogleSansRounded
+                        ) 
+                    },
+                    leadingIcon = { 
+                        Icon(
+                            Icons.Rounded.Search, 
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        ) 
+                    },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
-                    shape = RoundedCornerShape(12.dp)
+                    shape = inputShape,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = Color.Transparent
+                    )
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(
-                    onClick = viewModel::searchChannel, 
-                    enabled = !isLoading,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.height(56.dp)
+                
+                // Search button with spring animation
+                val searchButtonEnabled = !isLoading && searchQuery.isNotBlank()
+                
+                FilledIconButton(
+                    onClick = viewModel::searchChannel,
+                    enabled = searchButtonEnabled,
+                    modifier = Modifier.size(56.dp),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    shape = inputShape
                 ) {
-                    Icon(Icons.Default.Search, contentDescription = "Search")
+                    if (isLoading) {
+                        LoadingIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Icon(
+                            Icons.Rounded.Send,
+                            contentDescription = "Search"
+                        )
+                    }
                 }
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(32.dp))
             
+            // Status Content Area
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)
-                    .padding(vertical = 16.dp),
+                    .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                if (isLoading) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator()
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = statusMessage ?: "Syncing songs...",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                when {
+                    isLoading -> {
+                        // Loading state with expressive animation
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            LoadingIndicator(
+                                modifier = Modifier.size(48.dp),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(20.dp))
+                            Text(
+                                text = statusMessage ?: "Searching...",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontFamily = GoogleSansRounded,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
-                } else if (statusMessage != null) {
-                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = if (statusMessage!!.contains("Success")) Icons.Rounded.CheckCircle else Icons.Rounded.Info,
-                            contentDescription = null,
-                            tint = if (statusMessage!!.contains("Success")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(48.dp)
+                    statusMessage != null -> {
+                        // Status message with animated icon
+                        val isSuccess = statusMessage!!.contains("Success", ignoreCase = true)
+                        
+                        val iconScale by animateFloatAsState(
+                            targetValue = 1f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessMedium
+                            ),
+                            label = "iconScale"
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = statusMessage!!,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                         
-                        if (statusMessage!!.contains("Success")) {
+                        
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            // Animated icon with background
+                            Box(
+                                modifier = Modifier
+                                    .graphicsLayer {
+                                        scaleX = iconScale
+                                        scaleY = iconScale
+                                    }
+                                    .size(80.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (isSuccess) 
+                                            MaterialTheme.colorScheme.primaryContainer
+                                        else 
+                                            MaterialTheme.colorScheme.errorContainer
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (isSuccess) 
+                                        Icons.Rounded.CheckCircle 
+                                    else 
+                                        Icons.Rounded.Info,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(40.dp),
+                                    tint = if (isSuccess)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.error
+                                )
+                            }
+                            
                             Spacer(modifier = Modifier.height(24.dp))
-                            Button(onClick = onDismissRequest) {
-                                Text("Close")
+                            
+                            Text(
+                                text = statusMessage!!,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontFamily = GoogleSansRounded,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                textAlign = TextAlign.Center
+                            )
+                            
+                            if (isSuccess) {
+                                Spacer(modifier = Modifier.height(32.dp))
+                                
+                                MediumExtendedFloatingActionButton(
+                                    onClick = onDismissRequest,
+                                    text = { 
+                                        Text(
+                                            "Done",
+                                            fontFamily = GoogleSansRounded,
+                                            fontWeight = FontWeight.SemiBold
+                                        ) 
+                                    },
+                                    icon = { Icon(Icons.Rounded.CheckCircle, contentDescription = null) },
+                                    expanded = true,
+                                    shape = CircleShape,
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
                             }
                         }
                     }
-                } else {
-                    Text(
-                        text = "Search for a public channel to sync songs.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    else -> {
+                        // Empty/Initial state
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        brush = Brush.linearGradient(
+                                            colors = listOf(
+                                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                                MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+                                            )
+                                        )
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Search,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(40.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.height(24.dp))
+                            
+                            Text(
+                                text = "Search for a channel",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontFamily = GoogleSansRounded,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            Text(
+                                text = "Enter a public channel username\nto sync its audio files",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontFamily = GoogleSansRounded,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
                 }
             }
         }

@@ -41,6 +41,19 @@ class TelegramStreamProxy @Inject constructor(
 
                 LogUtils.d("StreamProxy", "Request for fileId: $fileId")
                 
+                // Wait for TDLib to be ready before attempting download
+                // This fixes playback failures after app restart
+                if (!telegramRepository.isReady()) {
+                    LogUtils.w("StreamProxy", "TDLib not ready, waiting...")
+                    val ready = telegramRepository.awaitReady(10_000L) // 10 second timeout
+                    if (!ready) {
+                        LogUtils.e("StreamProxy", null, "TDLib not ready after timeout")
+                        call.respond(HttpStatusCode.ServiceUnavailable, "Telegram client not ready")
+                        return@get
+                    }
+                    LogUtils.d("StreamProxy", "TDLib ready, proceeding with request")
+                }
+                
                 // 1. Ensure download is started/active
                 val fileInfo = telegramRepository.downloadFile(fileId, 32) // High priority
                 if (fileInfo?.local?.path.isNullOrEmpty()) {
@@ -49,7 +62,19 @@ class TelegramStreamProxy @Inject constructor(
                 }
                 
                 val path = fileInfo!!.local.path
-                val expectedSize = fileInfo.expectedSize.takeIf { it > 0 } ?: File(path).length() // Fallback
+                var expectedSize = fileInfo.expectedSize
+
+                // Use known size from query param if available (authoritative)
+                val knownSize = call.parameters["size"]?.toLongOrNull() ?: 0L
+                if (knownSize > 0) {
+                    expectedSize = knownSize
+                }
+                
+                // Fallback to disk size if still 0
+                if (expectedSize == 0L) {
+                     expectedSize = File(path).length()
+                }
+
                 val file = File(path)
 
                 // Wait for file to be created by TDLib
@@ -198,14 +223,41 @@ class TelegramStreamProxy @Inject constructor(
         }
     }
     
-    fun getProxyUrl(fileId: Int): String {
+    fun getProxyUrl(fileId: Int, knownSize: Long = 0): String {
         if (actualPort == 0) {
             LogUtils.w("StreamProxy", "getProxyUrl called but actualPort is 0")
             return ""
         }
-        val url = "http://127.0.0.1:$actualPort/stream/$fileId"
+        val url = "http://127.0.0.1:$actualPort/stream/$fileId?size=$knownSize"
         LogUtils.d("StreamProxy", "Generated Proxy URL: $url")
         return url
+    }
+    
+    /**
+     * Quick check if the proxy server is ready (port is bound).
+     */
+    fun isReady(): Boolean = actualPort > 0
+    
+    /**
+     * Suspends until the proxy server is ready (port bound).
+     * @param timeoutMs Maximum time to wait
+     * @return true if ready, false if timed out
+     */
+    suspend fun awaitReady(timeoutMs: Long = 10_000L): Boolean {
+        if (isReady()) return true
+        
+        val stepMs = 50L
+        var elapsed = 0L
+        while (elapsed < timeoutMs) {
+            if (isReady()) {
+                LogUtils.d("StreamProxy", "awaitReady: Server ready after ${elapsed}ms")
+                return true
+            }
+            delay(stepMs)
+            elapsed += stepMs
+        }
+        LogUtils.e("StreamProxy", null, "awaitReady: Timeout after ${timeoutMs}ms")
+        return false
     }
     
 }

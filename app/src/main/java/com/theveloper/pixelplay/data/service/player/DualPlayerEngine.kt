@@ -116,6 +116,33 @@ class DualPlayerEngine @Inject constructor(
                 // Non-Telegram song - clean up any previous Telegram file
                 telegramCacheManager.setActivePlayback(null)
             }
+
+            // --- Pre-Resolve Next/Prev Tracks for Performance ---
+            try {
+                // Use the current master player (playerA)
+                val currentIndex = playerA.currentMediaItemIndex
+                if (currentIndex != C.INDEX_UNSET) {
+                    // 1. Pre-resolve NEXT track
+                    if (currentIndex + 1 < playerA.mediaItemCount) {
+                        val nextItem = playerA.getMediaItemAt(currentIndex + 1)
+                        val nextUri = nextItem.localConfiguration?.uri
+                        if (nextUri?.scheme == "telegram") {
+                            telegramRepository.preResolveTelegramUri(nextUri.toString())
+                        }
+                    }
+                    // 2. Pre-resolve PREVIOUS track (for back button speed)
+                    if (currentIndex - 1 >= 0) {
+                        val prevItem = playerA.getMediaItemAt(currentIndex - 1)
+                        val prevUri = prevItem.localConfiguration?.uri
+                        if (prevUri?.scheme == "telegram") {
+                            telegramRepository.preResolveTelegramUri(prevUri.toString())
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // Safeguard against any index/player state issues
+                Timber.w(e, "Error during pre-resolution in onMediaItemTransition")
+            }
         }
     }
 
@@ -198,23 +225,42 @@ class DualPlayerEngine @Inject constructor(
             override fun resolveDataSpec(dataSpec: DataSpec): DataSpec {
                  if (dataSpec.uri.scheme == "telegram") {
                      var fileId: Int? = null
+                     var fileSize: Long = 0L
                      
                      // Check for New Scheme: telegram://chatId/messageId
                      // We use runBlocking because resolveDataSpec is synchronous but we need to fetch info from TdLib
                      val pathSegments = dataSpec.uri.pathSegments
                      if (pathSegments.isNotEmpty()) {
                          val uriString = dataSpec.uri.toString()
-                         fileId = kotlinx.coroutines.runBlocking { 
+                         val result = kotlinx.coroutines.runBlocking { 
                              telegramRepository.resolveTelegramUri(uriString) 
                          }
+                         fileId = result?.first
+                         fileSize = result?.second ?: 0L
                      } else {
                          // Fallback to Legacy Scheme: telegram://fileId (host)
+                         // Legacy scheme doesn't have size info, proxy will fallback to disk size
                          fileId = dataSpec.uri.host?.toIntOrNull()
                      }
 
                      if (fileId != null) {
-                         Timber.tag("DualPlayerEngine").d("Resolving Telegram URI via Proxy for fileId: $fileId (Original: ${dataSpec.uri})")
-                         val proxyUrl = telegramStreamProxy.getProxyUrl(fileId)
+                         Timber.tag("DualPlayerEngine").d("Resolving Telegram URI via Proxy for fileId: $fileId, Size: $fileSize (Original: ${dataSpec.uri})")
+                         
+                         // Wait for StreamProxy to be ready before getting proxy URL
+                         // This fixes playback failures when app restarts
+                         if (!telegramStreamProxy.isReady()) {
+                             Timber.tag("DualPlayerEngine").w("StreamProxy not ready, waiting...")
+                             val proxyReady = kotlinx.coroutines.runBlocking {
+                                 telegramStreamProxy.awaitReady(5_000L) // 5 second timeout
+                             }
+                             if (!proxyReady) {
+                                 Timber.tag("DualPlayerEngine").e("StreamProxy not ready after timeout - playback will fail")
+                                 // Return original dataSpec - will cause error but better than hanging
+                                 return dataSpec
+                             }
+                         }
+                         
+                         val proxyUrl = telegramStreamProxy.getProxyUrl(fileId, fileSize)
                          if (proxyUrl.isNotEmpty()) {
                              return dataSpec.buildUpon().setUri(android.net.Uri.parse(proxyUrl)).build()
                          }

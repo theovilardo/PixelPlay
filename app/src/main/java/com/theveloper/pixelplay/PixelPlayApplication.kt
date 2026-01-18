@@ -50,6 +50,9 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
 
         if (BuildConfig.DEBUG) {
             Timber.plant(Timber.DebugTree())
+        } else {
+            // Release tree: only WARN/ERROR/WTF - no DEBUG/VERBOSE/INFO
+            Timber.plant(ReleaseTree())
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
