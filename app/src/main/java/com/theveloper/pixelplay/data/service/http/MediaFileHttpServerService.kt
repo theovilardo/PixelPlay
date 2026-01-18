@@ -125,11 +125,21 @@ class MediaFileHttpServerService : Service() {
                         // Add CORS headers manually - required for Chromecast to access media
                         // Global Request Logger
                         intercept(io.ktor.server.application.ApplicationCallPipeline.Monitoring) {
-                             val uri = call.request.uri
-                             val method = call.request.httpMethod.value
-                             val remoteHost = call.request.local.remoteHost
-                             val range = call.request.headers[HttpHeaders.Range]
-                             Timber.tag("PixelPlayCastDebug").d("Incoming Request: $method $uri from $remoteHost | Range: $range")
+                            val uri = call.request.uri
+                            val method = call.request.httpMethod.value
+                            val remoteHost = call.request.local.remoteHost
+                            val range = call.request.headers[HttpHeaders.Range]
+                            val userAgent = call.request.headers[HttpHeaders.UserAgent]
+                            val accept = call.request.headers[HttpHeaders.Accept]
+                            Timber.tag("PixelPlayCastDebug").d(
+                                "Incoming Request: %s %s from %s | Range: %s | UA: %s | Accept: %s",
+                                method,
+                                uri,
+                                remoteHost,
+                                range,
+                                userAgent,
+                                accept
+                            )
                         }
                         
                         // Add manual CORS headers - required for Chromecast
@@ -146,10 +156,10 @@ class MediaFileHttpServerService : Service() {
                             }
 
                             get("/song/{songId}") {
-                                serveSong(call)
+                                serveSong(call, sendBody = true)
                             }
                             head("/song/{songId}") {
-                                serveSong(call)
+                                serveSong(call, sendBody = false)
                             }
                             options("/song/{songId}") {
                                 Timber.tag("PixelPlayCastDebug").d("Handling OPTIONS for song")
@@ -157,10 +167,10 @@ class MediaFileHttpServerService : Service() {
                             }
                             
                             get("/art/{songId}") {
-                                serveArt(call)
+                                serveArt(call, sendBody = true)
                             }
                             head("/art/{songId}") {
-                                serveArt(call)
+                                serveArt(call, sendBody = false)
                             }
                             options("/art/{songId}") {
                                 Timber.tag("PixelPlayCastDebug").d("Handling OPTIONS for art")
@@ -269,7 +279,7 @@ class MediaFileHttpServerService : Service() {
         serviceJob.cancel()
     }
 
-    private suspend fun serveSong(call: ApplicationCall) {
+    private suspend fun serveSong(call: ApplicationCall, sendBody: Boolean) {
         // Strip optional extension (e.g. .mp3) provided for Cast compatibility
         val rawId = call.parameters["songId"]
         val songId = rawId?.substringBeforeLast(".")
@@ -313,7 +323,10 @@ class MediaFileHttpServerService : Service() {
                         return@use
                     }
                     
-                    Timber.tag("PixelPlayCastDebug").d("Serving PARTIAL content. Range: $rangeHeader")
+                    Timber.tag("PixelPlayCastDebug").d(
+                        "Serving PARTIAL content. Range: $rangeHeader fileSize=%d",
+                        fileSize
+                    )
 
                     // We only handle the first range request for simplicity
                     val range = ranges.first()
@@ -349,22 +362,63 @@ class MediaFileHttpServerService : Service() {
                         skipped += s
                     }
 
-                    call.response.header(HttpHeaders.ContentRange, "bytes $clampedStart-$clampedEnd/$fileSize")
+                    val contentRange = "bytes $clampedStart-$clampedEnd/$fileSize"
+                    call.response.header(HttpHeaders.ContentRange, contentRange)
                     call.response.header(HttpHeaders.AcceptRanges, "bytes")
 
-                    val bytes = withContext(Dispatchers.IO) {
-                        inputStream.readNBytes(length.toInt())
+                    call.response.header(HttpHeaders.ContentType, audioContentType.toString())
+                    if (sendBody) {
+                        val bytes = withContext(Dispatchers.IO) {
+                            inputStream.readNBytes(length.toInt())
+                        }
+                        Timber.tag("PixelPlayCastDebug").d(
+                            "Responding PARTIAL: contentType=%s contentRange=%s contentLength=%d sendBody=true",
+                            audioContentType,
+                            contentRange,
+                            length
+                        )
+                        call.respondBytes(bytes, audioContentType, HttpStatusCode.PartialContent)
+                    } else {
+                        call.response.header(HttpHeaders.ContentLength, length.toString())
+                        Timber.tag("PixelPlayCastDebug").d(
+                            "Responding PARTIAL: contentType=%s contentRange=%s contentLength=%d sendBody=false",
+                            audioContentType,
+                            contentRange,
+                            length
+                        )
+                        call.respond(HttpStatusCode.PartialContent)
                     }
-
-                    call.respondBytes(bytes, audioContentType, HttpStatusCode.PartialContent)
                 } else {
-                    Timber.tag("PixelPlayCastDebug").d("Serving FULL content")
+                    Timber.tag("PixelPlayCastDebug").d(
+                        "Serving FULL content. contentType=%s fileSize=%d sendBody=%s",
+                        audioContentType,
+                        fileSize,
+                        sendBody
+                    )
                     val inputStream = java.io.FileInputStream(pfd.fileDescriptor)
                     call.response.header(HttpHeaders.AcceptRanges, "bytes")
-                    val bytes = withContext(Dispatchers.IO) {
-                        inputStream.readBytes()
+                    if (sendBody) {
+                        call.response.header(HttpHeaders.ContentType, audioContentType.toString())
+                        call.response.header(HttpHeaders.ContentLength, fileSize.toString())
+                        val bytes = withContext(Dispatchers.IO) {
+                            inputStream.readBytes()
+                        }
+                        Timber.tag("PixelPlayCastDebug").d(
+                            "Responding FULL: contentType=%s contentLength=%d sendBody=true",
+                            audioContentType,
+                            bytes.size
+                        )
+                        call.respondBytes(bytes, audioContentType)
+                    } else {
+                        call.response.header(HttpHeaders.ContentType, audioContentType.toString())
+                        call.response.header(HttpHeaders.ContentLength, fileSize.toString())
+                        Timber.tag("PixelPlayCastDebug").d(
+                            "Responding FULL: contentType=%s contentLength=%d sendBody=false",
+                            audioContentType,
+                            fileSize
+                        )
+                        call.respond(HttpStatusCode.OK)
                     }
-                    call.respondBytes(bytes, audioContentType)
                 }
             } ?: run {
                 Timber.tag("PixelPlayCastDebug").e("Could not open file descriptor for URI: $uri")
@@ -376,8 +430,9 @@ class MediaFileHttpServerService : Service() {
         }
     }
 
-    private suspend fun serveArt(call: ApplicationCall) {
-        val songId = call.parameters["songId"]
+    private suspend fun serveArt(call: ApplicationCall, sendBody: Boolean) {
+        val rawId = call.parameters["songId"]
+        val songId = rawId?.substringBeforeLast(".")
         if (songId == null) {
             call.respond(HttpStatusCode.BadRequest, "Song ID is missing")
             return
@@ -390,11 +445,29 @@ class MediaFileHttpServerService : Service() {
         }
 
         val artUri = song.albumArtUriString.toUri()
+        val contentType = contentResolver.getType(artUri)
+            ?.let { ContentType.parse(it) }
+            ?: ContentType.Image.JPEG
+
+        if (!sendBody) {
+            contentResolver.openFileDescriptor(artUri, "r")?.use { pfd ->
+                val fileSize = pfd.statSize.takeIf { it > 0 } ?: 0L
+                call.response.header(HttpHeaders.ContentType, contentType.toString())
+                if (fileSize > 0) {
+                    call.response.header(HttpHeaders.ContentLength, fileSize.toString())
+                }
+                call.respond(HttpStatusCode.OK)
+                return
+            }
+        }
+
         contentResolver.openInputStream(artUri)?.use { inputStream ->
             val bytes = withContext(Dispatchers.IO) {
                 inputStream.readBytes()
             }
-            call.respondBytes(bytes, ContentType.Image.JPEG)
+            call.response.header(HttpHeaders.ContentType, contentType.toString())
+            call.response.header(HttpHeaders.ContentLength, bytes.size.toString())
+            call.respondBytes(bytes, contentType)
         } ?: call.respond(HttpStatusCode.InternalServerError, "Could not open album art file")
     }
 

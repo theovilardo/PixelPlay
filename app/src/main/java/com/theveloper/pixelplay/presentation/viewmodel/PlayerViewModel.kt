@@ -496,6 +496,9 @@ class PlayerViewModel @Inject constructor(
     private var castSessionManagerListener: SessionManagerListener<CastSession>? = null
     private val _castSession = MutableStateFlow<CastSession?>(null)
     private var castPlayer: CastPlayer? = null
+    private var lastCastTransferSessionId: String? = null
+    private var lastCastTransferAttemptAt: Long = 0L
+    private var inFlightCastTransferSessionId: String? = null
     private val _isRemotePlaybackActive = MutableStateFlow(false)
     val isRemotePlaybackActive: StateFlow<Boolean> = _isRemotePlaybackActive.asStateFlow()
     private val _isCastConnecting = MutableStateFlow(false)
@@ -1710,12 +1713,53 @@ class PlayerViewModel @Inject constructor(
         castSessionManagerListener = object : SessionManagerListener<CastSession> {
             private fun transferPlayback(session: CastSession) {
                 viewModelScope.launch {
+                    val nowMs = SystemClock.elapsedRealtime()
+                    val sessionId = session.sessionId
+                    if (sessionId == inFlightCastTransferSessionId) {
+                        Timber.tag(CAST_LOG_TAG).w(
+                            "transferPlayback skipped: in-flight sessionId=%s",
+                            sessionId
+                        )
+                        return@launch
+                    }
+                    if (sessionId == lastCastTransferSessionId &&
+                        nowMs - lastCastTransferAttemptAt < 4000L
+                    ) {
+                        Timber.tag(CAST_LOG_TAG).w(
+                            "transferPlayback skipped: recent attempt for sessionId=%s (%dms ago)",
+                            sessionId,
+                            nowMs - lastCastTransferAttemptAt
+                        )
+                        return@launch
+                    }
+                    lastCastTransferSessionId = sessionId
+                    lastCastTransferAttemptAt = nowMs
+                    if (_isCastConnecting.value || _isRemotePlaybackActive.value) {
+                        val activeSessionConnected = _castSession.value?.isConnected == true
+                        if (_isCastConnecting.value && !_isRemotePlaybackActive.value && !activeSessionConnected) {
+                            Timber.tag(CAST_LOG_TAG).w(
+                                "transferPlayback reset: stale connecting state (remoteActive=%s connected=%s)",
+                                _isRemotePlaybackActive.value,
+                                activeSessionConnected
+                            )
+                            _isCastConnecting.value = false
+                        } else {
+                            Timber.tag(CAST_LOG_TAG).w(
+                                "transferPlayback skipped: already connecting=%s remoteActive=%s",
+                                _isCastConnecting.value,
+                                _isRemotePlaybackActive.value
+                            )
+                            return@launch
+                        }
+                    }
                     pendingCastRouteId = null
+                    inFlightCastTransferSessionId = sessionId
                     _isCastConnecting.value = true
                     startCastConnectionTimeout()
                     if (!ensureHttpServerRunning()) {
                         cancelCastConnectionTimeout()
                         _isCastConnecting.value = false
+                        inFlightCastTransferSessionId = null
                         disconnect()
                         return@launch
                     }
@@ -1731,6 +1775,7 @@ class PlayerViewModel @Inject constructor(
                             serverAddress, localPlayer != null, currentQueue.isEmpty())
                         cancelCastConnectionTimeout()
                         _isCastConnecting.value = false
+                        inFlightCastTransferSessionId = null
                         return@launch
                     }
 
@@ -1757,6 +1802,7 @@ class PlayerViewModel @Inject constructor(
                         sendToast("Cast server not reachable. Check Wi-Fi connection.")
                         cancelCastConnectionTimeout()
                         _isCastConnecting.value = false
+                        inFlightCastTransferSessionId = null
                         disconnect()
                         return@launch
                     }
@@ -1811,6 +1857,7 @@ class PlayerViewModel @Inject constructor(
                             }
                             _isRemotePlaybackActive.value = success
                             _isCastConnecting.value = false
+                            inFlightCastTransferSessionId = null
                         }
                     )
 
@@ -2121,6 +2168,9 @@ class PlayerViewModel @Inject constructor(
             }
 
             override fun onSessionEnded(session: CastSession, error: Int) {
+                lastCastTransferSessionId = null
+                lastCastTransferAttemptAt = 0L
+                inFlightCastTransferSessionId = null
                 viewModelScope.launch { stopServerAndTransferBack() }
             }
 
@@ -2136,6 +2186,9 @@ class PlayerViewModel @Inject constructor(
                 cancelCastConnectionTimeout()
                 pendingCastRouteId = null
                 _isCastConnecting.value = false
+                lastCastTransferSessionId = null
+                lastCastTransferAttemptAt = 0L
+                inFlightCastTransferSessionId = null
             }
             override fun onSessionEnding(session: CastSession) {
                 Timber.tag(CAST_LOG_TAG).i("Cast session ending; keeping connecting flag=%s", _isCastConnecting.value)
@@ -2147,6 +2200,9 @@ class PlayerViewModel @Inject constructor(
                 cancelCastConnectionTimeout()
                 pendingCastRouteId = null
                 _isCastConnecting.value = false
+                lastCastTransferSessionId = null
+                lastCastTransferAttemptAt = 0L
+                inFlightCastTransferSessionId = null
             }
         }
         sessionManager.addSessionManagerListener(castSessionManagerListener as SessionManagerListener<CastSession>, CastSession::class.java)
