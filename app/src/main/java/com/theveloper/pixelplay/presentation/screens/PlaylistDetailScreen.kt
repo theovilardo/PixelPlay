@@ -276,7 +276,7 @@ fun PlaylistDetailScreen(
                     // Coupled buttons
                     val currentPlaylistSongsSortOption = uiState.currentPlaylistSongsSortOption
                     val currentPlaylistSongsSortOrder = uiState.currentPlaylistSongsSortOrder
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         FilledTonalIconButton(
                             onClick = {
                                 val newOrder = if (currentPlaylistSongsSortOrder == SortOrder.ASCENDING) SortOrder.DESCENDING else SortOrder.ASCENDING
