@@ -1,6 +1,5 @@
 package com.theveloper.pixelplay.data.database
 
-import androidx.compose.material3.ColorScheme
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.PrimaryKey

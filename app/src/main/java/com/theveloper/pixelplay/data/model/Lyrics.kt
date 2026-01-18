@@ -1,6 +1,5 @@
 package com.theveloper.pixelplay.data.model
 
-import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
 /**

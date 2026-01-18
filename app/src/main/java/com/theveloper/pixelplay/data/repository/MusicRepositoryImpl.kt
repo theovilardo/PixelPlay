@@ -1,74 +1,62 @@
 package com.theveloper.pixelplay.data.repository
 
-import android.content.ContentResolver
-import android.content.ContentUris
+// import kotlinx.coroutines.withContext // May not be needed for Flow transformations
+
+// import kotlinx.coroutines.sync.withLock // May not be needed if directoryScanMutex logic changes
+
 import android.content.Context
-import android.database.Cursor
 import android.net.Uri
-import android.os.Build
-import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
-import com.theveloper.pixelplay.data.model.Song
-import com.theveloper.pixelplay.data.database.MusicDao
-import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
-// import kotlinx.coroutines.withContext // May not be needed for Flow transformations
-import javax.inject.Inject
-import javax.inject.Singleton
 import androidx.core.net.toUri
-import com.theveloper.pixelplay.data.model.Album
+import com.theveloper.pixelplay.data.database.ArtistEntity
+import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.SearchHistoryDao
 import com.theveloper.pixelplay.data.database.SearchHistoryEntity
-import com.theveloper.pixelplay.data.database.toSearchHistoryItem
-import com.theveloper.pixelplay.data.model.Artist
-import com.theveloper.pixelplay.data.model.Playlist
-import com.theveloper.pixelplay.data.model.SearchFilterType
-import com.theveloper.pixelplay.data.database.TelegramChannelEntity
-import com.theveloper.pixelplay.data.model.SearchHistoryItem
-import com.theveloper.pixelplay.data.model.SearchResultItem
-import com.theveloper.pixelplay.data.model.SortOption
-import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
-import androidx.sqlite.db.SimpleSQLiteQuery
-
-import com.theveloper.pixelplay.data.model.Genre
-import com.theveloper.pixelplay.data.database.SongEntity
 import com.theveloper.pixelplay.data.database.SongArtistCrossRef
-import com.theveloper.pixelplay.data.database.ArtistEntity
+import com.theveloper.pixelplay.data.database.SongEntity
+import com.theveloper.pixelplay.data.database.TelegramChannelEntity
+import com.theveloper.pixelplay.data.database.TelegramDao
 import com.theveloper.pixelplay.data.database.toAlbum
 import com.theveloper.pixelplay.data.database.toArtist
+import com.theveloper.pixelplay.data.database.toSearchHistoryItem
 import com.theveloper.pixelplay.data.database.toSong
 import com.theveloper.pixelplay.data.database.toSongWithArtistRefs
+import com.theveloper.pixelplay.data.database.toTelegramEntity
+import com.theveloper.pixelplay.data.model.Album
+import com.theveloper.pixelplay.data.model.Artist
+import com.theveloper.pixelplay.data.model.Genre
 import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.data.model.LyricsSourcePreference
-import com.theveloper.pixelplay.data.model.SyncedLine
-import com.theveloper.pixelplay.utils.LogUtils
 import com.theveloper.pixelplay.data.model.MusicFolder
-import com.theveloper.pixelplay.utils.LyricsUtils
+import com.theveloper.pixelplay.data.model.Playlist
+import com.theveloper.pixelplay.data.model.SearchFilterType
+import com.theveloper.pixelplay.data.model.SearchHistoryItem
+import com.theveloper.pixelplay.data.model.SearchResultItem
+import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.utils.DirectoryRuleResolver
-import kotlinx.coroutines.flow.conflate
+import com.theveloper.pixelplay.utils.LogUtils
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first // Still needed for initialSetupDoneFlow.first() if used that way
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-// import kotlinx.coroutines.sync.withLock // May not be needed if directoryScanMutex logic changes
 import java.io.File
-
-import com.theveloper.pixelplay.data.database.TelegramDao
-import com.theveloper.pixelplay.data.database.toSong
-import com.theveloper.pixelplay.data.database.toTelegramEntity
+import javax.inject.Inject
+import javax.inject.Singleton
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @Singleton

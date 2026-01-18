@@ -1,6 +1,5 @@
 package com.theveloper.pixelplay.data.model
 
-import android.net.Uri
 import android.os.Parcelable
 import androidx.compose.runtime.Immutable
 import kotlinx.parcelize.Parcelize

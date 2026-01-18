@@ -125,6 +125,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.ButtonDefaults
@@ -1226,7 +1227,7 @@ fun getIconByName(name: String?): ImageVector? {
         "Speaker" -> Icons.Rounded.Speaker
         "Favorite" -> Icons.Rounded.Favorite
         "Piano" -> Icons.Rounded.Piano
-        "Queue" -> Icons.Rounded.QueueMusic
+        "Queue" -> Icons.AutoMirrored.Rounded.QueueMusic
         else -> null
     }
 }

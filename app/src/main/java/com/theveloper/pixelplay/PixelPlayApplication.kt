@@ -4,20 +4,15 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
-import com.theveloper.pixelplay.data.worker.SyncManager
-import com.theveloper.pixelplay.utils.CrashHandler
-import dagger.hilt.android.HiltAndroidApp
-import javax.inject.Inject
-import android.os.StrictMode // Importar StrictMode
-import coil.ImageLoader
-import coil.ImageLoaderFactory
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
-import timber.log.Timber
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import com.theveloper.pixelplay.utils.CrashHandler
+import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
+import timber.log.Timber
+import javax.inject.Inject
 
 @HiltAndroidApp
 class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Provider {

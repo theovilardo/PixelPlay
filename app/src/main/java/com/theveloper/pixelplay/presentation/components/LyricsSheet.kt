@@ -75,6 +75,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 
@@ -292,7 +293,7 @@ fun LyricsSheet(
                                 onClick = onBackClick
                             ) {
                                 Icon(
-                                    imageVector = Icons.Rounded.ArrowBack,
+                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                     contentDescription = context.resources.getString(R.string.close_lyrics_sheet)
                                 )
                             }
