@@ -30,6 +30,8 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.InputStream
+import java.io.OutputStream
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.NetworkInterface
@@ -309,10 +311,13 @@ class MediaFileHttpServerService : Service() {
 
             Timber.tag("PixelPlayCastDebug").d("Serving song: ${song.title} | Resolved Mime: $audioContentType (CR: $crMime, DB: ${song.mimeType}) | URI: $uri")
 
-            // Use 'use' to ensure the FileDescriptor is closed
+            // Use 'use' to ensure the FileDescriptor is closed after streaming
             contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
                 val fileSize = pfd.statSize
                 val rangeHeader = call.request.headers[HttpHeaders.Range]
+
+                // Always advertise Byte Range support
+                call.response.header(HttpHeaders.AcceptRanges, "bytes")
 
                 if (rangeHeader != null) {
                     val rangesSpecifier = io.ktor.http.parseRangesSpecifier(rangeHeader)
@@ -323,14 +328,8 @@ class MediaFileHttpServerService : Service() {
                         return@use
                     }
                     
-                    Timber.tag("PixelPlayCastDebug").d(
-                        "Serving PARTIAL content. Range: $rangeHeader fileSize=%d",
-                        fileSize
-                    )
-
                     // We only handle the first range request for simplicity
                     val range = ranges.first()
-                    // ... (rest of simple logic)
                     val start = when (range) {
                         is io.ktor.http.ContentRange.Bounded -> range.from
                         is io.ktor.http.ContentRange.TailFrom -> range.from
@@ -353,71 +352,44 @@ class MediaFileHttpServerService : Service() {
                         return@use
                     }
 
-                    val inputStream = java.io.FileInputStream(pfd.fileDescriptor)
-
-                    var skipped = 0L
-                    while (skipped < clampedStart) {
-                        val s = inputStream.skip(clampedStart - skipped)
-                        if (s <= 0) break
-                        skipped += s
-                    }
-
                     val contentRange = "bytes $clampedStart-$clampedEnd/$fileSize"
-                    call.response.header(HttpHeaders.ContentRange, contentRange)
-                    call.response.header(HttpHeaders.AcceptRanges, "bytes")
 
+                    call.response.header(HttpHeaders.ContentRange, contentRange)
+                    call.response.header(HttpHeaders.ContentLength, length.toString())
                     call.response.header(HttpHeaders.ContentType, audioContentType.toString())
+
+                    Timber.tag("PixelPlayCastDebug").d(
+                        "Serving PARTIAL content. Range: $rangeHeader fileSize=%d Content-Range=%s Length=%d",
+                        fileSize, contentRange, length
+                    )
+
                     if (sendBody) {
-                        val bytes = withContext(Dispatchers.IO) {
-                            inputStream.readNBytes(length.toInt())
+                        val inputStream = java.io.FileInputStream(pfd.fileDescriptor)
+                        call.respondOutputStream(ContentType.parse(audioContentType.toString()), HttpStatusCode.PartialContent) {
+                            skipBytes(inputStream, clampedStart)
+                            copyStream(inputStream, this, length)
                         }
-                        Timber.tag("PixelPlayCastDebug").d(
-                            "Responding PARTIAL: contentType=%s contentRange=%s contentLength=%d sendBody=true",
-                            audioContentType,
-                            contentRange,
-                            length
-                        )
-                        call.respondBytes(bytes, audioContentType, HttpStatusCode.PartialContent)
                     } else {
-                        call.response.header(HttpHeaders.ContentLength, length.toString())
-                        Timber.tag("PixelPlayCastDebug").d(
-                            "Responding PARTIAL: contentType=%s contentRange=%s contentLength=%d sendBody=false",
-                            audioContentType,
-                            contentRange,
-                            length
-                        )
-                        call.respond(HttpStatusCode.PartialContent)
+                         call.respond(HttpStatusCode.PartialContent)
                     }
                 } else {
+                    // Full content
+                    call.response.header(HttpHeaders.ContentLength, fileSize.toString())
+                    call.response.header(HttpHeaders.ContentType, audioContentType.toString())
+
                     Timber.tag("PixelPlayCastDebug").d(
-                        "Serving FULL content. contentType=%s fileSize=%d sendBody=%s",
+                        "Serving FULL content. contentType=%s fileSize=%d",
                         audioContentType,
-                        fileSize,
-                        sendBody
+                        fileSize
                     )
-                    val inputStream = java.io.FileInputStream(pfd.fileDescriptor)
-                    call.response.header(HttpHeaders.AcceptRanges, "bytes")
+
                     if (sendBody) {
-                        call.response.header(HttpHeaders.ContentType, audioContentType.toString())
-                        call.response.header(HttpHeaders.ContentLength, fileSize.toString())
-                        val bytes = withContext(Dispatchers.IO) {
-                            inputStream.readBytes()
+                        val inputStream = java.io.FileInputStream(pfd.fileDescriptor)
+                        call.respondOutputStream(ContentType.parse(audioContentType.toString()), HttpStatusCode.OK) {
+                            copyStream(inputStream, this, fileSize)
                         }
-                        Timber.tag("PixelPlayCastDebug").d(
-                            "Responding FULL: contentType=%s contentLength=%d sendBody=true",
-                            audioContentType,
-                            bytes.size
-                        )
-                        call.respondBytes(bytes, audioContentType)
                     } else {
-                        call.response.header(HttpHeaders.ContentType, audioContentType.toString())
-                        call.response.header(HttpHeaders.ContentLength, fileSize.toString())
-                        Timber.tag("PixelPlayCastDebug").d(
-                            "Responding FULL: contentType=%s contentLength=%d sendBody=false",
-                            audioContentType,
-                            fileSize
-                        )
-                        call.respond(HttpStatusCode.OK)
+                         call.respond(HttpStatusCode.OK)
                     }
                 }
             } ?: run {
@@ -427,6 +399,27 @@ class MediaFileHttpServerService : Service() {
         } catch (e: Exception) {
             Timber.tag("PixelPlayCastDebug").e(e, "Error serving file")
             call.respond(HttpStatusCode.InternalServerError, "Error serving file: ${e.message}")
+        }
+    }
+
+    private fun skipBytes(inputStream: InputStream, amount: Long) {
+        var skipped = 0L
+        while (skipped < amount) {
+            val s = inputStream.skip(amount - skipped)
+            if (s <= 0) break
+            skipped += s
+        }
+    }
+
+    private fun copyStream(input: InputStream, output: OutputStream, limit: Long) {
+        val buffer = ByteArray(8192)
+        var bytesCopied = 0L
+        while (bytesCopied < limit) {
+            val bytesToRead = minOf(buffer.size.toLong(), limit - bytesCopied).toInt()
+            val bytesRead = input.read(buffer, 0, bytesToRead)
+            if (bytesRead == -1) break
+            output.write(buffer, 0, bytesRead)
+            bytesCopied += bytesRead
         }
     }
 
@@ -462,12 +455,17 @@ class MediaFileHttpServerService : Service() {
         }
 
         contentResolver.openInputStream(artUri)?.use { inputStream ->
-            val bytes = withContext(Dispatchers.IO) {
-                inputStream.readBytes()
-            }
-            call.response.header(HttpHeaders.ContentType, contentType.toString())
-            call.response.header(HttpHeaders.ContentLength, bytes.size.toString())
-            call.respondBytes(bytes, contentType)
+            // Album art is usually small, but let's be safe and stream it too if possible.
+            // But existing logic readBytes() is probably acceptable for thumbnails.
+            // For consistency, let's keep the existing logic for Art but wrap it in respondOutputStream if we want,
+            // but Art doesn't need Range support typically.
+            // However, to avoid memory spikes if someone has a 10MB album art (unlikely but possible),
+            // I'll switch to streaming here too.
+
+             // Use respondOutputStream to avoid loading into memory
+             call.respondOutputStream(contentType, HttpStatusCode.OK) {
+                 inputStream.copyTo(this)
+             }
         } ?: call.respond(HttpStatusCode.InternalServerError, "Could not open album art file")
     }
 
