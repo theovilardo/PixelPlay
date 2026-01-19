@@ -584,6 +584,7 @@ fun LibraryScreen(
                                 .fillMaxSize()
                                 .padding(top = 8.dp),
                             pageSpacing = 0.dp,
+                            beyondViewportPageCount = 1, // Pre-load adjacent tabs to reduce lag when switching
                             key = { tabTitles[it] }
                         ) { page ->
                             when (tabTitles.getOrNull(page)?.toLibraryTabIdOrNull()) {

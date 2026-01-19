@@ -928,7 +928,7 @@ dir.walkTopDown()
 - [x] Optimizar OptimizedAlbumArt sin Crossfade wrapper (4.4)
 - [x] Implementar MediaMetadataRetriever pool (2.5)
 - [ ] Cachear géneros entre syncs (5.1)
-- [ ] Pre-cargar tabs en LibraryScreen (4.2)
+- [x] Pre-cargar tabs en LibraryScreen (4.2)
 
 ### Fase 3: Arquitectura (4-8 semanas)
 - [ ] Descomponer PlayerViewModel en ViewModels especializados (2.1)
