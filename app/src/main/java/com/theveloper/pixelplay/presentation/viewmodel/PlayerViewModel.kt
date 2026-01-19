@@ -727,7 +727,14 @@ class PlayerViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null) // Initial value null (system theme)
 
-    private val individualAlbumColorSchemes = mutableMapOf<String, MutableStateFlow<ColorSchemePair?>>()
+    // LRU-limited cache for album color schemes (max 30 albums to prevent unbounded memory growth)
+    private val individualAlbumColorSchemes = object : LinkedHashMap<String, MutableStateFlow<ColorSchemePair?>>(
+        32, 0.75f, true // accessOrder = true for LRU behavior
+    ) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, MutableStateFlow<ColorSchemePair?>>?): Boolean {
+            return size > 30
+        }
+    }
 
     private val colorSchemeRequestChannel = Channel<String>(Channel.UNLIMITED)
     private val urisBeingProcessed = mutableSetOf<String>()
