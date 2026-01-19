@@ -292,7 +292,8 @@ class PlayerViewModel @Inject constructor(
     private val artistImageRepository: ArtistImageRepository,
     private val dualPlayerEngine: DualPlayerEngine,
     private val appShortcutManager: com.theveloper.pixelplay.utils.AppShortcutManager,
-    private val listeningStatsTracker: ListeningStatsTracker
+    private val listeningStatsTracker: ListeningStatsTracker,
+    private val colorSchemeProcessor: ColorSchemeProcessor
 ) : ViewModel() {
 
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -4095,120 +4096,53 @@ class PlayerViewModel @Inject constructor(
 
     private suspend fun getOrGenerateColorSchemeForUri(albumArtUri: String, isPreload: Boolean): ColorSchemePair? {
         Trace.beginSection("PlayerViewModel.getOrGenerateColorSchemeForUri")
-        val uriString = albumArtUri
-        val cachedEntity = withContext(Dispatchers.IO) { albumArtThemeDao.getThemeByUri(uriString) }
-
-        if (cachedEntity != null) {
-            val schemePair = mapEntityToColorSchemePair(cachedEntity)
-            if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) {
+        try {
+            // Use the optimized ColorSchemeProcessor with LRU cache
+            val schemePair = colorSchemeProcessor.getOrGenerateColorScheme(albumArtUri)
+            
+            if (schemePair != null && !isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == albumArtUri) {
                 _currentAlbumArtColorSchemePair.value = schemePair
                 updateLavaLampColorsBasedOnActivePlayerScheme()
             }
+            
             return schemePair
-        }
-
-        return try {
-            val bitmap = withContext(Dispatchers.IO) {
-                val request = ImageRequest.Builder(context)
-                    .data(albumArtUri)
-                    .allowHardware(false)
-                    .size(Size(128, 128))
-                    .bitmapConfig(Bitmap.Config.ARGB_8888)
-                    .memoryCachePolicy(CachePolicy.ENABLED)
-                    .diskCachePolicy(CachePolicy.ENABLED)
-                    .build()
-                val result = context.imageLoader.execute(request).drawable
-                result?.let { drawable ->
-                    createBitmap(
-                        drawable.intrinsicWidth.coerceAtLeast(1),
-                        drawable.intrinsicHeight.coerceAtLeast(1)
-                    ).also { bmp -> Canvas(bmp).let { canvas -> drawable.setBounds(0, 0, canvas.width, canvas.height); drawable.draw(canvas) } }
-                }
-            }
-            bitmap?.let { bmp ->
-                val schemePair = withContext(Dispatchers.Default) {
-                    val seed = extractSeedColor(bmp)
-                    generateColorSchemeFromSeed(seed)
-                }
-                withContext(Dispatchers.IO) { albumArtThemeDao.insertTheme(mapColorSchemePairToEntity(uriString, schemePair)) }
-                if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) {
-                    _currentAlbumArtColorSchemePair.value = schemePair
-                    updateLavaLampColorsBasedOnActivePlayerScheme()
-                }
-                schemePair
-            } ?: run {
-                if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) {
-                    _currentAlbumArtColorSchemePair.value = null
-                    updateLavaLampColorsBasedOnActivePlayerScheme()
-                }
-                Trace.endSection()
-                null
-            }
         } catch (e: Exception) {
-            if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) {
+            if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == albumArtUri) {
                 _currentAlbumArtColorSchemePair.value = null
                 updateLavaLampColorsBasedOnActivePlayerScheme()
             }
+            return null
+        } finally {
             Trace.endSection()
-            null
         }
     }
 
     private suspend fun extractAndGenerateColorScheme(albumArtUriAsUri: Uri?, isPreload: Boolean = false) {
         Trace.beginSection("PlayerViewModel.extractAndGenerateColorScheme")
-        if (albumArtUriAsUri == null) {
-            if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == null) {
-                _currentAlbumArtColorSchemePair.value = null
-                updateLavaLampColorsBasedOnActivePlayerScheme()
+        try {
+            if (albumArtUriAsUri == null) {
+                if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == null) {
+                    _currentAlbumArtColorSchemePair.value = null
+                    updateLavaLampColorsBasedOnActivePlayerScheme()
+                }
+                return
             }
-            Trace.endSection()
-            return
-        }
-        val uriString = albumArtUriAsUri.toString()
-        val cachedThemeEntity = withContext(Dispatchers.IO) { albumArtThemeDao.getThemeByUri(uriString) }
-
-        if (cachedThemeEntity != null) {
-            val schemePair = mapEntityToColorSchemePair(cachedThemeEntity)
+            
+            val uriString = albumArtUriAsUri.toString()
+            // Use the optimized ColorSchemeProcessor with LRU cache
+            val schemePair = colorSchemeProcessor.getOrGenerateColorScheme(uriString)
+            
             if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) {
                 _currentAlbumArtColorSchemePair.value = schemePair
                 updateLavaLampColorsBasedOnActivePlayerScheme()
-            } else if (isPreload) {
             }
-            Trace.endSection()
-            return
-        }
-
-        try {
-            val bitmap = withContext(Dispatchers.IO) {
-                val request = ImageRequest.Builder(context)
-                    .data(albumArtUriAsUri)
-                    .allowHardware(false)
-                    .size(Size(128, 128))
-                    .bitmapConfig(Bitmap.Config.ARGB_8888)
-                    .memoryCachePolicy(CachePolicy.ENABLED)
-                    .diskCachePolicy(CachePolicy.ENABLED)
-                    .build()
-                val result = context.imageLoader.execute(request).drawable
-                result?.let { drawable ->
-                    createBitmap(
-                        drawable.intrinsicWidth.coerceAtLeast(1),
-                        drawable.intrinsicHeight.coerceAtLeast(1)
-                    ).also { bmp -> Canvas(bmp).let { canvas -> drawable.setBounds(0, 0, canvas.width, canvas.height); drawable.draw(canvas) } }
-                }
+        } catch (e: Exception) {
+            if (!isPreload && albumArtUriAsUri != null && 
+                _stablePlayerState.value.currentSong?.albumArtUriString == albumArtUriAsUri.toString()) {
+                _currentAlbumArtColorSchemePair.value = null
+                updateLavaLampColorsBasedOnActivePlayerScheme()
             }
-            bitmap?.let { bmp ->
-                val schemePair = withContext(Dispatchers.Default) {
-                    val seed = extractSeedColor(bmp)
-                    generateColorSchemeFromSeed(seed)
-                }
-                withContext(Dispatchers.IO) { albumArtThemeDao.insertTheme(mapColorSchemePairToEntity(uriString, schemePair)) }
-                if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) {
-                    _currentAlbumArtColorSchemePair.value = schemePair
-                    updateLavaLampColorsBasedOnActivePlayerScheme()
-                }
-            } ?: run { if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) { _currentAlbumArtColorSchemePair.value = null; updateLavaLampColorsBasedOnActivePlayerScheme() } }
-        } catch (e: Exception) { if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) { _currentAlbumArtColorSchemePair.value = null; updateLavaLampColorsBasedOnActivePlayerScheme() } }
-        finally {
+        } finally {
             Trace.endSection()
         }
     }
