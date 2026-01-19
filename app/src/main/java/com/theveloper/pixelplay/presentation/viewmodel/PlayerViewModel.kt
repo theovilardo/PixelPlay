@@ -296,7 +296,8 @@ class PlayerViewModel @Inject constructor(
     private val colorSchemeProcessor: ColorSchemeProcessor,
     private val dailyMixStateHolder: DailyMixStateHolder,
     private val lyricsStateHolder: LyricsStateHolder,
-    private val castStateHolder: CastStateHolder
+    private val castStateHolder: CastStateHolder,
+    private val queueStateHolder: QueueStateHolder
 ) : ViewModel() {
 
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -437,9 +438,9 @@ class PlayerViewModel @Inject constructor(
     private val _isInitialThemePreloadComplete = MutableStateFlow(false)
     val isInitialThemePreloadComplete: StateFlow<Boolean> = _isInitialThemePreloadComplete.asStateFlow()
 
-    // Manual shuffle state - stores original queue order for unshuffling (Spotify-like behavior)
-    private var _originalQueueOrder: List<Song> = emptyList()
-    private var _originalQueueName: String = "None"
+    // Manual shuffle state - now managed by QueueStateHolder
+    private val originalQueueOrder: List<Song> get() = queueStateHolder.originalQueueOrder
+    private val originalQueueName: String get() = queueStateHolder.originalQueueName
 
     // Sleep Timer StateFlows
     private val _sleepTimerEndTimeMillis = MutableStateFlow<Long?>(null)
@@ -3066,8 +3067,8 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             transitionSchedulerJob?.cancel()
             // Store the original order so we can "unshuffle" later if the user turns shuffle off
-            _originalQueueOrder = songsToPlay.toList()
-            _originalQueueName = queueName
+            queueStateHolder.setOriginalQueueOrder(songsToPlay)
+            queueStateHolder.saveOriginalQueueState(songsToPlay, queueName)
 
             // Check if the user wants shuffle to be persistent across different albums
             val isPersistent = userPreferencesRepository.persistentShuffleEnabledFlow.first()
@@ -3104,8 +3105,8 @@ class PlayerViewModel @Inject constructor(
             transitionSchedulerJob?.cancel()
 
             val startSong = songsToPlay.random()
-            _originalQueueOrder = songsToPlay.toList()
-            _originalQueueName = queueName
+            queueStateHolder.setOriginalQueueOrder(songsToPlay)
+            queueStateHolder.saveOriginalQueueState(songsToPlay, queueName)
             _stablePlayerState.update { it.copy(isShuffleEnabled = false) }
 
             internalPlaySongs(songsToPlay, startSong, queueName, playlistId)
@@ -3698,9 +3699,9 @@ class PlayerViewModel @Inject constructor(
                 if (!isCurrentlyShuffled) {
                     Log.d("ShuffleDebug", "Enabling shuffle - current song: ${currentSong.title}")
                     // Store original order if not already stored
-                    if (_originalQueueOrder.isEmpty()) {
-                        _originalQueueOrder = currentQueue.toList()
-                        _originalQueueName = _playerUiState.value.currentQueueSourceName
+                    if (!queueStateHolder.hasOriginalQueue()) {
+                        queueStateHolder.setOriginalQueueOrder(currentQueue)
+                        queueStateHolder.saveOriginalQueueState(currentQueue, _playerUiState.value.currentQueueSourceName)
                     }
 
                     val currentIndex = player.currentMediaItemIndex.coerceIn(0, (currentQueue.size - 1).coerceAtLeast(0))
@@ -3727,7 +3728,7 @@ class PlayerViewModel @Inject constructor(
                 } else {
                     Log.d("ShuffleDebug", "Disabling shuffle - restoring original order")
                     
-                    if (_originalQueueOrder.isEmpty()) {
+                    if (!queueStateHolder.hasOriginalQueue()) {
                         _stablePlayerState.update { it.copy(isShuffleEnabled = false) }
 
                         // --- PERSISTENT SHUFFLE: Save the "OFF" state to the database ---
@@ -3750,7 +3751,7 @@ class PlayerViewModel @Inject constructor(
                         }
                     }
 
-                    val originalQueue = _originalQueueOrder
+                    val originalQueue = originalQueueOrder
                     val currentPosition = player.currentPosition
                     val currentSongId = currentSong.id
                     val originalIndex = withContext(Dispatchers.Default) {
@@ -3767,7 +3768,7 @@ class PlayerViewModel @Inject constructor(
                     _playerUiState.update { 
                         it.copy(
                             currentPlaybackQueue = originalQueue.toImmutableList(),
-                            currentQueueSourceName = _originalQueueName
+                            currentQueueSourceName = originalQueueName
                         ) 
                     }
                     _stablePlayerState.update { it.copy(isShuffleEnabled = false) }
