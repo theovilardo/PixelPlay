@@ -294,15 +294,34 @@ class PlayerViewModel @Inject constructor(
     private val appShortcutManager: com.theveloper.pixelplay.utils.AppShortcutManager,
     private val listeningStatsTracker: ListeningStatsTracker,
     private val colorSchemeProcessor: ColorSchemeProcessor,
-    private val dailyMixStateHolder: DailyMixStateHolder
+    private val dailyMixStateHolder: DailyMixStateHolder,
+    private val lyricsStateHolder: LyricsStateHolder
 ) : ViewModel() {
 
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+    // Lyrics load callback for LyricsStateHolder
+    private val lyricsLoadCallback = object : LyricsLoadCallback {
+        override fun onLoadingStarted(songId: String) {
+            _stablePlayerState.update { state ->
+                if (state.currentSong?.id != songId) state
+                else state.copy(isLoadingLyrics = true, lyrics = null)
+            }
+        }
+
+        override fun onLyricsLoaded(songId: String, lyrics: Lyrics?) {
+            _stablePlayerState.update { state ->
+                if (state.currentSong?.id != songId) state
+                else state.copy(isLoadingLyrics = false, lyrics = lyrics)
+            }
+        }
+    }
 
     init {
         // Initialize helper classes with our coroutine scope
         listeningStatsTracker.initialize(viewModelScope)
         dailyMixStateHolder.initialize(viewModelScope)
+        lyricsStateHolder.initialize(viewModelScope, lyricsLoadCallback)
     }
 
     private val _playerUiState = MutableStateFlow(PlayerUiState())
@@ -388,10 +407,9 @@ class PlayerViewModel @Inject constructor(
             initialValue = false
         )
 
-    // Lyrics sync offset per song in milliseconds (positive = lyrics later, negative = lyrics earlier)
-    // This is derived from the current song's ID
-    private val _currentSongLyricsSyncOffset = MutableStateFlow(0)
-    val currentSongLyricsSyncOffset: StateFlow<Int> = _currentSongLyricsSyncOffset.asStateFlow()
+
+    // Lyrics sync offset - now managed by LyricsStateHolder
+    val currentSongLyricsSyncOffset: StateFlow<Int> = lyricsStateHolder.currentSongSyncOffset
 
     // Lyrics source preference (API_FIRST, EMBEDDED_FIRST, LOCAL_FIRST)
     val lyricsSourcePreference: StateFlow<LyricsSourcePreference> = userPreferencesRepository.lyricsSourcePreferenceFlow
@@ -402,18 +420,14 @@ class PlayerViewModel @Inject constructor(
         )
 
     fun setLyricsSyncOffset(songId: String, offsetMs: Int) {
-        viewModelScope.launch {
-            userPreferencesRepository.setLyricsSyncOffset(songId, offsetMs)
-            _currentSongLyricsSyncOffset.value = offsetMs
-        }
+        lyricsStateHolder.setSyncOffset(songId, offsetMs)
     }
 
     private fun observeCurrentSongLyricsOffset() {
         viewModelScope.launch {
             stablePlayerState.collect { state ->
                 state.currentSong?.id?.let { songId ->
-                    val offset = userPreferencesRepository.getLyricsSyncOffset(songId)
-                    _currentSongLyricsSyncOffset.value = offset
+                    lyricsStateHolder.updateSyncOffsetForSong(songId)
                 }
             }
         }
@@ -439,12 +453,12 @@ class PlayerViewModel @Inject constructor(
     private val _playCount = MutableStateFlow<Float>(1f)
     val playCount: StateFlow<Float> = _playCount.asStateFlow()
 
-    private val _lyricsSearchUiState = MutableStateFlow<LyricsSearchUiState>(LyricsSearchUiState.Idle)
-    val lyricsSearchUiState = _lyricsSearchUiState.asStateFlow()
+    // Lyrics search UI state - now managed by LyricsStateHolder
+    val lyricsSearchUiState: StateFlow<LyricsSearchUiState> = lyricsStateHolder.searchUiState
 
     private var sleepTimerJob: Job? = null
     private var eotSongMonitorJob: Job? = null
-    private var lyricsLoadingJob: Job? = null
+    // lyricsLoadingJob moved to LyricsStateHolder
     private var countedMediaListener: Player.Listener? = null
     private var countedOriginalSongId: String? = null
 
@@ -2792,7 +2806,7 @@ class PlayerViewModel @Inject constructor(
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 transitionSchedulerJob?.cancel()
-                lyricsLoadingJob?.cancel()
+                lyricsStateHolder.cancelLoading()
                 transitionSchedulerJob = viewModelScope.launch {
                     if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
                         val activeEotSongId = EotStateHolder.eotTargetSongId.value
@@ -2843,7 +2857,7 @@ class PlayerViewModel @Inject constructor(
                         }
                     } ?: run {
                         if (!_isCastConnecting.value && !_isRemotePlaybackActive.value) {
-                            lyricsLoadingJob?.cancel()
+                            lyricsStateHolder.cancelLoading()
                             _stablePlayerState.update {
                                 it.copy(
                                     currentSong = null,
@@ -2870,7 +2884,7 @@ class PlayerViewModel @Inject constructor(
                 if (playbackState == Player.STATE_IDLE && playerCtrl.mediaItemCount == 0) {
                     if (!_isCastConnecting.value && !_isRemotePlaybackActive.value) {
                         listeningStatsTracker.onPlaybackStopped()
-                        lyricsLoadingJob?.cancel()
+                        lyricsStateHolder.cancelLoading()
                         _stablePlayerState.update {
                             it.copy(
                                 currentSong = null,
@@ -5253,32 +5267,8 @@ class PlayerViewModel @Inject constructor(
 
     private fun loadLyricsForCurrentSong() {
         val currentSong = _stablePlayerState.value.currentSong ?: return
-
-        lyricsLoadingJob?.cancel()
-        val targetSongId = currentSong.id
-
-        lyricsLoadingJob = viewModelScope.launch {
-            _stablePlayerState.update { state ->
-                if (state.currentSong?.id != targetSongId) state
-                else state.copy(isLoadingLyrics = true, lyrics = null)
-            }
-
-            val fetchedLyrics = try {
-                musicRepository.getLyrics(
-                    song = currentSong,
-                    sourcePreference = lyricsSourcePreference.value
-                )
-            } catch (cancellation: CancellationException) {
-                throw cancellation
-            } catch (error: Exception) {
-                null
-            }
-
-            _stablePlayerState.update { state ->
-                if (state.currentSong?.id != targetSongId) state
-                else state.copy(isLoadingLyrics = false, lyrics = fetchedLyrics)
-            }
-        }
+        // Delegate to LyricsStateHolder
+        lyricsStateHolder.loadLyricsForSong(currentSong, lyricsSourcePreference.value)
     }
 
     fun editSongMetadata(
@@ -5456,29 +5446,30 @@ class PlayerViewModel @Inject constructor(
     fun fetchLyricsForCurrentSong(forcePickResults: Boolean = false) {
         val currentSong = stablePlayerState.value.currentSong
         viewModelScope.launch {
-            _lyricsSearchUiState.value = LyricsSearchUiState.Loading
+            lyricsStateHolder.setSearchState(LyricsSearchUiState.Loading)
             if (currentSong != null) {
                 if (forcePickResults) {
                     musicRepository.searchRemoteLyrics(currentSong)
                         .onSuccess { (query, results) ->
-                            _lyricsSearchUiState.value = LyricsSearchUiState.PickResult(query, results)
+                            lyricsStateHolder.setSearchState(LyricsSearchUiState.PickResult(query, results))
                         }
                         .onFailure { error ->
-                            // Handle NoLyricsFoundException for manual search state
                             if (error is NoLyricsFoundException) {
-                                _lyricsSearchUiState.value =
+                                lyricsStateHolder.setSearchState(
                                     LyricsSearchUiState.NotFound(
                                         message = context.getString(R.string.lyrics_not_found)
                                     )
+                                )
                             } else {
-                                _lyricsSearchUiState.value =
+                                lyricsStateHolder.setSearchState(
                                     LyricsSearchUiState.Error(error.message ?: "Unknown error")
+                                )
                             }
                         }
                 } else {
                     musicRepository.getLyricsFromRemote(currentSong)
-                        .onSuccess { (lyrics, rawLyrics) -> // Deconstruct the pair
-                            _lyricsSearchUiState.value = LyricsSearchUiState.Success(lyrics)
+                        .onSuccess { (lyrics, rawLyrics) ->
+                            lyricsStateHolder.setSearchState(LyricsSearchUiState.Success(lyrics))
                             val updatedSong = currentSong.copy(lyrics = rawLyrics)
                             updateSongInStates(updatedSong, lyrics)
                         }
@@ -5486,27 +5477,28 @@ class PlayerViewModel @Inject constructor(
                             if (error is NoLyricsFoundException) {
                                 musicRepository.searchRemoteLyrics(currentSong)
                                     .onSuccess { (query, results) ->
-                                        _lyricsSearchUiState.value = LyricsSearchUiState.PickResult(query, results)
+                                        lyricsStateHolder.setSearchState(LyricsSearchUiState.PickResult(query, results))
                                     }
                                     .onFailure { searchError ->
-                                        // Handle NoLyricsFoundException for manual search state
                                         if (searchError is NoLyricsFoundException) {
-                                            _lyricsSearchUiState.value =
+                                            lyricsStateHolder.setSearchState(
                                                 LyricsSearchUiState.NotFound(
                                                     message = context.getString(R.string.lyrics_not_found)
                                                 )
+                                            )
                                         } else {
-                                            _lyricsSearchUiState.value =
+                                            lyricsStateHolder.setSearchState(
                                                 LyricsSearchUiState.Error(error.message ?: "Unknown error")
+                                            )
                                         }
                                     }
                             } else {
-                                _lyricsSearchUiState.value = LyricsSearchUiState.Error(error.message ?: "Unknown error")
+                                lyricsStateHolder.setSearchState(LyricsSearchUiState.Error(error.message ?: "Unknown error"))
                             }
                         }
                 }
             } else {
-                _lyricsSearchUiState.value = LyricsSearchUiState.Error("No song is currently playing.")
+                lyricsStateHolder.setSearchState(LyricsSearchUiState.Error("No song is currently playing."))
             }
         }
     }
@@ -5518,15 +5510,14 @@ class PlayerViewModel @Inject constructor(
         if (title.isBlank()) return
 
         viewModelScope.launch {
-            _lyricsSearchUiState.value = LyricsSearchUiState.Loading
+            lyricsStateHolder.setSearchState(LyricsSearchUiState.Loading)
 
             musicRepository.searchRemoteLyricsByQuery(title, artist)
                 .onSuccess { (q, results) ->
-                    _lyricsSearchUiState.value =
-                        LyricsSearchUiState.PickResult(q, results)
+                    lyricsStateHolder.setSearchState(LyricsSearchUiState.PickResult(q, results))
                 }
                 .onFailure { error ->
-                    _lyricsSearchUiState.value =
+                    lyricsStateHolder.setSearchState(
                         if (error is NoLyricsFoundException) {
                             LyricsSearchUiState.NotFound(
                                 message = context.getString(R.string.lyrics_not_found)
@@ -5534,13 +5525,14 @@ class PlayerViewModel @Inject constructor(
                         } else {
                             LyricsSearchUiState.Error(error.message ?: "Unknown error")
                         }
+                    )
                 }
         }
     }
 
     fun acceptLyricsSearchResultForCurrentSong(result: LyricsSearchResult) {
         val currentSong = stablePlayerState.value.currentSong ?: return
-        _lyricsSearchUiState.value = LyricsSearchUiState.Success(result.lyrics)
+        lyricsStateHolder.setSearchState(LyricsSearchUiState.Success(result.lyrics))
 
         val updatedSong = currentSong.copy(lyrics = result.rawLyrics)
         updateSongInStates(updatedSong, result.lyrics)
@@ -5583,10 +5575,10 @@ class PlayerViewModel @Inject constructor(
                 val updatedSong = currentSong.copy(lyrics = lyricsContent)
                 val parsedLyrics = LyricsUtils.parseLyrics(lyricsContent)
                 updateSongInStates(updatedSong, parsedLyrics)
-                _lyricsSearchUiState.value = LyricsSearchUiState.Success(parsedLyrics)
+                lyricsStateHolder.setSearchState(LyricsSearchUiState.Success(parsedLyrics))
                 _toastEvents.emit("Lyrics imported successfully!")
             } else {
-                _lyricsSearchUiState.value = LyricsSearchUiState.Error("Could not associate lyrics with the current song.")
+                lyricsStateHolder.setSearchState(LyricsSearchUiState.Error("Could not associate lyrics with the current song."))
             }
         }
     }
@@ -5595,7 +5587,7 @@ class PlayerViewModel @Inject constructor(
      * Resetea el estado de la búsqueda de letras a Idle.
      */
     fun resetLyricsSearchState() {
-        _lyricsSearchUiState.value = LyricsSearchUiState.Idle
+        lyricsStateHolder.resetSearchState()
     }
 
     private fun onBlockedDirectoriesChanged() {
