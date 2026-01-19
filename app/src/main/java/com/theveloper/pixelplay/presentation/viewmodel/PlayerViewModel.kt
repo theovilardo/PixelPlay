@@ -273,17 +273,7 @@ sealed interface LyricsSearchUiState {
     data class Error(val message: String, val query: String? = null) : LyricsSearchUiState
 }
 
-private data class ActiveSession(
-    val songId: String,
-    var totalDurationMs: Long,
-    val startedAtEpochMs: Long,
-    var lastKnownPositionMs: Long,
-    var accumulatedListeningMs: Long,
-    var lastRealtimeMs: Long,
-    var lastUpdateEpochMs: Long,
-    var isPlaying: Boolean,
-    val isVoluntary: Boolean
-)
+// ActiveSession class moved to ListeningStatsTracker.kt
 
 @UnstableApi
 @SuppressLint("LogNotTimber")
@@ -301,10 +291,16 @@ class PlayerViewModel @Inject constructor(
     private val aiMetadataGenerator: AiMetadataGenerator,
     private val artistImageRepository: ArtistImageRepository,
     private val dualPlayerEngine: DualPlayerEngine,
-    private val appShortcutManager: com.theveloper.pixelplay.utils.AppShortcutManager
+    private val appShortcutManager: com.theveloper.pixelplay.utils.AppShortcutManager,
+    private val listeningStatsTracker: ListeningStatsTracker
 ) : ViewModel() {
 
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+    init {
+        // Initialize the listening stats tracker with our coroutine scope
+        listeningStatsTracker.initialize(viewModelScope)
+    }
 
     private val _playerUiState = MutableStateFlow(PlayerUiState())
     val playerUiState: StateFlow<PlayerUiState> = _playerUiState.asStateFlow()
@@ -949,7 +945,7 @@ class PlayerViewModel @Inject constructor(
     private var progressJob: Job? = null
     private var remoteProgressObserverJob: Job? = null
     private var transitionSchedulerJob: Job? = null
-    private val listeningStatsTracker = ListeningStatsTracker()
+    // ListeningStatsTracker is now injected via constructor
     private var lastKnownRemoteIsPlaying = false
     
     // Lifecycle-aware progress updates for battery optimization
@@ -962,156 +958,8 @@ class PlayerViewModel @Inject constructor(
         listeningStatsTracker.onVoluntarySelection(song.id)
     }
 
-    companion object {
-        private val MIN_SESSION_LISTEN_MS = TimeUnit.SECONDS.toMillis(5)
-    }
-
-    private var currentSession: ActiveSession? = null
-
-    private inner class ListeningStatsTracker {
-        private var pendingVoluntarySongId: String? = null
-
-        fun onVoluntarySelection(songId: String) {
-            pendingVoluntarySongId = songId
-        }
-
-        fun onSongChanged(
-            song: Song?,
-            positionMs: Long,
-            durationMs: Long,
-            isPlaying: Boolean
-        ) {
-            finalizeCurrentSession()
-            if (song == null) {
-                return
-            }
-
-            val nowRealtime = SystemClock.elapsedRealtime()
-            val nowEpoch = System.currentTimeMillis()
-            val normalizedDuration = when {
-                durationMs > 0 && durationMs != C.TIME_UNSET -> durationMs
-                song.duration > 0 -> song.duration
-                else -> 0L
-            }
-
-            currentSession = ActiveSession(
-                songId = song.id,
-                totalDurationMs = normalizedDuration,
-                startedAtEpochMs = nowEpoch,
-                lastKnownPositionMs = positionMs.coerceAtLeast(0L),
-                accumulatedListeningMs = 0L,
-                lastRealtimeMs = nowRealtime,
-                lastUpdateEpochMs = nowEpoch,
-                isPlaying = isPlaying,
-                isVoluntary = pendingVoluntarySongId == song.id
-            )
-            if (pendingVoluntarySongId == song.id) {
-                pendingVoluntarySongId = null
-            }
-        }
-
-        fun onPlayStateChanged(isPlaying: Boolean, positionMs: Long) {
-            val session = currentSession ?: return
-            val nowRealtime = SystemClock.elapsedRealtime()
-            if (session.isPlaying) {
-                session.accumulatedListeningMs += (nowRealtime - session.lastRealtimeMs).coerceAtLeast(0L)
-            }
-            session.isPlaying = isPlaying
-            session.lastRealtimeMs = nowRealtime
-            session.lastKnownPositionMs = positionMs.coerceAtLeast(0L)
-            session.lastUpdateEpochMs = System.currentTimeMillis()
-        }
-
-        fun onProgress(positionMs: Long, isPlaying: Boolean) {
-            val session = currentSession ?: return
-            val nowRealtime = SystemClock.elapsedRealtime()
-            if (session.isPlaying) {
-                val delta = (nowRealtime - session.lastRealtimeMs).coerceAtLeast(0L)
-                if (delta > 0) {
-                    session.accumulatedListeningMs += delta
-                }
-            }
-            session.isPlaying = isPlaying
-            session.lastRealtimeMs = nowRealtime
-            session.lastKnownPositionMs = positionMs.coerceAtLeast(0L)
-            session.lastUpdateEpochMs = System.currentTimeMillis()
-        }
-
-        fun ensureSession(
-            song: Song?,
-            positionMs: Long,
-            durationMs: Long,
-            isPlaying: Boolean
-        ) {
-            if (song == null) {
-                finalizeCurrentSession()
-                return
-            }
-            val existing = currentSession
-            if (existing?.songId == song.id) {
-                updateDuration(durationMs)
-                val nowRealtime = SystemClock.elapsedRealtime()
-                if (existing.isPlaying) {
-                    existing.accumulatedListeningMs += (nowRealtime - existing.lastRealtimeMs).coerceAtLeast(0L)
-                }
-                existing.isPlaying = isPlaying
-                existing.lastRealtimeMs = nowRealtime
-                existing.lastKnownPositionMs = positionMs.coerceAtLeast(0L)
-                existing.lastUpdateEpochMs = System.currentTimeMillis()
-                return
-            }
-            onSongChanged(song, positionMs, durationMs, isPlaying)
-        }
-
-        fun updateDuration(durationMs: Long) {
-            val session = currentSession ?: return
-            if (durationMs > 0 && durationMs != C.TIME_UNSET) {
-                session.totalDurationMs = durationMs
-            }
-        }
-
-        fun finalizeCurrentSession() {
-            val session = currentSession ?: return
-            val nowRealtime = SystemClock.elapsedRealtime()
-            if (session.isPlaying) {
-                session.accumulatedListeningMs += (nowRealtime - session.lastRealtimeMs).coerceAtLeast(0L)
-            }
-            val totalCap = if (session.totalDurationMs > 0) session.totalDurationMs else Long.MAX_VALUE
-            val listened = session.accumulatedListeningMs.coerceAtMost(totalCap).coerceAtLeast(0L)
-            if (listened >= MIN_SESSION_LISTEN_MS) {
-                val rawEndTimestamp = session.lastUpdateEpochMs.takeIf { it > 0L }
-                    ?: (session.startedAtEpochMs + listened)
-                val timestamp = rawEndTimestamp
-                    .coerceAtLeast(session.startedAtEpochMs.coerceAtLeast(0L))
-                    .coerceAtMost(System.currentTimeMillis())
-                val songId = session.songId
-                viewModelScope.launch(Dispatchers.IO) {
-                    dailyMixManager.recordPlay(
-                        songId = songId,
-                        songDurationMs = listened,
-                        timestamp = timestamp
-                    )
-                    playbackStatsRepository.recordPlayback(
-                        songId = songId,
-                        durationMs = listened,
-                        timestamp = timestamp
-                    )
-                }
-            }
-            currentSession = null
-            if (pendingVoluntarySongId == session.songId) {
-                pendingVoluntarySongId = null
-            }
-        }
-
-        fun onPlaybackStopped() {
-            finalizeCurrentSession()
-        }
-
-        fun onCleared() {
-            finalizeCurrentSession()
-        }
-    }
+    // MIN_SESSION_LISTEN_MS, currentSession, and ListeningStatsTracker class
+    // have been moved to ListeningStatsTracker.kt for better modularity
 
 
     fun updatePredictiveBackCollapseFraction(fraction: Float) {
@@ -4110,11 +3958,12 @@ class PlayerViewModel @Inject constructor(
                 onResult(false)
                 return@launch
             }
-            if (currentSession?.songId == song.id) {
+            // Check if we're currently playing the song being deleted
+            if (_stablePlayerState.value.currentSong?.id == song.id) {
+                listeningStatsTracker.finalizeCurrentSession()
                 mediaController?.pause()
                 mediaController?.stop()
                 mediaController?.clearMediaItems()
-                currentSession
                 _stablePlayerState.update {
                     it.copy(
                         currentSong = null,
