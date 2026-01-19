@@ -924,7 +924,7 @@ dir.walkTopDown()
 - [x] Reducir frecuencia de progress updates en background (3.1)
 
 ### Fase 2: Refactoring Medio (2-4 semanas)
-- [ ] Extraer composables de QueueBottomSheet (4.1)
+- [x] Extraer composables de QueueBottomSheet (4.1)
 - [x] Optimizar OptimizedAlbumArt sin Crossfade wrapper (4.4)
 - [x] Implementar MediaMetadataRetriever pool (2.5)
 - [ ] Cachear géneros entre syncs (5.1)
