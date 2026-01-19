@@ -1349,9 +1349,7 @@ class PlayerViewModel @Inject constructor(
             sortFavoriteSongs(initialLikedSort, persist = false)
         }
 
-        // --- PERSISTENT SHUFFLE: Load the saved state on startup ---
         viewModelScope.launch {
-            // Check if the user has enabled the "Persistent Shuffle" feature in settings
             val isPersistent = userPreferencesRepository.persistentShuffleEnabledFlow.first()
             if (isPersistent) {
                 // If persistent shuffle is on, read the last used shuffle state (On/Off)

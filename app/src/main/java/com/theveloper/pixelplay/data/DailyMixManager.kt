@@ -6,8 +6,11 @@ import com.google.gson.Gson
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
+import com.theveloper.pixelplay.data.database.EngagementDao
+import com.theveloper.pixelplay.data.database.SongEngagementEntity
 import com.theveloper.pixelplay.data.model.Song
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.util.Calendar
 import java.util.LinkedHashSet
@@ -17,13 +20,17 @@ import javax.inject.Singleton
 
 @Singleton
 class DailyMixManager @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val engagementDao: EngagementDao
 ) {
 
     private val gson = Gson()
-    private val scoresFile = File(context.filesDir, "song_scores.json")
+    private val legacyScoresFile = File(context.filesDir, "song_scores.json")
     private val fileLock = Any()
     private val statsType = object : TypeToken<MutableMap<String, SongEngagementStats>>() {}.type
+
+    // Flag to track if we've migrated legacy data
+    private var legacyMigrationComplete = false
 
     data class SongEngagementStats(
         val playCount: Int = 0,
@@ -31,16 +38,78 @@ class DailyMixManager @Inject constructor(
         val lastPlayedTimestamp: Long = 0L
     )
 
-    private fun readEngagements(): MutableMap<String, SongEngagementStats> =
-        synchronized(fileLock) { readEngagementsLocked() }
+    init {
+        // Migrate legacy JSON data to Room on first access
+        migrateLegacyDataIfNeeded()
+    }
 
-    private fun readEngagementsLocked(): MutableMap<String, SongEngagementStats> {
-        if (!scoresFile.exists()) {
+    /**
+     * Migrates engagements from legacy JSON file to Room database.
+     * This runs once on startup if the legacy file exists.
+     */
+    private fun migrateLegacyDataIfNeeded() {
+        if (legacyMigrationComplete || !legacyScoresFile.exists()) {
+            legacyMigrationComplete = true
+            return
+        }
+
+        synchronized(fileLock) {
+            if (legacyMigrationComplete) return
+
+            try {
+                val legacyData = readLegacyEngagementsLocked()
+                if (legacyData.isNotEmpty()) {
+                    val entities = legacyData.map { (songId, stats) ->
+                        SongEngagementEntity(
+                            songId = songId,
+                            playCount = stats.playCount.coerceAtLeast(0),
+                            totalPlayDurationMs = stats.totalPlayDurationMs.coerceAtLeast(0L),
+                            lastPlayedTimestamp = stats.lastPlayedTimestamp.coerceAtLeast(0L)
+                        )
+                    }
+                    // Insert into Room - blocking is acceptable during init
+                    runBlocking {
+                        engagementDao.upsertEngagements(entities)
+                    }
+                    Log.i(TAG, "Migrated ${entities.size} engagement records from JSON to Room")
+                    
+                    // Rename legacy file as backup instead of deleting
+                    val backupFile = File(context.filesDir, "song_scores.json.bak")
+                    legacyScoresFile.renameTo(backupFile)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to migrate legacy engagement data", e)
+            }
+
+            legacyMigrationComplete = true
+        }
+    }
+
+    /**
+     * Reads engagements from Room database (blocking version for compatibility).
+     */
+    private fun readEngagements(): Map<String, SongEngagementStats> {
+        return runBlocking {
+            engagementDao.getAllEngagements().associate { entity ->
+                entity.songId to SongEngagementStats(
+                    playCount = entity.playCount,
+                    totalPlayDurationMs = entity.totalPlayDurationMs,
+                    lastPlayedTimestamp = entity.lastPlayedTimestamp
+                )
+            }
+        }
+    }
+
+    /**
+     * Legacy method to read from JSON file during migration.
+     */
+    private fun readLegacyEngagementsLocked(): MutableMap<String, SongEngagementStats> {
+        if (!legacyScoresFile.exists()) {
             return mutableMapOf()
         }
 
-        val raw = runCatching { scoresFile.readText() }
-            .onFailure { Log.e(TAG, "Failed to read song scores file", it) }
+        val raw = runCatching { legacyScoresFile.readText() }
+            .onFailure { Log.e(TAG, "Failed to read legacy song scores file", it) }
             .getOrNull()
             ?.takeIf { it.isNotBlank() }
             ?: return mutableMapOf()
@@ -49,7 +118,7 @@ class DailyMixManager @Inject constructor(
             val element = gson.fromJson(raw, JsonElement::class.java)
             parseEngagementElement(element)
         }.getOrElse { throwable ->
-            Log.e(TAG, "Failed to parse song scores file, ignoring its contents", throwable)
+            Log.e(TAG, "Failed to parse legacy song scores file", throwable)
             mutableMapOf()
         }
     }
@@ -149,41 +218,21 @@ class DailyMixManager @Inject constructor(
         )
     }
 
-    private fun saveEngagements(engagements: Map<String, SongEngagementStats>) {
-        synchronized(fileLock) {
-            saveEngagementsLocked(engagements)
-        }
-    }
-
-    private fun saveEngagementsLocked(engagements: Map<String, SongEngagementStats>) {
-        val sanitized = engagements.mapValues { (_, stats) -> sanitizeStats(stats) }
-        runCatching {
-            scoresFile.parentFile?.let { parent ->
-                if (!parent.exists()) {
-                    parent.mkdirs()
-                }
-            }
-            scoresFile.writeText(gson.toJson(sanitized))
-        }.onFailure {
-            Log.e(TAG, "Failed to persist song engagements", it)
-        }
-    }
-
+    /**
+     * Records a song play using Room's atomic upsert operation.
+     * More efficient than JSON read-modify-write.
+     */
     fun recordPlay(
         songId: String,
         songDurationMs: Long = 0L,
         timestamp: Long = System.currentTimeMillis()
     ) {
-        synchronized(fileLock) {
-            val engagements = readEngagementsLocked()
-            val currentStats = engagements[songId] ?: SongEngagementStats()
-            val updatedStats = currentStats.copy(
-                playCount = (currentStats.playCount + 1).coerceAtLeast(1),
-                totalPlayDurationMs = currentStats.totalPlayDurationMs + songDurationMs.coerceAtLeast(0L),
-                lastPlayedTimestamp = timestamp.coerceAtLeast(0L)
+        runBlocking {
+            engagementDao.recordPlay(
+                songId = songId,
+                durationMs = songDurationMs.coerceAtLeast(0L),
+                timestamp = timestamp.coerceAtLeast(0L)
             )
-            engagements[songId] = sanitizeStats(updatedStats)
-            saveEngagementsLocked(engagements)
         }
     }
 
@@ -192,15 +241,25 @@ class DailyMixManager @Inject constructor(
     }
 
     fun getScore(songId: String): Int {
-        return readEngagements()[songId]?.playCount ?: 0
+        return runBlocking {
+            engagementDao.getPlayCount(songId) ?: 0
+        }
     }
 
     fun getEngagementStats(songId: String): SongEngagementStats? {
-        return readEngagements()[songId]
+        return runBlocking {
+            engagementDao.getEngagement(songId)?.let { entity ->
+                SongEngagementStats(
+                    playCount = entity.playCount,
+                    totalPlayDurationMs = entity.totalPlayDurationMs,
+                    lastPlayedTimestamp = entity.lastPlayedTimestamp
+                )
+            }
+        }
     }
 
     fun getAllEngagementStats(): Map<String, SongEngagementStats> {
-        return readEngagements().toMap()
+        return readEngagements()
     }
 
     private fun computeRankedSongs(

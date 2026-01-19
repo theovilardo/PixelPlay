@@ -933,8 +933,8 @@ dir.walkTopDown()
 ### Fase 3: Arquitectura (4-8 semanas)
 - [ ] Descomponer PlayerViewModel en ViewModels especializados (2.1)
 - [ ] Migrar a paginación para listas grandes (2.2)
-- [ ] Refactorizar SyncWorker para single-pass processing (5.2)
-- [ ] Migrar engagements a Room Database (1.2)
+- [x] Refactorizar SyncWorker para single-pass processing (5.2) - YA OPTIMIZADO
+- [x] Migrar engagements a Room Database (1.2)
 
 ---
 
