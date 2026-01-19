@@ -2,11 +2,13 @@ package com.theveloper.pixelplay.utils
 
 import android.content.ContentUris
 import android.content.Context
-import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import com.theveloper.pixelplay.data.database.MusicDao
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileInputStream
 
@@ -55,6 +57,8 @@ object AlbumArtUtils {
             // 1. Check if art is already cached
             val cachedFile = File(appContext.cacheDir, "song_art_${songId}.jpg")
             if (cachedFile.exists()) {
+                // Touch file for LRU tracking
+                cachedFile.setLastModified(System.currentTimeMillis())
                 return try {
                     FileProvider.getUriForFile(
                         appContext,
@@ -76,9 +80,8 @@ object AlbumArtUtils {
                 return null
         }
 
-        // 3. Try to extract embedded art
-        val retriever = MediaMetadataRetriever()
-        return try {
+        // 3. Try to extract embedded art using pooled MediaMetadataRetriever
+        return MediaMetadataRetrieverPool.withRetriever { retriever ->
             try {
                 retriever.setDataSource(filePath)
             } catch (e: IllegalArgumentException) {
@@ -88,7 +91,7 @@ object AlbumArtUtils {
                         retriever.setDataSource(fis.fd)
                     }
                 } catch (e2: Exception) {
-                    return null
+                    return@withRetriever null
                 }
             }
 
@@ -100,10 +103,6 @@ object AlbumArtUtils {
                 noArtFile.createNewFile()
                 null
             }
-        } catch (e: Exception) {
-            null
-        } finally {
-            retriever.release()
         }
     }
 
@@ -189,6 +188,11 @@ object AlbumArtUtils {
 
         file.outputStream().use { outputStream ->
             outputStream.write(bytes)
+        }
+        
+        // Trigger async cache cleanup if needed
+        CoroutineScope(Dispatchers.IO).launch {
+            AlbumArtCacheManager.cleanCacheIfNeeded(appContext)
         }
 
         return try {

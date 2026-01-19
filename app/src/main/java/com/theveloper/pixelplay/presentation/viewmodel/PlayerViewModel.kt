@@ -944,6 +944,12 @@ class PlayerViewModel @Inject constructor(
     private var transitionSchedulerJob: Job? = null
     private val listeningStatsTracker = ListeningStatsTracker()
     private var lastKnownRemoteIsPlaying = false
+    
+    // Lifecycle-aware progress updates for battery optimization
+    // Uses sheet visibility and state as proxy for UI visibility
+    private fun isPlayerUiActive(): Boolean {
+        return _isSheetVisible.value && _sheetState.value == PlayerSheetState.EXPANDED
+    }
 
     private fun incrementSongScore(song: Song) {
         listeningStatsTracker.onVoluntarySelection(song.id)
@@ -4567,7 +4573,15 @@ class PlayerViewModel @Inject constructor(
                 val shouldKeepPolling = isActivelyPlaying || controller.playWhenReady
                 if (!shouldKeepPolling) break
 
-                val delayMillis = if (isActivelyPlaying || controller.playWhenReady) 200L else 500L
+                // Use longer interval when player UI is not visible to save battery
+                // 200ms when player is expanded (smooth slider)
+                // 500ms when collapsed (mini player needs less precision)
+                // 1000ms would be even better for background but we use collapsed state as proxy
+                val delayMillis = when {
+                    isPlayerUiActive() -> 200L    // Full player visible: smooth UI
+                    _isSheetVisible.value -> 500L // Mini player visible: moderate
+                    else -> 1000L                 // No player UI: slow updates
+                }
                 delay(delayMillis)
             }
         }
