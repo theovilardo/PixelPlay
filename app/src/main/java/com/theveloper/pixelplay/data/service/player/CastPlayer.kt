@@ -106,20 +106,16 @@ class CastPlayer(private val castSession: CastSession) {
                 applicationName
             )
 
-            // REMOVED AirReceiver detection logic. Treating all devices equally.
-            // This enables QueueLoad, LoadRequestData, and full metadata/art for everyone.
-            // This is crucial to test if the "Invalid Request" was due to the restricted "Legacy Load" payload.
-
-            val useMinimalQueue = false
+            // Reverted usage of strict logic.
             val effectiveAutoPlay = autoPlay
 
-            // Build standard MediaInfo
+            // Build simplified MediaInfo to avoid parsing errors on receiver
             val mediaInfo = currentSongForLoad.toMediaInfo(
                 serverAddress = serverAddress,
                 includeMetadata = true,
-                includeImages = true,
+                includeImages = false, // DISABLED images temporarily to rule out fetch failures
                 includeDuration = true,
-                includeCustomData = true,
+                includeCustomData = false, // DISABLED custom data to prevent parsing errors
                 streamType = MediaInfo.STREAM_TYPE_BUFFERED
             )
             Timber.tag(CAST_TAG).i(
@@ -132,9 +128,11 @@ class CastPlayer(private val castSession: CastSession) {
             )
 
             val safeStartPosition = startPosition.coerceAtLeast(0L)
-            val startPositionSeconds = safeStartPosition / 1000.0
 
-            val mediaItemsForLoad = mediaItems
+            // Use simplified MediaItems (no custom data, no images)
+            val mediaItemsForLoad = songs.mapIndexed { index, song ->
+                 song.toMediaQueueItem(serverAddress, index + 1, minimal = true)
+            }
 
             Timber.tag(CAST_TAG).i(
                 "Load params: queueSize=%d startIndex=%d repeatMode=%d autoPlay=%s startPositionMs=%d",
@@ -178,13 +176,13 @@ class CastPlayer(private val castSession: CastSession) {
 
             fun attemptLoadRequest(onResult: (Boolean, Int, String?) -> Unit) {
                 Timber.tag(CAST_TAG).i(
-                    "Attempting load(MediaLoadRequestData) for current item (currentTime=%.3f)",
-                    startPositionSeconds
+                    "Attempting load(MediaLoadRequestData) for current item (currentTime=%d)",
+                    safeStartPosition
                 )
                 val requestData = MediaLoadRequestData.Builder()
                     .setMediaInfo(mediaInfo)
                     .setAutoplay(effectiveAutoPlay)
-                    .setCurrentTime(startPositionSeconds)
+                    .setCurrentTime(safeStartPosition) // FIXED: Passing Long (ms) instead of Double (s)
                     .build()
 
                 client.load(requestData).setResultCallback { result ->
@@ -320,18 +318,22 @@ class CastPlayer(private val castSession: CastSession) {
         private const val CAST_TAG = "PixelPlayCastDebug"
     }
 
-    private fun Song.toMediaQueueItem(serverAddress: String, itemId: Int): MediaQueueItem {
+    private fun Song.toMediaQueueItem(serverAddress: String, itemId: Int, minimal: Boolean = false): MediaQueueItem {
         val mediaInfo = toMediaInfo(
             serverAddress = serverAddress,
             includeMetadata = true,
-            includeImages = true,
+            includeImages = !minimal,
             includeDuration = true,
-            includeCustomData = true
+            includeCustomData = !minimal
         )
-        return MediaQueueItem.Builder(mediaInfo)
+        val builder = MediaQueueItem.Builder(mediaInfo)
             .setItemId(itemId)
-            .setCustomData(buildCastCustomData())
-            .build()
+
+        if (!minimal) {
+            builder.setCustomData(buildCastCustomData())
+        }
+
+        return builder.build()
     }
 
     private fun Song.toMediaInfo(
@@ -407,10 +409,10 @@ class CastPlayer(private val castSession: CastSession) {
     private fun Song.resolveCastMimeType(): String {
         val mime = mimeType?.takeIf { it.isNotBlank() && it != "-" }
         if (mime != null) {
-            // Force audio/mp3 if it's audio/mpeg for compatibility
-            if (mime.equals("audio/mpeg", ignoreCase = true)) {
-                return "audio/mp3"
-            }
+             // Return original mime type, but ensure simple MP3 compliance
+             if (mime.equals("audio/mp3", ignoreCase = true)) {
+                 return "audio/mpeg" // Revert to standard
+             }
             return mime
         }
         return when (val pathExtension = path.substringAfterLast('.', "").lowercase()) {
@@ -419,8 +421,8 @@ class CastPlayer(private val castSession: CastSession) {
             "ogg" -> "audio/ogg"
             "wav" -> "audio/wav"
             "aac" -> "audio/aac"
-            "mp3" -> "audio/mp3" // Changed from audio/mpeg to audio/mp3 for compatibility
-            else -> "audio/mp3" // Default to audio/mp3
+            "mp3" -> "audio/mpeg" // Standard
+            else -> "audio/mpeg"
         }
     }
 
