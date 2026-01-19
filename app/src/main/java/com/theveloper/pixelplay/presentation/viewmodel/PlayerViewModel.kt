@@ -295,7 +295,8 @@ class PlayerViewModel @Inject constructor(
     private val listeningStatsTracker: ListeningStatsTracker,
     private val colorSchemeProcessor: ColorSchemeProcessor,
     private val dailyMixStateHolder: DailyMixStateHolder,
-    private val lyricsStateHolder: LyricsStateHolder
+    private val lyricsStateHolder: LyricsStateHolder,
+    private val castStateHolder: CastStateHolder
 ) : ViewModel() {
 
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -505,18 +506,18 @@ class PlayerViewModel @Inject constructor(
     private var bluetoothStateReceiver: BroadcastReceiver? = null
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
     private val audioDeviceCallback: android.media.AudioDeviceCallback
-    private val sessionManager: SessionManager = CastContext.getSharedInstance(context).sessionManager
+    
+    // Cast state is now managed by CastStateHolder
+    private val sessionManager: SessionManager get() = castStateHolder.sessionManager
     private var castSessionManagerListener: SessionManagerListener<CastSession>? = null
-    private val _castSession = MutableStateFlow<CastSession?>(null)
-    private var castPlayer: CastPlayer? = null
-    private val _isRemotePlaybackActive = MutableStateFlow(false)
-    val isRemotePlaybackActive: StateFlow<Boolean> = _isRemotePlaybackActive.asStateFlow()
-    private val _isCastConnecting = MutableStateFlow(false)
-    val isCastConnecting: StateFlow<Boolean> = _isCastConnecting.asStateFlow()
-    private val castControlCategory = CastMediaControlIntent.categoryForCast(CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID)
-    private var pendingCastRouteId: String? = null
-    private val _remotePosition = MutableStateFlow(0L)
-    val remotePosition: StateFlow<Long> = _remotePosition.asStateFlow()
+    private val castSession: StateFlow<CastSession?> get() = castStateHolder.castSession
+    private val castPlayer: CastPlayer? get() = castStateHolder.castPlayer
+    val isRemotePlaybackActive: StateFlow<Boolean> = castStateHolder.isRemotePlaybackActive
+    val isCastConnecting: StateFlow<Boolean> = castStateHolder.isCastConnecting
+    private val castControlCategory get() = CastMediaControlIntent.categoryForCast(CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID)
+    private val pendingCastRouteId: String? get() = castStateHolder.pendingCastRouteId
+    val remotePosition: StateFlow<Long> = castStateHolder.remotePosition
+    // Keep lastRemote* as local variables for safety - many internal assignments
     private var lastRemoteMediaStatus: MediaStatus? = null
     private var lastRemoteQueue: List<Song> = emptyList()
     private var lastRemoteSongId: String? = null
@@ -595,7 +596,7 @@ class PlayerViewModel @Inject constructor(
             }
             state.copy(currentPlaybackQueue = updatedQueue.toImmutableList(), currentPosition = 0L)
         }
-        _remotePosition.value = 0L
+        castStateHolder.setRemotePosition(0L)
     }
 
     private fun resolvePendingRemoteSong(
@@ -1103,8 +1104,8 @@ class PlayerViewModel @Inject constructor(
         // Cast initialization if already connected
         val currentSession = sessionManager.currentCastSession
         if (currentSession != null) {
-            castPlayer = CastPlayer(currentSession)
-            _isRemotePlaybackActive.value = true
+            castStateHolder.setCastPlayer(CastPlayer(currentSession))
+            castStateHolder.setRemotePlaybackActive(true)
         }
 
         // Observe current song lyrics offset
@@ -1375,7 +1376,7 @@ class PlayerViewModel @Inject constructor(
             if (!isRemotelySeeking.value) {
                 val pendingId = pendingRemoteSongId
                 if (pendingId != null && SystemClock.elapsedRealtime() - pendingRemoteSongMarkedAt < 4000) {
-                    val status = _castSession.value?.remoteMediaClient?.mediaStatus
+                    val status = castSession.value?.remoteMediaClient?.mediaStatus
                     val activeId = status
                         ?.getQueueItemById(status.getCurrentItemId())
                         ?.customData
@@ -1391,7 +1392,7 @@ class PlayerViewModel @Inject constructor(
                         return@ProgressListener
                     }
                 }
-                _remotePosition.value = progress
+                castStateHolder.setRemotePosition(progress)
                 lastRemoteStreamPosition = progress
                 listeningStatsTracker.onProgress(progress, lastKnownRemoteIsPlaying)
                 Timber.tag(CAST_LOG_TAG).d("Remote progress update: %d", progress)
@@ -1400,7 +1401,7 @@ class PlayerViewModel @Inject constructor(
 
         remoteMediaClientCallback = object : RemoteMediaClient.Callback() {
             override fun onStatusUpdated() {
-                val remoteMediaClient = _castSession.value?.remoteMediaClient ?: return
+                val remoteMediaClient = castSession.value?.remoteMediaClient ?: return
                 val mediaStatus = remoteMediaClient.mediaStatus ?: return
                 Timber.tag(CAST_LOG_TAG)
                     .d(
@@ -1445,7 +1446,7 @@ class PlayerViewModel @Inject constructor(
                         pendingRemoteSongId = null
                     }
                     isRemotelySeeking.value = false
-                    _remotePosition.value = streamPosition
+                    castStateHolder.setRemotePosition(streamPosition)
                     _playerUiState.update { it.copy(currentPosition = streamPosition) }
                 }
                 val reportedSong = currentSongId?.let { songMap[it] }
@@ -1517,7 +1518,7 @@ class PlayerViewModel @Inject constructor(
                 lastRemoteStreamPosition = streamPosition
                 lastRemoteRepeatMode = mediaStatus.queueRepeatMode
                 if (!isRemotelySeeking.value) {
-                    _remotePosition.value = streamPosition
+                    castStateHolder.setRemotePosition(streamPosition)
                     _playerUiState.update { it.copy(currentPosition = streamPosition) }
                 }
                 Timber.tag(CAST_LOG_TAG)
@@ -1546,7 +1547,7 @@ class PlayerViewModel @Inject constructor(
                 _stablePlayerState.update {
                     var nextSong = currentSongFallback
                     // Prevent clearing the song if we are in the middle of a connection attempt
-                    if (_isCastConnecting.value && nextSong == null) {
+                    if (isCastConnecting.value && nextSong == null) {
                         nextSong = it.currentSong
                     }
                     it.copy(
@@ -1557,7 +1558,7 @@ class PlayerViewModel @Inject constructor(
                         totalDuration = streamDuration
                     )
                 }
-                if (_castSession.value != null) {
+                if (castSession.value != null) {
                     _isSheetVisible.value = true
                 }
             }
@@ -1566,10 +1567,10 @@ class PlayerViewModel @Inject constructor(
         castSessionManagerListener = object : SessionManagerListener<CastSession> {
             private fun transferPlayback(session: CastSession) {
                 viewModelScope.launch {
-                    pendingCastRouteId = null
-                    _isCastConnecting.value = true
+                    castStateHolder.setPendingCastRouteId(null)
+                    castStateHolder.setCastConnecting(true)
                     if (!ensureHttpServerRunning()) {
-                        _isCastConnecting.value = false
+                        castStateHolder.setCastConnecting(false)
                         disconnect()
                         return@launch
                     }
@@ -1578,7 +1579,7 @@ class PlayerViewModel @Inject constructor(
                     val localPlayer = mediaController
                     val currentQueue = _playerUiState.value.currentPlaybackQueue
                     if (serverAddress == null || localPlayer == null || currentQueue.isEmpty()) {
-                        _isCastConnecting.value = false
+                        castStateHolder.setCastConnecting(false)
                         return@launch
                     }
 
@@ -1609,9 +1610,9 @@ class PlayerViewModel @Inject constructor(
                     localPlayer.pause()
                     stopProgressUpdates()
 
-                    castPlayer = CastPlayer(session)
-                    _castSession.value = session
-                    _isRemotePlaybackActive.value = false
+                    castStateHolder.setCastPlayer(CastPlayer(session))
+                    castStateHolder.setCastSession(session)
+                    castStateHolder.setRemotePlaybackActive(false)
 
                     castPlayer?.loadQueue(
                         songs = currentQueue,
@@ -1624,10 +1625,10 @@ class PlayerViewModel @Inject constructor(
                             if (!success) {
                                 sendToast("Failed to load media on cast device.")
                                 disconnect()
-                                _isCastConnecting.value = false
+                                castStateHolder.setCastConnecting(false)
                             }
-                            _isRemotePlaybackActive.value = success
-                            _isCastConnecting.value = false
+                            castStateHolder.setRemotePlaybackActive(success)
+                            castStateHolder.setCastConnecting(false)
                         }
                     )
 
@@ -1636,7 +1637,7 @@ class PlayerViewModel @Inject constructor(
 
                     remoteProgressObserverJob?.cancel()
                     remoteProgressObserverJob = viewModelScope.launch {
-                        _remotePosition.collect { position ->
+                        remotePosition.collect { position ->
                             _playerUiState.update { it.copy(currentPosition = position) }
                         }
                     }
@@ -1654,7 +1655,7 @@ class PlayerViewModel @Inject constructor(
             private suspend fun stopServerAndTransferBack() {
                 val startMs = SystemClock.elapsedRealtime()
                 val targetRouteId = pendingCastRouteId
-                val session = _castSession.value ?: return
+                val session = castSession.value ?: return
                 val remoteMediaClient = session.remoteMediaClient
                 Timber.tag(CAST_LOG_TAG).i(
                     "Stop server and transfer back initiated. targetRouteId=%s mainThread=%s",
@@ -1668,7 +1669,7 @@ class PlayerViewModel @Inject constructor(
                         ?: lastKnownStatus?.streamPosition
                         ?: lastRemoteStreamPosition
                     )
-                    .takeIf { it > 0 } ?: _remotePosition.value
+                    .takeIf { it > 0 } ?: remotePosition.value
                 val wasPlaying = (liveStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING)
                     || (lastKnownStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING)
                     || lastKnownRemoteIsPlaying
@@ -1708,14 +1709,14 @@ class PlayerViewModel @Inject constructor(
                     "Transfer back: removed remote callbacks at +%dms",
                     SystemClock.elapsedRealtime() - startMs
                 )
-                castPlayer = null
-                _castSession.value = null
-                _isRemotePlaybackActive.value = false
+                castStateHolder.setCastPlayer(null)
+                castStateHolder.setCastSession(null)
+                castStateHolder.setRemotePlaybackActive(false)
                 if (targetRouteId == null) {
                     context.stopService(Intent(context, MediaFileHttpServerService::class.java))
                     disconnect(resetConnecting = false) // Don't reset connecting flag yet
                 } else {
-                    _isCastConnecting.value = true
+                    castStateHolder.setCastConnecting(true)
                 }
                 Timber.tag(CAST_LOG_TAG).i(
                     "Transfer back: local session state cleared at +%dms (targetRouteId=%s)",
@@ -1725,10 +1726,10 @@ class PlayerViewModel @Inject constructor(
 
                 val localPlayer = mediaController ?: run {
                     if (targetRouteId == null) {
-                        _isCastConnecting.value = false
+                        castStateHolder.setCastConnecting(false)
                     } else {
-                        pendingCastRouteId = null
-                        _isCastConnecting.value = false
+                        castStateHolder.setPendingCastRouteId(null)
+                        castStateHolder.setCastConnecting(false)
                     }
                     return
                 }
@@ -1917,7 +1918,7 @@ class PlayerViewModel @Inject constructor(
                 lastRemoteStreamPosition = 0L
                 if (targetRouteId == null) {
                     Timber.tag(CAST_LOG_TAG).i("Transfer back complete. Clearing castConnecting=false")
-                    _isCastConnecting.value = false // NOW we reset the flag
+                    castStateHolder.setCastConnecting(false) // NOW we reset the flag
                     flushPendingRepeatMode()
                 } else {
                     val pendingRoute = mediaRouter.routes.firstOrNull { it.id == targetRouteId }
@@ -1926,8 +1927,8 @@ class PlayerViewModel @Inject constructor(
                         mediaRouter.selectRoute(pendingRoute)
                     } else {
                         Timber.tag(CAST_LOG_TAG).w("Pending route %s not found after transfer back. Resetting state.", targetRouteId)
-                        pendingCastRouteId = null
-                        _isCastConnecting.value = false
+                        castStateHolder.setPendingCastRouteId(null)
+                        castStateHolder.setCastConnecting(false)
                         flushPendingRepeatMode()
                     }
                 }
@@ -1947,28 +1948,28 @@ class PlayerViewModel @Inject constructor(
 
             // Other listener methods can be overridden if needed
             override fun onSessionStarting(session: CastSession) {
-                _isCastConnecting.value = true
+                castStateHolder.setCastConnecting(true)
             }
             override fun onSessionStartFailed(session: CastSession, error: Int) {
-                pendingCastRouteId = null
-                _isCastConnecting.value = false
+                castStateHolder.setPendingCastRouteId(null)
+                castStateHolder.setCastConnecting(false)
             }
             override fun onSessionEnding(session: CastSession) {
-                Timber.tag(CAST_LOG_TAG).i("Cast session ending; keeping connecting flag=%s", _isCastConnecting.value)
+                Timber.tag(CAST_LOG_TAG).i("Cast session ending; keeping connecting flag=%s", isCastConnecting.value)
             }
             override fun onSessionResuming(session: CastSession, sessionId: String) {
-                _isCastConnecting.value = true
+                castStateHolder.setCastConnecting(true)
             }
             override fun onSessionResumeFailed(session: CastSession, error: Int) {
-                pendingCastRouteId = null
-                _isCastConnecting.value = false
+                castStateHolder.setPendingCastRouteId(null)
+                castStateHolder.setCastConnecting(false)
             }
         }
         sessionManager.addSessionManagerListener(castSessionManagerListener as SessionManagerListener<CastSession>, CastSession::class.java)
-        _castSession.value = sessionManager.currentCastSession
-        _isRemotePlaybackActive.value = _castSession.value != null
-        _castSession.value?.remoteMediaClient?.registerCallback(remoteMediaClientCallback!!)
-        _castSession.value?.remoteMediaClient?.addProgressListener(remoteProgressListener!!, 1000)
+        castStateHolder.setCastSession(sessionManager.currentCastSession)
+        castStateHolder.setRemotePlaybackActive(castSession.value != null)
+        castSession.value?.remoteMediaClient?.registerCallback(remoteMediaClientCallback!!)
+        castSession.value?.remoteMediaClient?.addProgressListener(remoteProgressListener!!, 1000)
 
         viewModelScope.launch {
             userPreferencesRepository.repeatModeFlow.collect { mode ->
@@ -2404,7 +2405,7 @@ class PlayerViewModel @Inject constructor(
         queueName: String = "Current Context",
         isVoluntaryPlay: Boolean = true
     ) {
-        val castSession = _castSession.value
+        val castSession = castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             val remoteMediaClient = castSession.remoteMediaClient!!
             val mediaStatus = remoteMediaClient.mediaStatus
@@ -2711,7 +2712,7 @@ class PlayerViewModel @Inject constructor(
     private fun applyPreferredRepeatMode(@Player.RepeatMode mode: Int) {
         _stablePlayerState.update { it.copy(repeatMode = mode) }
 
-        val castSession = _castSession.value
+        val castSession = castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             pendingRepeatMode = mode
             return
@@ -2856,7 +2857,7 @@ class PlayerViewModel @Inject constructor(
                             loadLyricsForCurrentSong()
                         }
                     } ?: run {
-                        if (!_isCastConnecting.value && !_isRemotePlaybackActive.value) {
+                        if (!isCastConnecting.value && !isRemotePlaybackActive.value) {
                             lyricsStateHolder.cancelLoading()
                             _stablePlayerState.update {
                                 it.copy(
@@ -2882,7 +2883,7 @@ class PlayerViewModel @Inject constructor(
                     listeningStatsTracker.finalizeCurrentSession()
                 }
                 if (playbackState == Player.STATE_IDLE && playerCtrl.mediaItemCount == 0) {
-                    if (!_isCastConnecting.value && !_isRemotePlaybackActive.value) {
+                    if (!isCastConnecting.value && !isRemotePlaybackActive.value) {
                         listeningStatsTracker.onPlaybackStopped()
                         lyricsStateHolder.cancelLoading()
                         _stablePlayerState.update {
@@ -3108,7 +3109,7 @@ class PlayerViewModel @Inject constructor(
             _stablePlayerState.update { it.copy(isShuffleEnabled = false) }
 
             internalPlaySongs(songsToPlay, startSong, queueName, playlistId)
-            val isCastSessionActive = _castSession.value?.remoteMediaClient != null
+            val isCastSessionActive = castSession.value?.remoteMediaClient != null
             if (isCastSessionActive || mediaController != null) {
                 toggleShuffle(currentSongOverride = startSong)
             } else {
@@ -3507,7 +3508,7 @@ class PlayerViewModel @Inject constructor(
             appShortcutManager.updateLastPlaylistShortcut(playlistId, queueName)
         }
         
-        val castSession = _castSession.value
+        val castSession = castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             if (!ensureHttpServerRunning()) return
 
@@ -3672,7 +3673,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun toggleShuffle(currentSongOverride: Song? = null) {
-        val castSession = _castSession.value
+        val castSession = castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             val remoteMediaClient = castSession.remoteMediaClient
             val newRepeatMode = if (remoteMediaClient?.mediaStatus?.getQueueRepeatMode() == MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE) {
@@ -3777,7 +3778,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun cycleRepeatMode() {
-        val castSession = _castSession.value
+        val castSession = castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             val remoteMediaClient = castSession.remoteMediaClient
             val currentRepeatMode = remoteMediaClient?.mediaStatus?.getQueueRepeatMode() ?: MediaStatus.REPEAT_MODE_REPEAT_OFF
@@ -3812,7 +3813,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun repeatSingle(){
-        val castSession = _castSession.value
+        val castSession = castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             val newMode = MediaStatus.REPEAT_MODE_REPEAT_SINGLE;
             castPlayer?.setRepeatMode(newMode)
@@ -3825,7 +3826,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun repeatOff(){
-        val castSession = _castSession.value
+        val castSession = castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             val newMode = MediaStatus.REPEAT_MODE_REPEAT_OFF;
             castPlayer?.setRepeatMode(newMode)
@@ -4186,7 +4187,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun playPause() {
-        val castSession = _castSession.value
+        val castSession = castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             val remoteMediaClient = castSession.remoteMediaClient!!
             if (remoteMediaClient.isPlaying) {
@@ -4244,7 +4245,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun seekTo(position: Long) {
-        val castSession = _castSession.value
+        val castSession = castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             isRemotelySeeking.value = true
 
@@ -4262,7 +4263,7 @@ class PlayerViewModel @Inject constructor(
             }
 
             // Optimistically update the UI state for responsiveness
-            _remotePosition.value = position
+            castStateHolder.setRemotePosition(position)
             _playerUiState.update { it.copy(currentPosition = position) }
         } else {
             mediaController?.seekTo(position)
@@ -4271,7 +4272,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun nextSong() {
-        val castSession = _castSession.value
+        val castSession = castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             val queue = _playerUiState.value.currentPlaybackQueue
             val currentId = _stablePlayerState.value.currentSong?.id
@@ -4294,7 +4295,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun previousSong() {
-        val castSession = _castSession.value
+        val castSession = castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             val queue = _playerUiState.value.currentPlaybackQueue
             val currentId = _stablePlayerState.value.currentSong?.id
@@ -4318,13 +4319,13 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun startProgressUpdates() {
-        if (_castSession.value != null) return
+        if (castSession.value != null) return
 
         stopProgressUpdates()
         progressJob = viewModelScope.launch {
             var lastPublishedPosition = Long.MIN_VALUE
             while (isActive) {
-                if (_castSession.value != null) break
+                if (castSession.value != null) break
                 val controller = mediaController ?: break
 
                 val position = controller.currentPosition.coerceAtLeast(0L)
@@ -4767,35 +4768,35 @@ class PlayerViewModel @Inject constructor(
         val selectedRouteId = _selectedRoute.value?.id
         val isCastRoute = route.isCastRoute() && !route.isDefault
         val isSwitchingBetweenRemotes = isCastRoute &&
-            (isRemotePlaybackActive.value || _isCastConnecting.value) &&
+            (isRemotePlaybackActive.value || isCastConnecting.value) &&
             selectedRouteId != null &&
             selectedRouteId != route.id
 
         if (isSwitchingBetweenRemotes) {
-            pendingCastRouteId = route.id
-            _isCastConnecting.value = true
+            castStateHolder.setPendingCastRouteId(route.id)
+            castStateHolder.setCastConnecting(true)
             sessionManager.currentCastSession?.let { sessionManager.endCurrentSession(true) }
         } else {
-            pendingCastRouteId = null
+            castStateHolder.setPendingCastRouteId(null)
         }
         mediaRouter.selectRoute(route)
     }
 
     fun disconnect(resetConnecting: Boolean = true) {
         val start = SystemClock.elapsedRealtime()
-        pendingCastRouteId = null
-        val wasRemote = _isRemotePlaybackActive.value
+        castStateHolder.setPendingCastRouteId(null)
+        val wasRemote = isRemotePlaybackActive.value
         if (wasRemote) {
             Timber.tag(CAST_LOG_TAG).i(
                 "Manual disconnect requested; marking castConnecting=true until session ends. mainThread=%s",
                 Looper.myLooper() == Looper.getMainLooper()
             )
-            _isCastConnecting.value = true
+            castStateHolder.setCastConnecting(true)
         }
         mediaRouter.selectRoute(mediaRouter.defaultRoute)
-        _isRemotePlaybackActive.value = false
+        castStateHolder.setRemotePlaybackActive(false)
         if (resetConnecting && !wasRemote) {
-            _isCastConnecting.value = false
+            castStateHolder.setCastConnecting(false)
         }
         Timber.tag(CAST_LOG_TAG).i(
             "Disconnect call finished in %dms (wasRemote=%s resetConnecting=%s)",
