@@ -293,14 +293,16 @@ class PlayerViewModel @Inject constructor(
     private val dualPlayerEngine: DualPlayerEngine,
     private val appShortcutManager: com.theveloper.pixelplay.utils.AppShortcutManager,
     private val listeningStatsTracker: ListeningStatsTracker,
-    private val colorSchemeProcessor: ColorSchemeProcessor
+    private val colorSchemeProcessor: ColorSchemeProcessor,
+    private val dailyMixStateHolder: DailyMixStateHolder
 ) : ViewModel() {
 
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     init {
-        // Initialize the listening stats tracker with our coroutine scope
+        // Initialize helper classes with our coroutine scope
         listeningStatsTracker.initialize(viewModelScope)
+        dailyMixStateHolder.initialize(viewModelScope)
     }
 
     private val _playerUiState = MutableStateFlow(PlayerUiState())
@@ -797,18 +799,12 @@ class PlayerViewModel @Inject constructor(
     .flowOn(Dispatchers.Default) // Execute combine and transformations on Default dispatcher
     .stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
 
-    private val _dailyMixSongs = MutableStateFlow<ImmutableList<Song>>(persistentListOf())
-    val dailyMixSongs: StateFlow<ImmutableList<Song>> = _dailyMixSongs.asStateFlow()
-
-    private val _yourMixSongs = MutableStateFlow<ImmutableList<Song>>(persistentListOf())
-    val yourMixSongs: StateFlow<ImmutableList<Song>> = _yourMixSongs.asStateFlow()
-
-    private var dailyMixJob: Job? = null
+    // Daily mix state is now managed by DailyMixStateHolder
+    val dailyMixSongs: StateFlow<ImmutableList<Song>> = dailyMixStateHolder.dailyMixSongs
+    val yourMixSongs: StateFlow<ImmutableList<Song>> = dailyMixStateHolder.yourMixSongs
 
     fun removeFromDailyMix(songId: String) {
-        _dailyMixSongs.update { currentList ->
-            currentList.filterNot { it.id == songId }.toImmutableList()
-        }
+        dailyMixStateHolder.removeFromDailyMix(songId)
     }
 
     /**
@@ -824,24 +820,11 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun updateDailyMix() {
-        // Cancel any previous job to avoid multiple updates running
-        dailyMixJob?.cancel()
-        dailyMixJob = viewModelScope.launch(Dispatchers.IO) {
-            // We need all songs to generate the mix
-            val allSongs = allSongsFlow.first()
-            if (allSongs.isNotEmpty()) {
-                val favoriteIds = userPreferencesRepository.favoriteSongIdsFlow.first()
-                val mix = dailyMixManager.generateDailyMix(allSongs, favoriteIds)
-                _dailyMixSongs.value = mix.toImmutableList()
-                // Save the new mix
-                userPreferencesRepository.saveDailyMixSongIds(mix.map { it.id })
-
-                val yourMix = dailyMixManager.generateYourMix(allSongs, favoriteIds)
-                _yourMixSongs.value = yourMix.toImmutableList()
-            } else {
-                _yourMixSongs.value = persistentListOf()
-            }
-        }
+        // Delegate to DailyMixStateHolder
+        dailyMixStateHolder.updateDailyMix(
+            allSongsFlow = allSongsFlow,
+            favoriteSongIdsFlow = userPreferencesRepository.favoriteSongIdsFlow
+        )
     }
 
     fun shuffleAllSongs() {
@@ -915,32 +898,18 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+
     private fun loadPersistedDailyMix() {
-        viewModelScope.launch {
-            // Combine the flow of persisted IDs with the flow of all songs
-            userPreferencesRepository.dailyMixSongIdsFlow.combine(allSongsFlow) { ids, allSongs ->
-                if (ids.isNotEmpty() && allSongs.isNotEmpty()) {
-                    // Create a map for quick lookups
-                    val songMap = allSongs.associateBy { it.id }
-                    // Reconstruct the playlist in the correct order
-                    ids.mapNotNull { songMap[it] }.toImmutableList()
-                } else {
-                    persistentListOf()
-                }
-            }.collect { persistedMix ->
-                // Only update if the current mix is empty, to avoid overwriting a newly generated one
-                if (_dailyMixSongs.value.isEmpty() && persistedMix.isNotEmpty()) {
-                    _dailyMixSongs.value = persistedMix
-                }
-            }
-        }
+        // Delegate to DailyMixStateHolder
+        dailyMixStateHolder.loadPersistedDailyMix(allSongsFlow)
     }
 
     fun forceUpdateDailyMix() {
-        viewModelScope.launch {
-            updateDailyMix()
-            userPreferencesRepository.saveLastDailyMixUpdateTimestamp(System.currentTimeMillis())
-        }
+        // Delegate to DailyMixStateHolder
+        dailyMixStateHolder.forceUpdate(
+            allSongsFlow = allSongsFlow,
+            favoriteSongIdsFlow = userPreferencesRepository.favoriteSongIdsFlow
+        )
     }
 
     private var progressJob: Job? = null
@@ -2070,17 +2039,11 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun checkAndUpdateDailyMixIfNeeded() {
-        viewModelScope.launch {
-            val lastUpdate = userPreferencesRepository.lastDailyMixUpdateFlow.first()
-            val today = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
-            val lastUpdateDay = Calendar.getInstance().apply { timeInMillis = lastUpdate }.get(
-                Calendar.DAY_OF_YEAR)
-
-            if (today != lastUpdateDay) {
-                updateDailyMix()
-                userPreferencesRepository.saveLastDailyMixUpdateTimestamp(System.currentTimeMillis())
-            }
-        }
+        // Delegate to DailyMixStateHolder
+        dailyMixStateHolder.checkAndUpdateIfNeeded(
+            allSongsFlow = allSongsFlow,
+            favoriteSongIdsFlow = userPreferencesRepository.favoriteSongIdsFlow
+        )
     }
 
     private fun preloadThemesAndInitialData() {
@@ -4706,10 +4669,7 @@ class PlayerViewModel @Inject constructor(
                             dismissAiPlaylistSheet()
                         } else {
                             // Original Daily Mix logic
-                            _dailyMixSongs.value = generatedSongs.toImmutableList()
-                            viewModelScope.launch {
-                                userPreferencesRepository.saveDailyMixSongIds(generatedSongs.map { it.id })
-                            }
+                            dailyMixStateHolder.setDailyMixSongs(generatedSongs)
                             playSongs(generatedSongs, generatedSongs.first(), "AI: $prompt")
                             _isSheetVisible.value = true
                             dismissAiPlaylistSheet()
@@ -4741,7 +4701,7 @@ class PlayerViewModel @Inject constructor(
             _aiError.value = null
 
             try {
-                val desiredSize = _dailyMixSongs.value.size.takeIf { it > 0 } ?: 25
+                val desiredSize = dailyMixSongs.value.size.takeIf { it > 0 } ?: 25
                 val minLength = (desiredSize * 0.6).toInt().coerceAtLeast(10)
                 val maxLength = desiredSize.coerceAtLeast(20)
                 val candidatePool = dailyMixManager.generateDailyMix(
@@ -4760,9 +4720,7 @@ class PlayerViewModel @Inject constructor(
 
                 result.onSuccess { generatedSongs ->
                     if (generatedSongs.isNotEmpty()) {
-                        val updatedMix = generatedSongs.toImmutableList()
-                        _dailyMixSongs.value = updatedMix
-                        userPreferencesRepository.saveDailyMixSongIds(updatedMix.map { it.id })
+                        dailyMixStateHolder.setDailyMixSongs(generatedSongs)
                         sendToast(context.getString(R.string.ai_daily_mix_updated))
                     } else {
                         sendToast(context.getString(R.string.ai_no_songs_for_mix))
