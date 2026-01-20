@@ -23,6 +23,7 @@ import com.theveloper.pixelplay.data.media.AudioMetadataReader
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.LyricsRepository
+import com.theveloper.pixelplay.utils.AlbumArtCacheManager
 import com.theveloper.pixelplay.utils.AlbumArtUtils
 import com.theveloper.pixelplay.utils.AudioMetaUtils.getAudioMetadata
 import com.theveloper.pixelplay.utils.normalizeMetadataTextOrEmpty
@@ -359,6 +360,10 @@ constructor(
 
                             Log.i(TAG, "LRC Scan finished. Assigned lyrics to $scannedCount songs.")
                         }
+                        
+                        // Clean orphaned album art cache files
+                        val allSongIds = musicDao.getAllSongIds().toSet()
+                        AlbumArtCacheManager.cleanOrphanedCacheFiles(applicationContext, allSongIds)
 
                         Result.success(workDataOf(OUTPUT_TOTAL_SONGS to totalSongs))
                     } else {
@@ -383,6 +388,11 @@ constructor(
                         userPreferencesRepository.setLastSyncTimestamp(System.currentTimeMillis())
 
                         val totalSongs = musicDao.getSongCount().first()
+                        
+                        // Clean orphaned album art cache files
+                        val allSongIds = musicDao.getAllSongIds().toSet()
+                        AlbumArtCacheManager.cleanOrphanedCacheFiles(applicationContext, allSongIds)
+                        
                         Result.success(workDataOf(OUTPUT_TOTAL_SONGS to totalSongs))
                     }
                 } catch (e: Exception) {
@@ -669,12 +679,30 @@ constructor(
      * Fetches a map of Song ID -> Genre Name using the MediaStore.Audio.Genres table. This is
      * necessary because the GENRE column in MediaStore.Audio.Media is not reliably available or
      * populated on all Android versions (especially pre-API 30).
+     * 
+     * Optimized: 
+     * 1. Caches results for 1 hour to avoid refetching on incremental syncs
+     * 2. Fetches all genres first, then queries members in parallel with controlled concurrency
      */
-    private fun fetchGenreMap(): Map<Long, String> {
-        val genreMap = HashMap<Long, String>()
+    private suspend fun fetchGenreMap(forceRefresh: Boolean = false): Map<Long, String> = coroutineScope {
+        // Check cache first (valid for 1 hour)
+        val now = System.currentTimeMillis()
+        val cacheAge = now - genreMapCacheTimestamp
+        if (!forceRefresh && genreMapCache.isNotEmpty() && cacheAge < GENRE_CACHE_TTL_MS) {
+            Log.d(TAG, "Using cached genre map (${genreMapCache.size} entries, age: ${cacheAge/1000}s)")
+            return@coroutineScope genreMapCache
+        }
+        
+        val genreMap = ConcurrentHashMap<Long, String>()
         val genreProjection = arrayOf(MediaStore.Audio.Genres._ID, MediaStore.Audio.Genres.NAME)
+        
+        // Semaphore to limit concurrent queries (avoid overwhelming ContentResolver)
+        val querySemaphore = Semaphore(4)
 
         try {
+            // Step 1: Fetch all genres (single query)
+            val genres = mutableListOf<Pair<Long, String>>()
+            
             contentResolver.query(
                             MediaStore.Audio.Genres.EXTERNAL_CONTENT_URI,
                             genreProjection,
@@ -694,48 +722,61 @@ constructor(
                                 if (!genreName.isNullOrBlank() &&
                                                 !genreName.equals("unknown", ignoreCase = true)
                                 ) {
-                                    // For each genre, query its members
-                                    val membersUri =
-                                            MediaStore.Audio.Genres.Members.getContentUri(
-                                                    "external",
-                                                    genreId
-                                            )
-                                    val membersProjection =
-                                            arrayOf(MediaStore.Audio.Genres.Members.AUDIO_ID)
-
-                                    contentResolver.query(
-                                                    membersUri,
-                                                    membersProjection,
-                                                    null,
-                                                    null,
-                                                    null
-                                            )
-                                            ?.use { membersCursor ->
-                                                val audioIdCol =
-                                                        membersCursor.getColumnIndex(
-                                                                MediaStore.Audio.Genres.Members
-                                                                        .AUDIO_ID
-                                                        )
-                                                if (audioIdCol >= 0) {
-                                                    while (membersCursor.moveToNext()) {
-                                                        val audioId =
-                                                                membersCursor.getLong(audioIdCol)
-                                                        // If a song has multiple genres, the last
-                                                        // one processed wins.
-                                                        // This is acceptable as a primary genre for
-                                                        // display.
-                                                        genreMap[audioId] = genreName
-                                                    }
-                                                }
-                                            }
+                                    genres.add(genreId to genreName)
                                 }
                             }
                         }
                     }
+            
+            // Step 2: Fetch members for each genre in parallel (controlled concurrency)
+            genres.map { (genreId, genreName) ->
+                async(Dispatchers.IO) {
+                    querySemaphore.withPermit {
+                        val membersUri =
+                                MediaStore.Audio.Genres.Members.getContentUri(
+                                        "external",
+                                        genreId
+                                )
+                        val membersProjection =
+                                arrayOf(MediaStore.Audio.Genres.Members.AUDIO_ID)
+
+                        contentResolver.query(
+                                        membersUri,
+                                        membersProjection,
+                                        null,
+                                        null,
+                                        null
+                                )
+                                ?.use { membersCursor ->
+                                    val audioIdCol =
+                                            membersCursor.getColumnIndex(
+                                                    MediaStore.Audio.Genres.Members.AUDIO_ID
+                                            )
+                                    if (audioIdCol >= 0) {
+                                        while (membersCursor.moveToNext()) {
+                                            val audioId = membersCursor.getLong(audioIdCol)
+                                            // If a song has multiple genres, the last one processed wins.
+                                            // This is acceptable as a primary genre for display.
+                                            genreMap[audioId] = genreName
+                                        }
+                                    }
+                                }
+                    }
+                }
+            }.awaitAll()
+            
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching genre map", e)
         }
-        return genreMap
+        
+        // Update cache
+        if (genreMap.isNotEmpty()) {
+            genreMapCache = genreMap.toMap()
+            genreMapCacheTimestamp = System.currentTimeMillis()
+            Log.d(TAG, "Genre map cache updated with ${genreMap.size} entries")
+        }
+        
+        genreMap
     }
 
     /** Raw data extracted from cursor - lightweight class for fast iteration */
@@ -1119,6 +1160,17 @@ constructor(
         const val PROGRESS_TOTAL = "progress_total"
         const val PROGRESS_PHASE = "progress_phase"
         const val OUTPUT_TOTAL_SONGS = "output_total_songs"
+        
+        // Genre cache - shared across worker instances to avoid refetching on incremental syncs
+        private const val GENRE_CACHE_TTL_MS = 60 * 60 * 1000L // 1 hour
+        @Volatile private var genreMapCache: Map<Long, String> = emptyMap()
+        @Volatile private var genreMapCacheTimestamp: Long = 0L
+        
+        fun invalidateGenreCache() {
+            genreMapCache = emptyMap()
+            genreMapCacheTimestamp = 0L
+            Log.d(TAG, "Genre cache invalidated")
+        }
 
         fun startUpSyncWork(deepScan: Boolean = false) =
                 OneTimeWorkRequestBuilder<SyncWorker>()

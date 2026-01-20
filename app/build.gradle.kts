@@ -94,6 +94,7 @@ android {
 
 dependencies {
     implementation(libs.androidx.profileinstaller)
+    implementation(libs.androidx.paging.common)
     "baselineProfile"(project(":baselineprofile"))
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
@@ -137,6 +138,11 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.room.ktx)
+    implementation(libs.androidx.room.paging)
+    
+    // Paging 3
+    implementation(libs.androidx.paging.runtime)
+    implementation(libs.androidx.paging.compose)
 
     // Glance
     implementation(libs.androidx.glance)

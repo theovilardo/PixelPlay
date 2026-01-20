@@ -15,9 +15,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TransitionRuleEntity::class,
         SongArtistCrossRef::class,
         TelegramSongEntity::class,
-        TelegramChannelEntity::class
+        TelegramChannelEntity::class,
+        SongEngagementEntity::class
     ],
-    version = 14, // Incremented for telegram_channels table
+    version = 15, // Incremented for combined updates
     exportSchema = false
 )
 abstract class PixelPlayDatabase : RoomDatabase() {
@@ -25,7 +26,8 @@ abstract class PixelPlayDatabase : RoomDatabase() {
     abstract fun searchHistoryDao(): SearchHistoryDao
     abstract fun musicDao(): MusicDao
     abstract fun transitionDao(): TransitionDao
-    abstract fun telegramDao(): TelegramDao // Added TelegramDao
+    abstract fun telegramDao(): TelegramDao
+    abstract fun engagementDao(): EngagementDao
 
     companion object {
         val MIGRATION_3_4 = object : Migration(3, 4) {
@@ -40,11 +42,6 @@ abstract class PixelPlayDatabase : RoomDatabase() {
             }
         }
 
-//        val MIGRATION_6_7 = object : Migration(6, 7) {
-//            override fun migrate(db: SupportSQLiteDatabase) {
-//                db.execSQL("ALTER TABLE songs ADD COLUMN date_added INTEGER NOT NULL DEFAULT 0")
-//            }
-//        }
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE songs ADD COLUMN mime_type TEXT")
@@ -55,10 +52,8 @@ abstract class PixelPlayDatabase : RoomDatabase() {
 
         val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Add album_artist column to songs table
                 db.execSQL("ALTER TABLE songs ADD COLUMN album_artist TEXT DEFAULT NULL")
                 
-                // Create song_artist_cross_ref junction table for many-to-many relationship
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS song_artist_cross_ref (
                         song_id INTEGER NOT NULL,
@@ -70,13 +65,10 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                     )
                 """.trimIndent())
                 
-                // Create indices for efficient queries
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_song_artist_cross_ref_song_id ON song_artist_cross_ref(song_id)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_song_artist_cross_ref_artist_id ON song_artist_cross_ref(artist_id)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_song_artist_cross_ref_is_primary ON song_artist_cross_ref(is_primary)")
                 
-                // Migrate existing song-artist relationships to junction table
-                // Each existing song gets its current artist as the primary artist
                 db.execSQL("""
                     INSERT OR REPLACE INTO song_artist_cross_ref (song_id, artist_id, is_primary)
                     SELECT id, artist_id, 1 FROM songs WHERE artist_id IS NOT NULL
@@ -86,7 +78,6 @@ abstract class PixelPlayDatabase : RoomDatabase() {
 
         val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Add image_url column to artists table for Deezer artist images
                 db.execSQL("ALTER TABLE artists ADD COLUMN image_url TEXT DEFAULT NULL")
             }
         }
@@ -126,6 +117,20 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                         song_count INTEGER NOT NULL DEFAULT 0,
                         last_sync_time INTEGER NOT NULL DEFAULT 0,
                         photo_path TEXT
+                    )
+                """.trimIndent())
+            }
+        }
+        
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+             override fun migrate(db: SupportSQLiteDatabase) {
+                // Create song_engagements table for tracking play statistics
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS song_engagements (
+                        song_id TEXT NOT NULL PRIMARY KEY,
+                        play_count INTEGER NOT NULL DEFAULT 0,
+                        total_play_duration_ms INTEGER NOT NULL DEFAULT 0,
+                        last_played_timestamp INTEGER NOT NULL DEFAULT 0
                     )
                 """.trimIndent())
             }

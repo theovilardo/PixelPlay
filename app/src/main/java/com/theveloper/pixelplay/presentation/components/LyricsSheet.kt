@@ -7,10 +7,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.AnimationState
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateTo
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -36,11 +33,9 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -80,7 +75,6 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 
@@ -113,10 +107,7 @@ fun LyricsSheet(
     modifier: Modifier = Modifier,
     highlightZoneFraction: Float = 0.08f, // Reduced from 0.22 for less padding
     highlightOffsetDp: Dp = 32.dp,
-    autoscrollAnimationSpec: AnimationSpec<Float> = spring(
-        stiffness = Spring.StiffnessLow,
-        dampingRatio = Spring.DampingRatioNoBouncy
-    )
+    autoscrollAnimationSpec: AnimationSpec<Float> = tween(durationMillis = 450, easing = FastOutSlowInEasing)
 ) {
     BackHandler { onBackClick() }
     val stablePlayerState by stablePlayerStateFlow.collectAsState()
@@ -301,7 +292,7 @@ fun LyricsSheet(
                                 onClick = onBackClick
                             ) {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                    imageVector = Icons.Rounded.ArrowBack,
                                     contentDescription = context.resources.getString(R.string.close_lyrics_sheet)
                                 )
                             }
@@ -854,83 +845,46 @@ fun LyricLineRow(
     val sanitizedWords = remember(line.words) {
         line.words?.let(::sanitizeSyncedWords)
     }
-    
     val isCurrentLine by remember(position, line.time, nextTime) {
         derivedStateOf { position in line.time.toLong()..<nextTime.toLong() }
     }
-
-    // Animations - Deeper Implementation using Springs
-    val targetScale by animateFloatAsState(
-        targetValue = if (isCurrentLine) 1.0f else 0.95f, // Subtle scale
-        animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioNoBouncy),
-        label = "scale"
-    )
-    
-    val targetAlpha by animateFloatAsState(
-        targetValue = if (isCurrentLine) 1.0f else 0.5f,
-        animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioNoBouncy),
-        label = "alpha"
-    )
-
-    val targetBlur by animateDpAsState(
-        targetValue = if (isCurrentLine) 0.dp else 2.dp, // Subtle blur
-        animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioNoBouncy),
-        label = "blur"
-    )
-
-    // Using full color for inactive state but controlling it via layer alpha
-    val unhighlightedColor = LocalContentColor.current
+    val unhighlightedColor = LocalContentColor.current.copy(alpha = 0.45f)
     val lineColor by animateColorAsState(
         targetValue = if (isCurrentLine) accentColor else unhighlightedColor,
-        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        animationSpec = tween(durationMillis = 250),
         label = "lineColor"
     )
-
-    // Modifier for the animation effects
-    val animationModifier = Modifier
-        .graphicsLayer {
-            scaleX = targetScale
-            scaleY = targetScale
-            alpha = targetAlpha
-            // transformOrigin = TransformOrigin(0f, 0.5f) // Transform from left center
-        }
-        .then(if (targetBlur > 0.dp) Modifier.blur(targetBlur) else Modifier)
-
-    // Enforce left alignment
-    val alignedStyle = style.copy(textAlign = TextAlign.Start)
 
     if (sanitizedWords.isNullOrEmpty()) {
         Text(
             text = sanitizedLine,
-            style = alignedStyle,
+            style = style,
             color = lineColor,
-            fontWeight = if (isCurrentLine) FontWeight.Bold else FontWeight.SemiBold, // SemiBold for inactive to keep weight
+            fontWeight = if (isCurrentLine) FontWeight.Bold else FontWeight.Normal,
             modifier = modifier
-                .then(animationModifier)
                 .clip(RoundedCornerShape(12.dp))
                 .clickable { onClick() }
-                .padding(vertical = 12.dp, horizontal = 12.dp)
+                .padding(vertical = 4.dp, horizontal = 2.dp)
         )
     } else {
         FlowRow(
             modifier = modifier
-                .then(animationModifier)
                 .clip(RoundedCornerShape(12.dp))
                 .clickable { onClick() }
-                .padding(vertical = 12.dp, horizontal = 12.dp),
-            horizontalArrangement = Arrangement.Start, // Force left/start alignment
+                .padding(vertical = 4.dp, horizontal = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             sanitizedWords.forEachIndexed { wordIndex, word ->
                 key("${line.time}_${word.time}_${word.word}") {
                     val nextWordTime = sanitizedWords.getOrNull(wordIndex + 1)?.time?.toLong() ?: nextTime.toLong()
                     val isCurrentWord by remember(position, word.time, nextWordTime) {
-                         derivedStateOf { position in word.time.toLong()..<nextWordTime }
+                        derivedStateOf { position in word.time.toLong()..<nextWordTime }
                     }
                     LyricWordSpan(
                         word = word,
                         isHighlighted = isCurrentLine && isCurrentWord,
-                        style = alignedStyle,
+                        style = style,
                         highlightedColor = accentColor,
                         unhighlightedColor = unhighlightedColor
                     )
@@ -951,26 +905,16 @@ fun LyricWordSpan(
 ) {
     val color by animateColorAsState(
         targetValue = if (isHighlighted) highlightedColor else unhighlightedColor,
-        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        animationSpec = tween(durationMillis = 200),
         label = "wordColor"
-    )
-
-    // Optional: Subtle scale for active word
-    val scale by animateFloatAsState(
-        targetValue = if (isHighlighted) 1.05f else 1.0f,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow), // Slightly bouncier for words
-        label = "wordScale"
     )
 
     Text(
         text = word.word,
         style = style,
         color = color,
-        fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.SemiBold,
-        modifier = modifier.graphicsLayer { 
-            scaleX = scale
-            scaleY = scale
-        }
+        fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Normal,
+        modifier = modifier
     )
 }
 
