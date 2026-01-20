@@ -20,6 +20,10 @@ import java.io.File
 import java.io.FileOutputStream
 import javax.inject.Inject
 
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.ConcurrentHashMap
+
 /**
  * Custom Coil Fetcher for Telegram album art.
  * Handles URIs in format: telegram_art://chatId/messageId
@@ -44,9 +48,13 @@ class TelegramCoilFetcher(
 
     companion object {
         // Track recent failures to avoid spamming logs
-        private val recentlyLoggedFailures = java.util.concurrent.ConcurrentHashMap<String, Long>()
+        private val recentlyLoggedFailures = ConcurrentHashMap<String, Long>()
         private const val LOG_FAILURE_COOLDOWN_MS = 60_000L // Only log same failure once per minute
         
+        // Locking mechanism to prevent redundant extractions
+        private val extractionMapMutex = Mutex()
+        private val extractionLocks = ConcurrentHashMap<String, Mutex>()
+
         private fun shouldLogFailure(key: String): Boolean {
             val now = System.currentTimeMillis()
             val lastLogged = recentlyLoggedFailures[key]
@@ -153,43 +161,57 @@ class TelegramCoilFetcher(
      * Returns the path to the cached art file if successful, null otherwise.
      */
     private suspend fun tryExtractEmbeddedArt(chatId: Long, messageId: Long): String? {
-        // Check if we already have cached embedded art
-        val cachedArtFile = File(cacheDir, "telegram_embedded_art_${chatId}_${messageId}.jpg")
-        if (cachedArtFile.exists() && cachedArtFile.length() > 0) {
-            return cachedArtFile.absolutePath
+        val key = "${chatId}_${messageId}"
+        val cachedArtFile = File(cacheDir, "telegram_embedded_art_${key}.jpg")
+        val noArtMarker = File(cacheDir, "telegram_embedded_art_${key}_none")
+
+        // 1. Fast Check (No Lock): If already cached, return immediately
+        if (cachedArtFile.exists() && cachedArtFile.length() > 0) return cachedArtFile.absolutePath
+        if (noArtMarker.exists()) return noArtMarker.lastModified().let { 
+             // Optional: Cache negative result for a while? For now, trust the marker.
+             null 
         }
 
-        // Check if there's a "no embedded art" marker to avoid repeated extraction attempts
-        val noArtMarker = File(cacheDir, "telegram_embedded_art_${chatId}_${messageId}_none")
-        if (noArtMarker.exists()) {
-            return null
+        // 2. Acquire Lock for this specific art
+        val lock = extractionMapMutex.withLock {
+            extractionLocks.getOrPut(key) { Mutex() }
         }
 
-        // Get the message to find the audio file ID
-        val message = telegramRepository.getMessage(chatId, messageId) ?: return null
-        val audioFileId = extractAudioFileId(message.content) ?: return null
+        return lock.withLock {
+            // 3. Double-Check inside lock (in case another thread finished it while we waited)
+            if (cachedArtFile.exists() && cachedArtFile.length() > 0) {
+                return cachedArtFile.absolutePath
+            }
+            if (noArtMarker.exists()) {
+                return null
+            }
+            
+            // 4. Proceed with Extraction
+            // Get the message to find the audio file ID
+            val message = telegramRepository.getMessage(chatId, messageId) ?: return null
+            val audioFileId = extractAudioFileId(message.content) ?: return null
 
-        // Check if the audio file is already downloaded
-        val audioFile = telegramRepository.getFile(audioFileId)
-        if (audioFile?.local?.isDownloadingCompleted != true || audioFile.local.path.isNullOrEmpty()) {
-            // Audio not downloaded yet - don't wait, just return null to use thumbnail fallback
-            // No logging needed - this is the normal path for undownloaded files
-            return null
+            // Check if the audio file is already downloaded
+            val audioFile = telegramRepository.getFile(audioFileId)
+            if (audioFile?.local?.isDownloadingCompleted != true || audioFile.local.path.isNullOrEmpty()) {
+                // Audio not downloaded yet - don't wait
+                return null
+            }
+
+            val audioFilePath = audioFile.local.path
+            Timber.v("TelegramCoilFetcher: Extracting embedded art from: $audioFilePath")
+
+            // Extract embedded art using MediaMetadataRetriever
+            val extractedPath = extractAndCacheEmbeddedArt(audioFilePath, cachedArtFile, noArtMarker)
+            
+            // Notify that embedded art was extracted (for UI color refresh)
+            if (extractedPath != null) {
+                telegramCacheManager?.notifyEmbeddedArtExtracted(chatId, messageId)
+                Timber.d("TelegramCoilFetcher: Cached embedded art for $chatId/$messageId")
+            }
+            
+            extractedPath
         }
-
-        val audioFilePath = audioFile.local.path
-        Timber.v("TelegramCoilFetcher: Extracting embedded art from: $audioFilePath")
-
-        // Extract embedded art using MediaMetadataRetriever
-        val extractedPath = extractAndCacheEmbeddedArt(audioFilePath, cachedArtFile, noArtMarker)
-        
-        // Notify that embedded art was extracted (for UI color refresh)
-        if (extractedPath != null) {
-            telegramCacheManager?.notifyEmbeddedArtExtracted(chatId, messageId)
-            Timber.d("TelegramCoilFetcher: Cached embedded art for $chatId/$messageId")
-        }
-        
-        return extractedPath
     }
 
     /**
