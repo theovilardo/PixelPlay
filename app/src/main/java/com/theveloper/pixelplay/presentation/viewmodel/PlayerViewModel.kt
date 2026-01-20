@@ -301,10 +301,14 @@ class PlayerViewModel @Inject constructor(
     private val dailyMixStateHolder: DailyMixStateHolder,
     private val lyricsStateHolder: LyricsStateHolder,
     private val castStateHolder: CastStateHolder,
-    private val queueStateHolder: QueueStateHolder
+    private val queueStateHolder: QueueStateHolder,
+    private val connectivityStateHolder: ConnectivityStateHolder,
+    private val sleepTimerStateHolder: SleepTimerStateHolder,
+    private val searchStateHolder: SearchStateHolder,
+    private val aiStateHolder: AiStateHolder
 ) : ViewModel() {
 
-    private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    // AlarmManager is now managed by SleepTimerStateHolder
 
     // Lyrics load callback for LyricsStateHolder
     private val lyricsLoadCallback = object : LyricsLoadCallback {
@@ -454,24 +458,15 @@ class PlayerViewModel @Inject constructor(
     private val originalQueueOrder: List<Song> get() = queueStateHolder.originalQueueOrder
     private val originalQueueName: String get() = queueStateHolder.originalQueueName
 
-    // Sleep Timer StateFlows
-    private val _sleepTimerEndTimeMillis = MutableStateFlow<Long?>(null)
-    val sleepTimerEndTimeMillis: StateFlow<Long?> = _sleepTimerEndTimeMillis.asStateFlow()
+    // Sleep Timer StateFlows - delegated to SleepTimerStateHolder
+    val sleepTimerEndTimeMillis: StateFlow<Long?> = sleepTimerStateHolder.sleepTimerEndTimeMillis
+    val isEndOfTrackTimerActive: StateFlow<Boolean> = sleepTimerStateHolder.isEndOfTrackTimerActive
+    val activeTimerValueDisplay: StateFlow<String?> = sleepTimerStateHolder.activeTimerValueDisplay
+    val playCount: StateFlow<Float> = sleepTimerStateHolder.playCount
 
-    private val _isEndOfTrackTimerActive = MutableStateFlow<Boolean>(false)
-    val isEndOfTrackTimerActive: StateFlow<Boolean> = _isEndOfTrackTimerActive.asStateFlow()
-
-    private val _activeTimerValueDisplay = MutableStateFlow<String?>(null)
-    val activeTimerValueDisplay: StateFlow<String?> = _activeTimerValueDisplay.asStateFlow()
-
-    private val _playCount = MutableStateFlow<Float>(1f)
-    val playCount: StateFlow<Float> = _playCount.asStateFlow()
-
-    // Lyrics search UI state - now managed by LyricsStateHolder
+    // Lyrics search UI state - managed by LyricsStateHolder
     val lyricsSearchUiState: StateFlow<LyricsSearchUiState> = lyricsStateHolder.searchUiState
 
-    private var sleepTimerJob: Job? = null
-    private var eotSongMonitorJob: Job? = null
     // lyricsLoadingJob moved to LyricsStateHolder
     private var countedMediaListener: Player.Listener? = null
     private var countedOriginalSongId: String? = null
@@ -493,32 +488,18 @@ class PlayerViewModel @Inject constructor(
     private val _isRefreshingRoutes = MutableStateFlow(false)
     val isRefreshingRoutes: StateFlow<Boolean> = _isRefreshingRoutes.asStateFlow()
 
-    private val _isWifiEnabled = MutableStateFlow(false)
-    val isWifiEnabled: StateFlow<Boolean> = _isWifiEnabled.asStateFlow()
-    private val _isWifiRadioOn = MutableStateFlow(false)
-    val isWifiRadioOn: StateFlow<Boolean> = _isWifiRadioOn.asStateFlow()
-    private val _wifiName = MutableStateFlow<String?>(null)
-    val wifiName: StateFlow<String?> = _wifiName.asStateFlow()
-
-    private val _isBluetoothEnabled = MutableStateFlow(false)
-    val isBluetoothEnabled: StateFlow<Boolean> = _isBluetoothEnabled.asStateFlow()
-    private val _bluetoothName = MutableStateFlow<String?>(null)
-    val bluetoothName: StateFlow<String?> = _bluetoothName.asStateFlow()
-
-    private val _bluetoothAudioDevices = MutableStateFlow<List<String>>(emptyList())
-    val bluetoothAudioDevices: StateFlow<List<String>> = _bluetoothAudioDevices.asStateFlow()
+    // Connectivity state delegated to ConnectivityStateHolder
+    val isWifiEnabled: StateFlow<Boolean> = connectivityStateHolder.isWifiEnabled
+    val isWifiRadioOn: StateFlow<Boolean> = connectivityStateHolder.isWifiRadioOn
+    val wifiName: StateFlow<String?> = connectivityStateHolder.wifiName
+    val isBluetoothEnabled: StateFlow<Boolean> = connectivityStateHolder.isBluetoothEnabled
+    val bluetoothName: StateFlow<String?> = connectivityStateHolder.bluetoothName
+    val bluetoothAudioDevices: StateFlow<List<String>> = connectivityStateHolder.bluetoothAudioDevices
 
     private val mediaRouter: MediaRouter
     private val mediaRouterCallback: MediaRouter.Callback
-    private val connectivityManager: ConnectivityManager
-    private val wifiManager: WifiManager?
-    private var wifiStateReceiver: BroadcastReceiver? = null
-    private var networkCallback: ConnectivityManager.NetworkCallback? = null
-    private val bluetoothAdapter: BluetoothAdapter?
-    private val bluetoothManager: BluetoothManager
-    private var bluetoothStateReceiver: BroadcastReceiver? = null
-    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-    private val audioDeviceCallback: android.media.AudioDeviceCallback
+    
+    // Connectivity is now managed by ConnectivityStateHolder
     
     // Cast state is now managed by CastStateHolder
     private val sessionManager: SessionManager get() = castStateHolder.sessionManager
@@ -970,15 +951,9 @@ class PlayerViewModel @Inject constructor(
     ): SortOption {
         return SortOption.fromStorageKey(optionKey, allowed, fallback)
     }
-
-    private fun hasBluetoothPermission(): Boolean {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
-    }
-
-    private fun hasLocationPermission(): Boolean {
-        return ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-    }
+    // Connectivity permission checks delegated to ConnectivityStateHolder
+    fun hasBluetoothPermission(): Boolean = connectivityStateHolder.hasBluetoothPermission()
+    fun hasLocationPermission(): Boolean = connectivityStateHolder.hasLocationPermission()
 
     private fun MediaRouter.RouteInfo.isCastRoute(): Boolean {
         return supportsControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK) ||
@@ -992,121 +967,9 @@ class PlayerViewModel @Inject constructor(
             .build()
     }
 
-    private fun updateWifiInfo(network: Network?) {
-        if (!hasLocationPermission()) {
-            _wifiName.value = null
-            return
-        }
-        if (network == null) {
-            _wifiName.value = null
-            return
-        }
-        val caps = connectivityManager.getNetworkCapabilities(network)
-        if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
-            val wifiInfo = caps.transportInfo as? android.net.wifi.WifiInfo
-            val rawSsid = wifiInfo?.ssid
-            // Android sometimes returns <unknown ssid> if no location permission
-            if (rawSsid != null && rawSsid != "<unknown ssid>") {
-                _wifiName.value = rawSsid.trim('"')
-            } else {
-                // Fallback to WifiManager for older APIs or if transportInfo failed
-                val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
-                val info = wifiManager?.connectionInfo
-                val fallbackSsid = info?.ssid
-                if (fallbackSsid != null && fallbackSsid != "<unknown ssid>") {
-                    _wifiName.value = fallbackSsid.trim('"')
-                } else {
-                    _wifiName.value = null
-                }
-            }
-        }
-    }
-
-    private fun updateWifiRadioState() {
-        val state = wifiManager?.wifiState
-        _isWifiRadioOn.value = when (state) {
-            WifiManager.WIFI_STATE_ENABLED, WifiManager.WIFI_STATE_ENABLING -> true
-            WifiManager.WIFI_STATE_DISABLED, WifiManager.WIFI_STATE_DISABLING -> false
-            else -> wifiManager?.isWifiEnabled == true
-        }
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun updateBluetoothName(forceClear: Boolean = false) {
-        if (!hasBluetoothPermission()) {
-            if (forceClear) _bluetoothName.value = null
-            _bluetoothAudioDevices.value = emptyList()
-            return
-        }
-
-        val connectedDevice = safeGetConnectedDevices(BluetoothProfile.A2DP).firstOrNull()
-            ?: safeGetConnectedDevices(BluetoothProfile.HEADSET).firstOrNull()
-            ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                safeGetConnectedDevices(BluetoothProfile.LE_AUDIO).firstOrNull()
-            } else {
-                null
-            }
-
-        val audioDevices = audioManager.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)
-        val activeBluetoothAudioName = audioDevices.firstOrNull {
-            it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                it.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET ||
-                it.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER ||
-                it.type == android.media.AudioDeviceInfo.TYPE_HEARING_AID
-        }?.productName?.toString()
-
-        val resolvedName = connectedDevice?.name ?: activeBluetoothAudioName
-
-        when {
-            resolvedName != null -> _bluetoothName.value = resolvedName
-            forceClear || !(bluetoothAdapter?.isEnabled ?: false) -> _bluetoothName.value = null
-        }
-
-        updateBluetoothAudioDevices()
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun updateBluetoothAudioDevices() {
-        if (!hasBluetoothPermission()) {
-            _bluetoothAudioDevices.value = emptyList()
-            return
-        }
-
-        val connectedDevices = buildSet {
-            safeGetConnectedDevices(BluetoothProfile.A2DP).mapNotNullTo(this) { it.name }
-            safeGetConnectedDevices(BluetoothProfile.HEADSET).mapNotNullTo(this) { it.name }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                safeGetConnectedDevices(BluetoothProfile.LE_AUDIO).mapNotNullTo(this) { it.name }
-            }
-
-            audioManager.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)
-                .filter {
-                    it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                        it.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET ||
-                        it.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER ||
-                        it.type == android.media.AudioDeviceInfo.TYPE_HEARING_AID
-                }
-                .mapNotNull { it.productName?.toString() }
-                .forEach { add(it) }
-        }
-
-        _bluetoothAudioDevices.value = connectedDevices.toList().sorted()
-    }
-
-    private fun safeGetConnectedDevices(profile: Int): List<BluetoothDevice> {
-        return runCatching { bluetoothManager.getConnectedDevices(profile) }.getOrElse { emptyList() }
-    }
-
+    // Connectivity refresh delegated to ConnectivityStateHolder
     fun refreshLocalConnectionInfo() {
-        val currentNetwork = connectivityManager.activeNetwork
-        val currentCaps = connectivityManager.getNetworkCapabilities(currentNetwork)
-        updateWifiRadioState()
-        _isWifiEnabled.value = currentCaps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
-        if (_isWifiEnabled.value) updateWifiInfo(currentNetwork)
-
-        _isBluetoothEnabled.value = bluetoothAdapter?.isEnabled ?: false
-        updateBluetoothName()
-        updateBluetoothAudioDevices()
+        connectivityStateHolder.refreshLocalConnectionInfo()
     }
 
     init {
@@ -1284,104 +1147,69 @@ class PlayerViewModel @Inject constructor(
         _castRoutes.value = mediaRouter.routes.filter { it.isCastRoute() }.distinctBy { it.id }
         _selectedRoute.value = mediaRouter.selectedRoute
 
-        // Connectivity listeners
-        connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-        bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        bluetoothAdapter = bluetoothManager.adapter
+        // Initialize connectivity monitoring (WiFi/Bluetooth)
+        connectivityStateHolder.initialize()
 
-        // Initial state check
-        val activeNetwork = connectivityManager.activeNetwork
-        val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
-        updateWifiRadioState()
-        _isWifiEnabled.value = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
-        if (_isWifiEnabled.value) {
-            updateWifiInfo(activeNetwork)
-        }
+        // Initialize sleep timer state holder
+        sleepTimerStateHolder.initialize(
+            scope = viewModelScope,
+            toastEmitter = { msg -> _toastEvents.emit(msg) },
+            mediaControllerProvider = { mediaController },
+            currentSongIdProvider = { stablePlayerState.map { it.currentSong?.id }.stateIn(viewModelScope, SharingStarted.Eagerly, null) },
+            songTitleResolver = { songId -> _masterAllSongs.value.find { it.id == songId }?.title ?: "Unknown" }
+        )
 
-        _isBluetoothEnabled.value = bluetoothAdapter?.isEnabled ?: false
-        updateBluetoothName()
+        // Initialize SearchStateHolder
+        searchStateHolder.initialize(viewModelScope)
 
-        // Wi-Fi listener
-        networkCallback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                val caps = connectivityManager.getNetworkCapabilities(network)
-                if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
-                    _isWifiEnabled.value = true
-                    updateWifiInfo(network)
-                }
-            }
-
-            override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
-                if (networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
-                    _isWifiEnabled.value = true
-                    updateWifiInfo(network)
-                }
-            }
-
-            override fun onLost(network: Network) {
-                // A specific network was lost; check if another Wi-Fi network is active.
-                val currentNetwork = connectivityManager.activeNetwork
-                val caps = connectivityManager.getNetworkCapabilities(currentNetwork)
-                _isWifiEnabled.value = caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
-                if (!_isWifiEnabled.value) _wifiName.value = null
+        // Collect SearchStateHolder flows
+        viewModelScope.launch {
+            searchStateHolder.searchResults.collect { results ->
+                _playerUiState.update { it.copy(searchResults = results) }
             }
         }
-        val networkRequest = NetworkRequest.Builder()
-            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-            .build()
-        connectivityManager.registerNetworkCallback(networkRequest, networkCallback!!)
-
-        wifiStateReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == WifiManager.WIFI_STATE_CHANGED_ACTION) {
-                    updateWifiRadioState()
-                }
+        viewModelScope.launch {
+            searchStateHolder.selectedSearchFilter.collect { filter ->
+                _playerUiState.update { it.copy(selectedSearchFilter = filter) }
             }
         }
-        wifiStateReceiver?.let {
-            context.registerReceiver(it, IntentFilter(WifiManager.WIFI_STATE_CHANGED_ACTION))
+        viewModelScope.launch {
+            searchStateHolder.searchHistory.collect { history ->
+                _playerUiState.update { it.copy(searchHistory = history) }
+            }
         }
 
-        // Bluetooth listener
-        bluetoothStateReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                when (intent?.action) {
-                    BluetoothAdapter.ACTION_STATE_CHANGED -> {
-                        val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
-                        _isBluetoothEnabled.value = state == BluetoothAdapter.STATE_ON
-                        if (state == BluetoothAdapter.STATE_OFF) {
-                            _bluetoothName.value = null
-                            _bluetoothAudioDevices.value = emptyList()
-                        } else updateBluetoothName(forceClear = false)
-                    }
-                    android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED,
-                    android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
-                        updateBluetoothName(forceClear = intent?.action == android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED)
-                    }
-                }
-            }
-        }
-        val btFilter = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED).apply {
-            addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED)
-            addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED)
-        }
-        context.registerReceiver(bluetoothStateReceiver, btFilter)
+        // Initialize AiStateHolder
+        aiStateHolder.initialize(
+            scope = viewModelScope,
+            allSongsProvider = { _masterAllSongs.value },
+            favoriteSongIdsProvider = { favoriteSongIds.value },
+            toastEmitter = { msg -> viewModelScope.launch { _toastEvents.emit(msg) } },
+            playSongsCallback = { songs, startSong, queueName -> playSongs(songs, startSong, queueName) },
+            openPlayerSheetCallback = { _isSheetVisible.value = true }
+        )
 
-        audioDeviceCallback = object : android.media.AudioDeviceCallback() {
-            override fun onAudioDevicesAdded(addedDevices: Array<out android.media.AudioDeviceInfo>?) {
-                updateBluetoothName()
-            }
-            override fun onAudioDevicesRemoved(removedDevices: Array<out android.media.AudioDeviceInfo>?) {
-                updateBluetoothName(forceClear = removedDevices?.any {
-                    it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                        it.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET ||
-                        it.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER ||
-                        it.type == android.media.AudioDeviceInfo.TYPE_HEARING_AID
-                } == true)
+        // Collect AiStateHolder flows
+        viewModelScope.launch {
+            aiStateHolder.showAiPlaylistSheet.collect { show ->
+                _showAiPlaylistSheet.value = show
             }
         }
-        audioManager.registerAudioDeviceCallback(audioDeviceCallback, null)
+        viewModelScope.launch {
+            aiStateHolder.isGeneratingAiPlaylist.collect { generating ->
+                _isGeneratingAiPlaylist.value = generating
+            }
+        }
+        viewModelScope.launch {
+            aiStateHolder.aiError.collect { error ->
+                _aiError.value = error
+            }
+        }
+        viewModelScope.launch {
+            aiStateHolder.isGeneratingMetadata.collect { generating ->
+                _playerUiState.update { it.copy(isGeneratingAiMetadata = generating) }
+            }
+        }
 
         remoteProgressListener = RemoteMediaClient.ProgressListener { progress, _ ->
             if (!isRemotelySeeking.value) {
@@ -2823,7 +2651,7 @@ class PlayerViewModel @Inject constructor(
                         val activeEotSongId = EotStateHolder.eotTargetSongId.value
                         val previousSongId = playerCtrl.run { if (previousMediaItemIndex != C.INDEX_UNSET) getMediaItemAt(previousMediaItemIndex).mediaId else null }
 
-                        if (_isEndOfTrackTimerActive.value && activeEotSongId != null && previousSongId != null && previousSongId == activeEotSongId) {
+                        if (isEndOfTrackTimerActive.value && activeEotSongId != null && previousSongId != null && previousSongId == activeEotSongId) {
                             playerCtrl.seekTo(0L)
                             playerCtrl.pause()
 
@@ -4580,184 +4408,47 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun updateSearchFilter(filterType: SearchFilterType) {
-        _playerUiState.update { it.copy(selectedSearchFilter = filterType) }
+        searchStateHolder.updateSearchFilter(filterType)
     }
 
     fun loadSearchHistory(limit: Int = 15) {
-        viewModelScope.launch {
-            val history = withContext(Dispatchers.IO) {
-                musicRepository.getRecentSearchHistory(limit)
-            }
-            _playerUiState.update { it.copy(searchHistory = history.toImmutableList()) }
-        }
+        searchStateHolder.loadSearchHistory(limit)
     }
 
     fun onSearchQuerySubmitted(query: String) {
-        viewModelScope.launch {
-            if (query.isNotBlank()) {
-                withContext(Dispatchers.IO) {
-                    musicRepository.addSearchHistoryItem(query)
-                }
-                loadSearchHistory()
-            }
-        }
+        searchStateHolder.onSearchQuerySubmitted(query)
     }
 
     fun performSearch(query: String) {
-        viewModelScope.launch {
-            try {
-                if (query.isBlank()) {
-                    _playerUiState.update { it.copy(searchResults = persistentListOf()) }
-                    return@launch
-                }
-
-                val currentFilter = _playerUiState.value.selectedSearchFilter
-
-                val resultsList: List<SearchResultItem> = withContext(Dispatchers.IO) {
-                    musicRepository.searchAll(query, currentFilter).first()
-                }
-
-                _playerUiState.update { it.copy(searchResults = resultsList.toImmutableList()) }
-
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error performing search for query: $query", e)
-                _playerUiState.update {
-                    it.copy(
-                        searchResults = persistentListOf(),
-                    )
-                }
-            }
-        }
+        searchStateHolder.performSearch(query)
     }
 
     fun deleteSearchHistoryItem(query: String) {
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                musicRepository.deleteSearchHistoryItemByQuery(query)
-            }
-            loadSearchHistory()
-        }
+        searchStateHolder.deleteSearchHistoryItem(query)
     }
 
     fun clearSearchHistory() {
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                musicRepository.clearSearchHistory()
-            }
-            _playerUiState.update { it.copy(searchHistory = persistentListOf()) }
-        }
+        searchStateHolder.clearSearchHistory()
     }
 
     // --- AI Playlist Generation ---
 
+    // --- AI Playlist Generation ---
+
     fun showAiPlaylistSheet() {
-        _showAiPlaylistSheet.value = true
+        aiStateHolder.showAiPlaylistSheet()
     }
 
     fun dismissAiPlaylistSheet() {
-        _showAiPlaylistSheet.value = false
-        _aiError.value = null
-        _isGeneratingAiPlaylist.value = false
+        aiStateHolder.dismissAiPlaylistSheet()
     }
 
     fun generateAiPlaylist(prompt: String, minLength: Int, maxLength: Int, saveAsPlaylist: Boolean = false) {
-        viewModelScope.launch {
-            _isGeneratingAiPlaylist.value = true
-            _aiError.value = null
-
-            try {
-                val candidatePool = dailyMixManager.generateDailyMix(
-                    allSongs = allSongsFlow.value,
-                    favoriteSongIds = favoriteSongIds.value,
-                    limit = 120
-                )
-
-                val result = aiPlaylistGenerator.generate(
-                    userPrompt = prompt,
-                    allSongs = allSongsFlow.value,
-                    minLength = minLength,
-                    maxLength = maxLength,
-                    candidateSongs = candidatePool
-                )
-
-                result.onSuccess { generatedSongs ->
-                    if (generatedSongs.isNotEmpty()) {
-                        if (saveAsPlaylist) {
-                            val playlistName = "AI: ${prompt.take(25)}${if (prompt.length > 25) "..." else ""}"
-                            val songIds = generatedSongs.map { it.id }
-                            userPreferencesRepository.createPlaylist(
-                                name = playlistName,
-                                songIds = songIds,
-                                isAiGenerated = true
-                            )
-                            sendToast("AI Playlist '$playlistName' created!")
-                            dismissAiPlaylistSheet()
-                        } else {
-                            // Original Daily Mix logic
-                            dailyMixStateHolder.setDailyMixSongs(generatedSongs)
-                            playSongs(generatedSongs, generatedSongs.first(), "AI: $prompt")
-                            _isSheetVisible.value = true
-                            dismissAiPlaylistSheet()
-                        }
-                    } else {
-                        _aiError.value = context.getString(R.string.ai_no_songs_found)
-                    }
-                }.onFailure { error ->
-                    _aiError.value = if (error.message?.contains("API Key") == true) {
-                        context.getString(R.string.ai_error_api_key)
-                    } else {
-                        context.getString(R.string.ai_error_generic, error.message ?: "")
-                    }
-                }
-            } finally {
-                _isGeneratingAiPlaylist.value = false
-            }
-        }
+        aiStateHolder.generateAiPlaylist(prompt, minLength, maxLength, saveAsPlaylist)
     }
 
     fun regenerateDailyMixWithPrompt(prompt: String) {
-        viewModelScope.launch {
-            if (prompt.isBlank()) {
-                sendToast(context.getString(R.string.ai_prompt_empty))
-                return@launch
-            }
-
-            _isGeneratingAiPlaylist.value = true
-            _aiError.value = null
-
-            try {
-                val desiredSize = dailyMixSongs.value.size.takeIf { it > 0 } ?: 25
-                val minLength = (desiredSize * 0.6).toInt().coerceAtLeast(10)
-                val maxLength = desiredSize.coerceAtLeast(20)
-                val candidatePool = dailyMixManager.generateDailyMix(
-                    allSongs = allSongsFlow.value,
-                    favoriteSongIds = favoriteSongIds.value,
-                    limit = 100
-                )
-
-                val result = aiPlaylistGenerator.generate(
-                    userPrompt = prompt,
-                    allSongs = allSongsFlow.value,
-                    minLength = minLength,
-                    maxLength = maxLength,
-                    candidateSongs = candidatePool
-                )
-
-                result.onSuccess { generatedSongs ->
-                    if (generatedSongs.isNotEmpty()) {
-                        dailyMixStateHolder.setDailyMixSongs(generatedSongs)
-                        sendToast(context.getString(R.string.ai_daily_mix_updated))
-                    } else {
-                        sendToast(context.getString(R.string.ai_no_songs_for_mix))
-                    }
-                }.onFailure { error ->
-                    _aiError.value = error.message
-                    sendToast(context.getString(R.string.could_not_update, error.message ?: ""))
-                }
-            } finally {
-                _isGeneratingAiPlaylist.value = false
-            }
-        }
+        aiStateHolder.regenerateDailyMixWithPrompt(prompt)
     }
 
     fun clearQueueExceptCurrent() {
@@ -4907,197 +4598,33 @@ class PlayerViewModel @Inject constructor(
         stopProgressUpdates()
         listeningStatsTracker.onCleared()
         mediaRouter.removeCallback(mediaRouterCallback)
-        networkCallback?.let { connectivityManager.unregisterNetworkCallback(it) }
-        wifiStateReceiver?.let { context.unregisterReceiver(it) }
-        bluetoothStateReceiver?.let { context.unregisterReceiver(it) }
-        audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
+        searchStateHolder.onCleared()
+        aiStateHolder.onCleared()
+        sleepTimerStateHolder.onCleared()
+        connectivityStateHolder.onCleared()
         sessionManager.removeSessionManagerListener(castSessionManagerListener as SessionManagerListener<CastSession>, CastSession::class.java)
     }
 
-    // Sleep Timer Control Functions
+    // Sleep Timer Control Functions - delegated to SleepTimerStateHolder
     fun setSleepTimer(durationMinutes: Int) {
-        if (_isEndOfTrackTimerActive.value) {
-            eotSongMonitorJob?.cancel()
-            cancelSleepTimer(suppressDefaultToast = true)
-        }
-
-        sleepTimerJob?.cancel() // Cancel any existing duration-based timer job
-        val durationMillis = TimeUnit.MINUTES.toMillis(durationMinutes.toLong())
-        val endTime = System.currentTimeMillis() + durationMillis
-        _sleepTimerEndTimeMillis.value = endTime
-        // _isEndOfTrackTimerActive is already false or set false above
-        _activeTimerValueDisplay.value = "$durationMinutes minutes"
-
-        // Use AlarmManager for reliability
-        val intent = Intent(context, com.theveloper.pixelplay.data.service.SleepTimerReceiver::class.java)
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (alarmManager.canScheduleExactAlarms()) {
-                    alarmManager.setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        endTime,
-                        pendingIntent
-                    )
-                } else {
-                    // Fallback or just set inexact/normal exact?
-                    // For now, let's try setExactAndAllowWhileIdle if we can, or just setExact.
-                    // If permission missing, it might crash if we call setExact...
-                    // But the user should grant it. If not, try setWindow or similar?
-                    // Actually setExactAndAllowWhileIdle requires permission ONLY if targeting 33+ (Android 13) and using USE_EXACT_ALARM or SCHEDULE_EXACT_ALARM.
-                    // We added SCHEDULE_EXACT_ALARM.
-                    // If we don't have it, we should probably warn or just use setAndAllowWhileIdle (inexact).
-                    alarmManager.setAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        endTime,
-                        pendingIntent
-                    )
-                }
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    endTime,
-                    pendingIntent
-                )
-            } else {
-                 alarmManager.setExact(
-                    AlarmManager.RTC_WAKEUP,
-                    endTime,
-                    pendingIntent
-                )
-            }
-        } catch (e: SecurityException) {
-            Timber.e(e, "Failed to schedule exact alarm for sleep timer")
-             // Fallback to inexact?
-             alarmManager.set(
-                AlarmManager.RTC_WAKEUP,
-                endTime,
-                pendingIntent
-            )
-        }
-
-        // Keep the coroutine for UI updates (countdown) if we want, but the actual trigger is the alarm.
-        // However, the original code used the coroutine to TRIGGER the pause.
-        // We will keep the coroutine to update the UI or valididity check, but the actual pause comes from the broadcast.
-        // Actually, let's just use the alarm for the trigger. The coroutine was:
-        // sleepTimerJob = viewModelScope.launch { delay... pause... }
-        // We can remove the pause logic from here or keep it as a backup?
-        // Better to remove it to avoid double pause or confusion.
-        // But we might want to clear the state when the time comes.
-        // Let's launch a coroutine just to clear the UI state when it finishes?
-        // Or rely on the receiver triggering the service which pauses -> updates playback state.
-        // The UI shows "timer active". We need to clear that when it fires.
-        // We can listen to the pause event.
-
-        viewModelScope.launch { _toastEvents.emit("Timer set for $durationMinutes minutes.") }
+        sleepTimerStateHolder.setSleepTimer(durationMinutes)
     }
-
 
     fun playCounted(count: Int) {
-        val args = Bundle().apply { putInt("count", count) }
-
-        mediaController?.sendCustomCommand(
-            SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_COUNTED_PLAY, Bundle.EMPTY),
-            args
-        )
+        sleepTimerStateHolder.playCounted(count)
     }
 
-    fun cancelCountedPlay(){
-        val args = Bundle()
-        _playCount.value = 1f
-        mediaController?.sendCustomCommand(
-            SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_CANCEL_COUNTED_PLAY, Bundle.EMPTY), args
-        )
+    fun cancelCountedPlay() {
+        sleepTimerStateHolder.cancelCountedPlay()
     }
-
 
     fun setEndOfTrackTimer(enable: Boolean) {
-        if (enable) {
-            val currentSong = stablePlayerState.value.currentSong
-            if (currentSong == null) {
-                viewModelScope.launch { _toastEvents.emit("Cannot enable End of Track: No active song.") }
-                return
-            }
-            _activeTimerValueDisplay.value = "End of Track" // Set this first for cancelSleepTimer toast logic
-            _isEndOfTrackTimerActive.value = true
-            EotStateHolder.setEotTargetSong(currentSong.id) // Use EotStateHolder
-
-            sleepTimerJob?.cancel()
-            _sleepTimerEndTimeMillis.value = null
-
-            eotSongMonitorJob?.cancel()
-            eotSongMonitorJob = viewModelScope.launch {
-                stablePlayerState.map { it.currentSong?.id }.distinctUntilChanged().collect { newSongId ->
-                    if (_isEndOfTrackTimerActive.value &&
-                        EotStateHolder.eotTargetSongId.value != null &&
-                        newSongId != EotStateHolder.eotTargetSongId.value) {
-
-                        val oldSongIdForToast = EotStateHolder.eotTargetSongId.value // Capture before it's cleared by cancelSleepTimer
-                        val oldSongTitle = _masterAllSongs.value.find { it.id == oldSongIdForToast }?.title
-                            ?: "Previous track" // Fallback
-                        val newSongTitleText = _masterAllSongs.value.find { it.id == newSongId }?.title
-                            ?: "Current track" // Fallback
-
-                        viewModelScope.launch {
-                            _toastEvents.emit("End of Track timer deactivated: song changed from $oldSongTitle to $newSongTitleText.")
-                        }
-
-                        cancelSleepTimer(suppressDefaultToast = true)
-
-                        eotSongMonitorJob?.cancel()
-                        eotSongMonitorJob = null
-                    }
-                }
-            }
-            viewModelScope.launch { _toastEvents.emit("Playback will stop at end of track.") }
-        } else {
-            eotSongMonitorJob?.cancel()
-            if (_isEndOfTrackTimerActive.value && EotStateHolder.eotTargetSongId.value != null) {
-                cancelSleepTimer()
-            }
-        }
+        val currentSongId = stablePlayerState.value.currentSong?.id
+        sleepTimerStateHolder.setEndOfTrackTimer(enable, currentSongId)
     }
 
     fun cancelSleepTimer(overrideToastMessage: String? = null, suppressDefaultToast: Boolean = false) {
-        val wasAnythingActive = _activeTimerValueDisplay.value != null
-
-        // Cancel Alarm
-        val intent = Intent(context, com.theveloper.pixelplay.data.service.SleepTimerReceiver::class.java)
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        alarmManager.cancel(pendingIntent)
-
-
-        // Cancel and Nullify Duration Timer Job & States
-        sleepTimerJob?.cancel()
-        sleepTimerJob = null
-        _sleepTimerEndTimeMillis.value = null
-
-        // Cancel and Nullify EOT Monitor Job & States
-        eotSongMonitorJob?.cancel()
-        eotSongMonitorJob = null
-        _isEndOfTrackTimerActive.value = false
-        EotStateHolder.setEotTargetSong(null) // Clear shared EOT state
-
-        // Clear Generic Timer Display State
-        _activeTimerValueDisplay.value = null
-
-        // Handle Toast Logic
-        if (overrideToastMessage != null) {
-            viewModelScope.launch { _toastEvents.emit(overrideToastMessage) }
-        } else if (!suppressDefaultToast && wasAnythingActive) {
-            viewModelScope.launch { _toastEvents.emit("Timer cancelled.") }
-        }
+        sleepTimerStateHolder.cancelSleepTimer(overrideToastMessage, suppressDefaultToast)
     }
 
     fun dismissPlaylistAndShowUndo() {
@@ -5419,7 +4946,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     suspend fun generateAiMetadata(song: Song, fields: List<String>): Result<SongMetadata> {
-        return aiMetadataGenerator.generate(song, fields)
+        return aiStateHolder.generateAiMetadata(song, fields)
     }
 
     private fun updateSongInStates(updatedSong: Song, newLyrics: Lyrics? = null) {
