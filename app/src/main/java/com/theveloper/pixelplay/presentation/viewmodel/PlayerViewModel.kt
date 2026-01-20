@@ -734,6 +734,7 @@ class PlayerViewModel @Inject constructor(
                 .sortedBy { it.name.lowercase() }
                 .toImmutableList()
         }
+        .flowOn(Dispatchers.Default) // Move heavy computation off main thread
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),

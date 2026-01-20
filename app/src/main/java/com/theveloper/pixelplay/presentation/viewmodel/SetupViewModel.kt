@@ -14,6 +14,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -61,9 +62,24 @@ class SetupViewModel @Inject constructor(
     val isLoadingDirectories = fileExplorerStateHolder.isLoading
 
     init {
+        // Consolidated collectors using combine() to reduce coroutine overhead
         viewModelScope.launch {
-            userPreferencesRepository.blockedDirectoriesFlow.collect { blocked ->
-                _uiState.update { it.copy(blockedDirectories = blocked) }
+            combine(
+                userPreferencesRepository.blockedDirectoriesFlow,
+                userPreferencesRepository.libraryNavigationModeFlow,
+                userPreferencesRepository.navBarStyleFlow,
+                userPreferencesRepository.navBarCornerRadiusFlow
+            ) { blocked, mode, style, radius ->
+                SetupPrefsUpdate(blocked, mode, style, radius)
+            }.collect { update ->
+                _uiState.update { state ->
+                    state.copy(
+                        blockedDirectories = update.blocked,
+                        libraryNavigationMode = update.mode,
+                        navBarStyle = update.style,
+                        navBarCornerRadius = update.radius
+                    )
+                }
             }
         }
 
@@ -72,25 +88,14 @@ class SetupViewModel @Inject constructor(
                 _uiState.update { it.copy(isLoadingDirectories = loading) }
             }
         }
-
-        viewModelScope.launch {
-            userPreferencesRepository.libraryNavigationModeFlow.collect { mode ->
-                _uiState.update { it.copy(libraryNavigationMode = mode) }
-            }
-        }
-
-        viewModelScope.launch {
-            userPreferencesRepository.navBarStyleFlow.collect { style ->
-                _uiState.update { it.copy(navBarStyle = style) }
-            }
-        }
-
-        viewModelScope.launch {
-            userPreferencesRepository.navBarCornerRadiusFlow.collect { radius ->
-                _uiState.update { it.copy(navBarCornerRadius = radius) }
-            }
-        }
     }
+    
+    private data class SetupPrefsUpdate(
+        val blocked: Set<String>,
+        val mode: String,
+        val style: String,
+        val radius: Int
+    )
 
     fun checkPermissions(context: Context) {
         val mediaPermissionGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

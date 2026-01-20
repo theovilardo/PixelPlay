@@ -945,11 +945,12 @@ dir.walkTopDown()
 
 Las siguientes optimizaciones requieren testing extensivo y cambios arquitectónicos significativos:
 
-### 🔴 Eliminar `allSongs` de PlayerUiState
-**Impacto:** RAM crítico • **Riesgo:** Alto
-- Actualmente `PlayerUiState.allSongs` carga TODA la biblioteca para shuffle/búsqueda
-- Requiere migrar shuffle a `ORDER BY RANDOM()` en Room
-- Requiere resolver canciones bajo demanda por ID
+### ✅ Eliminar `allSongs` de PlayerUiState - COMPLETADA (2026-01-20)
+**Impacto:** RAM crítico • **Estado:** ✅ IMPLEMENTADA
+- `allSongs` movido a `_masterAllSongs` flow separado
+- `PlayerUiState.songCount: Int` reemplaza checks de isEmpty()
+- `allSongsFlow` derivado de `_masterAllSongs.asStateFlow()`
+- Agregados `getRandomSongs()` y `getSongCountFlow()` a MusicRepository
 
 ### 🔴 QueueBottomSheet Recomposiciones Profundas
 **Impacto:** UI crítico • **Riesgo:** Medio
@@ -961,6 +962,13 @@ Las siguientes optimizaciones requieren testing extensivo y cambios arquitectón
 **Impacto:** Batería • **Riesgo:** Medio
 - Reemplazar `walkTopDown()` con `FileObserver` para detección de cambios
 - Sincronización incremental en lugar de full scan
+
+### ✅ Consolidación de Collectors en ViewModels - COMPLETADA (2026-01-20)
+**Impacto:** Main Thread • **Estado:** ✅ IMPLEMENTADA
+- **SettingsViewModel**: 20 collectors separados → 4 con `combine()` (80% reducción)
+- **SetupViewModel**: 5 collectors separados → 2 con `combine()` (60% reducción)
+- **genres StateFlow**: Agregado `flowOn(Dispatchers.Default)` para computación en background
+- **Beneficio**: Menos presión sobre main thread, UI más responsiva
 
 ---
 
