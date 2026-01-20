@@ -90,6 +90,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -237,10 +238,7 @@ fun QueueBottomSheet(
     }
 
     // Generic wrapper to ensure unique keys for LazyColumn even with duplicate songs
-    data class QueueUiItem(
-        val uniqueId: String = java.util.UUID.randomUUID().toString(),
-        val song: Song
-    )
+    // @Immutable is moved to top-level QueueUiItem class below for better recomposition behavior
 
     // Read show queue history preference
     val settingsState by settingsViewModel.uiState.collectAsState()
@@ -537,45 +535,18 @@ fun QueueBottomSheet(
                     )
                 }
 
-                Row(
+                // Extracted header for better recomposition behavior
+                QueueHeader(
+                    queueSourceName = currentQueueSourceName,
                     modifier = Modifier
-                        .fillMaxWidth()
                         .padding(
                             start = 12.dp,
                             end = 12.dp,
                             top = if (stablePlayerState.currentSong == null) headerTopPadding else 2.dp,
                             bottom = 12.dp,
                         )
-                        .then(directSheetDragModifier),
-                    horizontalArrangement = Arrangement.Absolute.SpaceBetween
-                ) {
-                    Text(
-                        text     = "Next Up",
-                        style    = MaterialTheme.typography.displayMedium,
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                            .align(Alignment.CenterVertically)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.CenterVertically)
-                            .padding(end = 16.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                shape = CircleShape
-                            )
-                    ) {
-                        Text(
-                            modifier = Modifier
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                            style = MaterialTheme.typography.labelLarge,
-                            text = currentQueueSourceName,
-                            overflow = TextOverflow.Ellipsis,
-                            maxLines = 1
-                        )
-                    }
-                }
+                        .then(directSheetDragModifier)
+                )
 
                 if (items.isEmpty()) {
                     Box(
@@ -727,78 +698,15 @@ fun QueueBottomSheet(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically // Alinea FAB y Toolbar al centro verticalmente
                 ) {
-                    // 1. Reemplazo manual del HorizontalFloatingToolbar
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxHeight(), // Llena los 60.dp de altura del Row padre
-                        shape = AbsoluteSmoothCornerShape(
-                            cornerRadiusTR = 8.dp,
-                            smoothnessAsPercentTR = 60,
-                            cornerRadiusTL = 50.dp,
-                            smoothnessAsPercentTL = 60,
-                            cornerRadiusBR = 8.dp,
-                            smoothnessAsPercentBR = 60,
-                            cornerRadiusBL = 50.dp,
-                            smoothnessAsPercentBL = 60
-                        ),
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        shadowElevation = 0.dp
-                    ) {
-                        // Contenedor para los botones
-                        Row(
-                            modifier = Modifier
-                                .padding(horizontal = 12.dp, vertical = 8.dp), // Padding interno equivalente al content padding
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            // --- Lógica de tus botones ---
-                            val activeColors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            )
-                            val inactiveColors = IconButtonDefaults.filledTonalIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            FilledTonalIconButton(
-                                onClick = onToggleShuffle,
-                                colors = if (isShuffleOn) activeColors else inactiveColors,
-                                modifier = Modifier.size(48.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Shuffle,
-                                    contentDescription = "Toggle Shuffle",
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            FilledTonalIconButton(
-                                onClick = onToggleRepeat,
-                                colors = if (repeatMode != Player.REPEAT_MODE_OFF) activeColors else inactiveColors,
-                                modifier = Modifier.size(48.dp)
-                            ) {
-                                val repeatIcon = when (repeatMode) {
-                                    Player.REPEAT_MODE_ONE -> Icons.Rounded.RepeatOne
-                                    else -> Icons.Rounded.Repeat
-                                }
-                                Icon(
-                                    imageVector = repeatIcon,
-                                    contentDescription = "Toggle Repeat",
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            FilledTonalIconButton(
-                                onClick = { showTimerOptions = true },
-                                colors = if (activeTimerValueDisplay != null) activeColors else inactiveColors,
-                                modifier = Modifier.size(48.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Timer,
-                                    contentDescription = "Sleep Timer",
-                                )
-                            }
-                        }
-                    }
+                    // Extracted toolbar for better recomposition behavior
+                    QueueControlsToolbar(
+                        isShuffleOn = isShuffleOn,
+                        repeatMode = repeatMode,
+                        isTimerActive = activeTimerValueDisplay != null,
+                        onToggleShuffle = onToggleShuffle,
+                        onToggleRepeat = onToggleRepeat,
+                        onTimerClick = { showTimerOptions = true }
+                    )
 
                     Spacer(modifier = Modifier.width(4.dp))
 
@@ -1026,6 +934,130 @@ private fun QueueToolbarMenuButton(
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                 color = contentColor
             )
+        }
+    }
+}
+
+/**
+ * Extracted header showing "Next Up" title and queue source name.
+ * Separating this prevents recomposition when unrelated state changes.
+ */
+@Composable
+private fun QueueHeader(
+    queueSourceName: String,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Absolute.SpaceBetween
+    ) {
+        Text(
+            text = "Next Up",
+            style = MaterialTheme.typography.displayMedium,
+            modifier = Modifier
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .align(Alignment.CenterVertically)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterVertically)
+                .padding(end = 16.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    shape = CircleShape
+                )
+        ) {
+            Text(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                style = MaterialTheme.typography.labelLarge,
+                text = queueSourceName,
+                overflow = TextOverflow.Ellipsis,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+/**
+ * Extracted toolbar composable for queue controls (shuffle, repeat, timer).
+ * Separating this reduces recompositions when only these states change.
+ */
+@Composable
+private fun QueueControlsToolbar(
+    isShuffleOn: Boolean,
+    repeatMode: Int,
+    isTimerActive: Boolean,
+    onToggleShuffle: () -> Unit,
+    onToggleRepeat: () -> Unit,
+    onTimerClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val activeColors = IconButtonDefaults.filledIconButtonColors(
+        containerColor = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary
+    )
+    val inactiveColors = IconButtonDefaults.filledTonalIconButtonColors(
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+
+    Surface(
+        modifier = modifier.fillMaxHeight(),
+        shape = AbsoluteSmoothCornerShape(
+            cornerRadiusTR = 8.dp,
+            smoothnessAsPercentTR = 60,
+            cornerRadiusTL = 50.dp,
+            smoothnessAsPercentTL = 60,
+            cornerRadiusBR = 8.dp,
+            smoothnessAsPercentBR = 60,
+            cornerRadiusBL = 50.dp,
+            smoothnessAsPercentBL = 60
+        ),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        shadowElevation = 0.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            FilledTonalIconButton(
+                onClick = onToggleShuffle,
+                colors = if (isShuffleOn) activeColors else inactiveColors,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Shuffle,
+                    contentDescription = "Toggle Shuffle",
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            FilledTonalIconButton(
+                onClick = onToggleRepeat,
+                colors = if (repeatMode != Player.REPEAT_MODE_OFF) activeColors else inactiveColors,
+                modifier = Modifier.size(48.dp)
+            ) {
+                val repeatIcon = when (repeatMode) {
+                    Player.REPEAT_MODE_ONE -> Icons.Rounded.RepeatOne
+                    else -> Icons.Rounded.Repeat
+                }
+                Icon(
+                    imageVector = repeatIcon,
+                    contentDescription = "Toggle Repeat",
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            FilledTonalIconButton(
+                onClick = onTimerClick,
+                colors = if (isTimerActive) activeColors else inactiveColors,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Timer,
+                    contentDescription = "Sleep Timer",
+                )
+            }
         }
     }
 }
@@ -1865,3 +1897,13 @@ fun QueuePlaylistSongItem(
 
 @OptIn(ExperimentalMaterialApi::class)
 private enum class SwipeState { Resting, Dismissed }
+
+/**
+ * Immutable wrapper for queue items to ensure stable keys and prevent unnecessary recompositions.
+ * Using @Immutable tells Compose that once created, this object's properties won't change.
+ */
+@Immutable
+data class QueueUiItem(
+    val uniqueId: String = java.util.UUID.randomUUID().toString(),
+    val song: Song
+)

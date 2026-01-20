@@ -1,7 +1,5 @@
 package com.theveloper.pixelplay.presentation.components
 
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.tween
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -22,8 +20,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import coil.annotation.ExperimentalCoilApi
-import coil.compose.AsyncImagePainter
-import coil.compose.rememberAsyncImagePainter
+import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Size
@@ -48,68 +46,53 @@ fun OptimizedAlbumArt(
         return
     }
 
-    val painter = rememberAsyncImagePainter(
+    // Use SubcomposeAsyncImage with Coil's native crossfade instead of Crossfade wrapper
+    // This avoids recompositions on painter.state changes during scroll
+    SubcomposeAsyncImage(
         model = when (uri) {
             is ImageRequest -> uri
             else -> ImageRequest.Builder(context)
                 .data(uri)
-                .crossfade(false)
+                .crossfade(350) // Use Coil's native crossfade
                 .placeholder(R.drawable.ic_music_placeholder)
                 .error(R.drawable.ic_music_placeholder)
                 .size(targetSize)
                 .memoryCachePolicy(CachePolicy.ENABLED)
                 .diskCachePolicy(CachePolicy.ENABLED)
                 .build()
+        },
+        contentDescription = "Album art of $title",
+        modifier = modifier,
+        contentScale = ContentScale.Crop,
+        loading = {
+            PlaceholderContent(title = title)
+        },
+        error = {
+            PlaceholderContent(title = title)
+        },
+        success = {
+            SubcomposeAsyncImageContent()
         }
     )
+}
 
-    Crossfade(
-        targetState = painter.state,
-        modifier = modifier, // el padre le dará fillMaxSize()
-        animationSpec = tween(350),
-        label = "AlbumArtCrossfade"
-    ) { state ->
-        when (state) {
-            is AsyncImagePainter.State.Success -> Image(
-                painter = state.painter,
-                contentDescription = "Album art of $title",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-            is AsyncImagePainter.State.Loading,
-            is AsyncImagePainter.State.Empty -> Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.ic_music_placeholder),
-                    contentDescription = "$title placeholder",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(96.dp),
-                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                )
-            }
-            is AsyncImagePainter.State.Error -> Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.ic_music_placeholder),
-                    contentDescription = "$title placeholder",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(96.dp),
-                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                )
-            }
-        }
+@Composable
+private fun PlaceholderContent(title: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_music_placeholder),
+            contentDescription = "$title placeholder",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.size(96.dp),
+            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
+                MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+        )
     }
 }
 

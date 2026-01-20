@@ -14,9 +14,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AlbumEntity::class,
         ArtistEntity::class,
         TransitionRuleEntity::class,
-        SongArtistCrossRef::class
+        SongArtistCrossRef::class,
+        SongEngagementEntity::class
     ],
-    version = 11, // Incremented version for artist image support
+    version = 12, // Incremented version for song engagements table
     exportSchema = false
 )
 abstract class PixelPlayDatabase : RoomDatabase() {
@@ -24,6 +25,7 @@ abstract class PixelPlayDatabase : RoomDatabase() {
     abstract fun searchHistoryDao(): SearchHistoryDao
     abstract fun musicDao(): MusicDao // Added MusicDao
     abstract fun transitionDao(): TransitionDao
+    abstract fun engagementDao(): EngagementDao
 
     companion object {
         val MIGRATION_3_4 = object : Migration(3, 4) {
@@ -86,6 +88,20 @@ abstract class PixelPlayDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // Add image_url column to artists table for Deezer artist images
                 db.execSQL("ALTER TABLE artists ADD COLUMN image_url TEXT DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Create song_engagements table for tracking play statistics
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS song_engagements (
+                        song_id TEXT NOT NULL PRIMARY KEY,
+                        play_count INTEGER NOT NULL DEFAULT 0,
+                        total_play_duration_ms INTEGER NOT NULL DEFAULT 0,
+                        last_played_timestamp INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
             }
         }
     }

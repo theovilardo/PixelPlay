@@ -64,6 +64,11 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 // import kotlinx.coroutines.sync.withLock // May not be needed if directoryScanMutex logic changes
 import java.io.File
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import androidx.paging.map
+import androidx.paging.filter
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
@@ -180,6 +185,65 @@ class MusicRepositoryImpl @Inject constructor(
         ) { songs, artists, crossRefs ->
             mapSongList(songs, null, artists, crossRefs)
         }.flowOn(Dispatchers.IO)
+    }
+    
+    /**
+     * Returns a Flow of PagingData<Song> for efficient pagination of large song libraries.
+     * Uses Room's built-in PagingSource integration with directory filtering.
+     * Re-emits when directory filter config changes to apply updated exclusions.
+     */
+    override fun getPaginatedSongs(): Flow<PagingData<Song>> {
+        return directoryFilterConfig.flatMapLatest { config ->
+            Pager(
+                config = PagingConfig(
+                    pageSize = 50,
+                    prefetchDistance = 25,
+                    enablePlaceholders = false
+                ),
+                pagingSourceFactory = {
+                    musicDao.getSongsPaginated(
+                        allowedParentDirs = emptyList(),
+                        applyDirectoryFilter = false
+                    )
+                }
+            ).flow.map { pagingData ->
+                if (!config.isFilterActive) {
+                    // No filter active, just map entities to songs
+                    pagingData.map { entity -> entity.toSong() }
+                } else {
+                    // Apply directory filter
+                    val resolver = DirectoryRuleResolver(config.normalizedAllowed, config.normalizedBlocked)
+                    pagingData
+                        .filter { entity ->
+                            val normalizedParent = normalizePath(entity.parentDirectoryPath)
+                            !resolver.isBlocked(normalizedParent)
+                        }
+                        .map { entity -> entity.toSong() }
+                }
+            }
+        }.flowOn(Dispatchers.IO)
+    }
+
+    override fun getSongCountFlow(): Flow<Int> {
+        return musicDao.getSongCount()
+    }
+
+    override suspend fun getRandomSongs(limit: Int): List<Song> = withContext(Dispatchers.IO) {
+        val config = directoryFilterConfig.first()
+        val entities = if (config.isFilterActive) {
+            musicDao.getRandomSongs(
+                limit = limit,
+                allowedParentDirs = config.normalizedBlocked.toList(),
+                applyDirectoryFilter = false // We'll filter below
+            ).filter { entity ->
+                val normalizedParent = normalizePath(entity.parentDirectoryPath)
+                val resolver = DirectoryRuleResolver(config.normalizedAllowed, config.normalizedBlocked)
+                !resolver.isBlocked(normalizedParent)
+            }
+        } else {
+            musicDao.getRandomSongs(limit = limit)
+        }
+        entities.map { it.toSong() }
     }
 
     override fun getAlbums(): Flow<List<Album>> {

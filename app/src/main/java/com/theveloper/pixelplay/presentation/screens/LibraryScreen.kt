@@ -154,6 +154,7 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -178,6 +179,10 @@ import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import com.theveloper.pixelplay.data.model.PlaylistShapeType
 import kotlinx.coroutines.flow.first
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemContentType
+import androidx.paging.compose.itemKey
+import androidx.paging.LoadState
 
 val ListExtraBottomGap = 30.dp
 val PlayerSheetCollapsedCornerRadius = 32.dp
@@ -584,25 +589,18 @@ fun LibraryScreen(
                                 .fillMaxSize()
                                 .padding(top = 8.dp),
                             pageSpacing = 0.dp,
+                            beyondViewportPageCount = 1, // Pre-load adjacent tabs to reduce lag when switching
                             key = { tabTitles[it] }
                         ) { page ->
                             when (tabTitles.getOrNull(page)?.toLibraryTabIdOrNull()) {
                                 LibraryTabId.SONGS -> {
-                                    val songs by remember {
-                                        playerViewModel.playerUiState
-                                            .map { it.allSongs }
-                                            .distinctUntilChanged()
-                                    }.collectAsState(initial = persistentListOf())
-
-                                    val isLoading by remember {
-                                        playerViewModel.playerUiState
-                                            .map { it.isLoadingInitialSongs }
-                                            .distinctUntilChanged()
-                                    }.collectAsState(initial = songs.isEmpty())
-
-                                    LibrarySongsTab(
-                                        songs = songs,
-                                        isLoadingInitial = isLoading,
+                                    // Use paginated songs for efficient memory usage with large libraries
+                                    val paginatedSongs = playerViewModel.paginatedSongs.collectAsLazyPagingItems()
+                                    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
+                                    
+                                    LibrarySongsTabPaginated(
+                                        paginatedSongs = paginatedSongs,
+                                        stablePlayerState = stablePlayerState,
                                         playerViewModel = playerViewModel,
                                         bottomBarHeight = bottomBarHeightDp,
                                         onMoreOptionsClick = stableOnMoreOptionsClick,
@@ -779,7 +777,7 @@ fun LibraryScreen(
                             }
                         }
                     }
-                } else if (globalLoadingState.isSyncingLibrary || ((globalLoadingState.isLoadingInitialSongs || globalLoadingState.isLoadingLibraryCategories) && (globalLoadingState.allSongs.isEmpty() && globalLoadingState.albums.isEmpty() && globalLoadingState.artists.isEmpty()))) {
+                } else if (globalLoadingState.isSyncingLibrary || ((globalLoadingState.isLoadingInitialSongs || globalLoadingState.isLoadingLibraryCategories) && (globalLoadingState.songCount == 0 && globalLoadingState.albums.isEmpty() && globalLoadingState.artists.isEmpty()))) {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)
@@ -1894,6 +1892,205 @@ fun LibrarySongsTab(
     }
 }
 
+/**
+ * Paginated version of LibrarySongsTab using Paging 3 for efficient memory usage.
+ * Displays songs in pages, loading only what's needed for the current viewport.
+ */
+@androidx.annotation.OptIn(UnstableApi::class)
+@Composable
+fun LibrarySongsTabPaginated(
+    paginatedSongs: androidx.paging.compose.LazyPagingItems<Song>,
+    stablePlayerState: StablePlayerState,
+    playerViewModel: PlayerViewModel,
+    bottomBarHeight: Dp,
+    onMoreOptionsClick: (Song) -> Unit,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit
+) {
+    val listState = rememberLazyListState()
+    val pullToRefreshState = rememberPullToRefreshState()
+    
+    // Handle different loading states
+    when {
+        paginatedSongs.loadState.refresh is LoadState.Loading && paginatedSongs.itemCount == 0 -> {
+            // Initial loading - show skeleton placeholders
+            LazyColumn(
+                modifier = Modifier
+                    .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = 26.dp,
+                            topEnd = 26.dp,
+                            bottomStart = PlayerSheetCollapsedCornerRadius,
+                            bottomEnd = PlayerSheetCollapsedCornerRadius
+                        )
+                    )
+                    .fillMaxSize(),
+                state = listState,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + ListExtraBottomGap)
+            ) {
+                items(12) { // Show 12 skeleton items to fill the screen
+                    EnhancedSongListItem(
+                        song = Song.emptySong(),
+                        isPlaying = false,
+                        isLoading = true,
+                        isCurrentSong = false,
+                        onMoreOptionsClick = {},
+                        onClick = {}
+                    )
+                }
+            }
+        }
+        paginatedSongs.loadState.refresh is LoadState.Error && paginatedSongs.itemCount == 0 -> {
+            // Error state
+            val error = (paginatedSongs.loadState.refresh as LoadState.Error).error
+            Box(
+                modifier = Modifier.fillMaxSize().padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Error loading songs", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        error.localizedMessage ?: "Unknown error",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(onClick = { paginatedSongs.retry() }) {
+                        Text("Retry")
+                    }
+                }
+            }
+        }
+        paginatedSongs.itemCount == 0 && paginatedSongs.loadState.refresh is LoadState.NotLoading -> {
+            // Empty state
+            Box(
+                modifier = Modifier.fillMaxSize().padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.rounded_music_off_24),
+                        contentDescription = "No songs found",
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text("No songs found in your library.", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Try rescanning your library in settings if you have music on your device.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+        else -> {
+            // Songs loaded - show paginated list
+            Box(modifier = Modifier.fillMaxSize()) {
+                PullToRefreshBox(
+                    isRefreshing = isRefreshing,
+                    onRefresh = {
+                        onRefresh()
+                        paginatedSongs.refresh()
+                    },
+                    state = pullToRefreshState,
+                    modifier = Modifier.fillMaxSize(),
+                    indicator = {
+                        PullToRefreshDefaults.LoadingIndicator(
+                            state = pullToRefreshState,
+                            isRefreshing = isRefreshing,
+                            modifier = Modifier.align(Alignment.TopCenter)
+                        )
+                    }
+                ) {
+                    LazyColumn(
+                        modifier = Modifier
+                            .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
+                            .clip(
+                                RoundedCornerShape(
+                                    topStart = 26.dp,
+                                    topEnd = 26.dp,
+                                    bottomStart = PlayerSheetCollapsedCornerRadius,
+                                    bottomEnd = PlayerSheetCollapsedCornerRadius
+                                )
+                            ),
+                        state = listState,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 30.dp)
+                    ) {
+                        item(key = "songs_top_spacer") { Spacer(Modifier.height(0.dp)) }
+                        
+                        items(
+                            count = paginatedSongs.itemCount,
+                            key = paginatedSongs.itemKey { "song_${it.id}" },
+                            contentType = paginatedSongs.itemContentType { "song" }
+                        ) { index ->
+                            val song = paginatedSongs[index]
+                            if (song != null) {
+                                val isPlayingThisSong = song.id == stablePlayerState.currentSong?.id && stablePlayerState.isPlaying
+                                
+                                val rememberedOnMoreOptionsClick: (Song) -> Unit = remember(onMoreOptionsClick) {
+                                    { songFromListItem -> onMoreOptionsClick(songFromListItem) }
+                                }
+                                val rememberedOnClick: () -> Unit = remember(song) {
+                                    { playerViewModel.showAndPlaySong(song) }
+                                }
+                                
+                                EnhancedSongListItem(
+                                    song = song,
+                                    isPlaying = isPlayingThisSong,
+                                    isCurrentSong = stablePlayerState.currentSong?.id == song.id,
+                                    isLoading = false,
+                                    onMoreOptionsClick = rememberedOnMoreOptionsClick,
+                                    onClick = rememberedOnClick
+                                )
+                            } else {
+                                // Placeholder while loading
+                                EnhancedSongListItem(
+                                    song = Song.emptySong(),
+                                    isPlaying = false,
+                                    isLoading = true,
+                                    isCurrentSong = false,
+                                    onMoreOptionsClick = {},
+                                    onClick = {}
+                                )
+                            }
+                        }
+                        
+                        // Loading indicator for appending more items
+                        if (paginatedSongs.loadState.append is LoadState.Loading) {
+                            item {
+                                Box(
+                                    Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    LoadingIndicator(modifier = Modifier.size(32.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+                // Top gradient fade effect
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(10.dp)
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.surface, Color.Transparent
+                                )
+                            )
+                        )
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EnhancedSongListItem(
@@ -2159,7 +2356,37 @@ fun LibraryAlbumsTab(
     }
 
     if (isLoading && albums.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicator() }
+        // Show skeleton grid during loading
+        LazyVerticalGrid(
+            modifier = Modifier
+                .padding(start = 14.dp, end = 14.dp, bottom = 6.dp)
+                .clip(
+                    RoundedCornerShape(
+                        topStart = 26.dp,
+                        topEnd = 26.dp,
+                        bottomStart = PlayerSheetCollapsedCornerRadius,
+                        bottomEnd = PlayerSheetCollapsedCornerRadius
+                    )
+                )
+                .fillMaxSize(),
+            state = gridState,
+            columns = GridCells.Fixed(2),
+            contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + ListExtraBottomGap + 4.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item(key = "skeleton_top_spacer", span = { GridItemSpan(maxLineSpan) }) {
+                Spacer(Modifier.height(4.dp))
+            }
+            items(8) { // Show 8 skeleton items (4 rows x 2 columns)
+                AlbumGridItemRedesigned(
+                    album = Album.empty(),
+                    albumColorSchemePairFlow = MutableStateFlow(null),
+                    onClick = {},
+                    isLoading = true
+                )
+            }
+        }
     } else if (albums.isEmpty() && !isLoading) { // canLoadMore removed
         Box(modifier = Modifier
             .fillMaxSize()
@@ -2387,7 +2614,34 @@ fun LibraryArtistsTab(
     onRefresh: () -> Unit
 ) {
     val listState = rememberLazyListState()
-    if (isLoading && artists.isEmpty()) { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicator() } }
+    if (isLoading && artists.isEmpty()) {
+        // Show skeleton list during loading
+        LazyColumn(
+            modifier = Modifier
+                .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
+                .clip(
+                    RoundedCornerShape(
+                        topStart = 26.dp,
+                        topEnd = 26.dp,
+                        bottomStart = PlayerSheetCollapsedCornerRadius,
+                        bottomEnd = PlayerSheetCollapsedCornerRadius
+                    )
+                )
+                .fillMaxSize(),
+            state = listState,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + ListExtraBottomGap)
+        ) {
+            item(key = "skeleton_top_spacer") { Spacer(Modifier.height(4.dp)) }
+            items(10) { // Show 10 skeleton items
+                ArtistListItem(
+                    artist = Artist.empty(),
+                    onClick = {},
+                    isLoading = true
+                )
+            }
+        }
+    }
     else if (artists.isEmpty() && !isLoading) { /* ... No artists ... */ } // canLoadMore removed
     else {
         Box(
@@ -2453,7 +2707,7 @@ fun LibraryArtistsTab(
 }
 
 @Composable
-fun ArtistListItem(artist: Artist, onClick: () -> Unit) {
+fun ArtistListItem(artist: Artist, onClick: () -> Unit, isLoading: Boolean = false) {
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -2462,36 +2716,61 @@ fun ArtistListItem(artist: Artist, onClick: () -> Unit) {
         )
     ) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center
-            ) {
-                if (!artist.imageUrl.isNullOrEmpty()) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(artist.imageUrl)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = artist.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+            if (isLoading) {
+                // Skeleton loading state
+                ShimmerBox(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    ShimmerBox(
+                        modifier = Modifier
+                            .fillMaxWidth(0.6f)
+                            .height(20.dp)
+                            .clip(RoundedCornerShape(4.dp))
                     )
-                } else {
-                    Icon(
-                        painter = painterResource(R.drawable.rounded_artist_24),
-                        contentDescription = "Artista",
-                        modifier = Modifier.padding(8.dp),
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    Spacer(modifier = Modifier.height(4.dp))
+                    ShimmerBox(
+                        modifier = Modifier
+                            .fillMaxWidth(0.3f)
+                            .height(16.dp)
+                            .clip(RoundedCornerShape(4.dp))
                     )
                 }
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text(artist.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("${artist.songCount} Songs", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!artist.imageUrl.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(artist.imageUrl)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = artist.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Icon(
+                            painter = painterResource(R.drawable.rounded_artist_24),
+                            contentDescription = "Artista",
+                            modifier = Modifier.padding(8.dp),
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text(artist.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("${artist.songCount} Songs", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
     }

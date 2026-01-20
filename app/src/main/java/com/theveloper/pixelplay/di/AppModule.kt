@@ -12,6 +12,7 @@ import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import com.theveloper.pixelplay.PixelPlayApplication
 import com.theveloper.pixelplay.data.database.AlbumArtThemeDao
+import com.theveloper.pixelplay.data.database.EngagementDao
 import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.PixelPlayDatabase
 import com.theveloper.pixelplay.data.database.SearchHistoryDao
@@ -81,7 +82,8 @@ object AppModule {
             PixelPlayDatabase.MIGRATION_4_5,
             PixelPlayDatabase.MIGRATION_6_7,
             PixelPlayDatabase.MIGRATION_9_10,
-            PixelPlayDatabase.MIGRATION_10_11
+            PixelPlayDatabase.MIGRATION_10_11,
+            PixelPlayDatabase.MIGRATION_11_12
         )
             .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
@@ -109,6 +111,12 @@ object AppModule {
     @Provides
     fun provideTransitionDao(database: PixelPlayDatabase): TransitionDao {
         return database.transitionDao()
+    }
+
+    @Singleton
+    @Provides
+    fun provideEngagementDao(database: PixelPlayDatabase): EngagementDao {
+        return database.engagementDao()
     }
 
     @Provides
