@@ -290,8 +290,8 @@ class DualPlayerEngine @Inject constructor(
             .setBufferDurationsMs(
                 30_000, // Min buffer 30s
                 60_000, // Max buffer 60s
-                2_500,  // Buffer for playback start (increased)
-                5_000   // Buffer for rebuffer (increased)
+                5_000,  // Buffer for playback start (Aggressive: 5s)
+                10_000  // Buffer for rebuffer (Aggressive: 10s)
             )
             .build()
 
@@ -301,6 +301,7 @@ class DualPlayerEngine @Inject constructor(
             .build().apply {
             setAudioAttributes(audioAttributes, handleAudioFocus)
             setHandleAudioBecomingNoisy(handleAudioFocus)
+            setWakeMode(C.WAKE_MODE_NETWORK) // Prevent WiFi/CPU from sleeping during streaming
             // Explicitly keep both players live so they can overlap without affecting each other
             playWhenReady = false
         }
