@@ -35,19 +35,16 @@ object AudioMetaUtils {
         var bitrate: Int? = null
         var sampleRate: Int? = null
 
-        // Try MediaMetadataRetriever
-        try {
-            MediaMetadataRetriever().apply {
-                setDataSource(filePath)
-                mimeType = extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)
-                bitrate =
-                    extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toIntOrNull()
-                sampleRate =
-                    extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE)?.toIntOrNull()
-                release()
+        // Try MediaMetadataRetriever via pool
+        MediaMetadataRetrieverPool.withRetriever { retriever ->
+            try {
+                retriever.setDataSource(filePath)
+                mimeType = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)
+                bitrate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toIntOrNull()
+                sampleRate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE)?.toIntOrNull()
+            } catch (e: Exception) {
+                Log.w("AudioMetaUtils", "Retriever failed for $filePath: ${e.message}")
             }
-        } catch (e: Exception) {
-            Log.w("AudioMetaUtils", "Retriever failed for $filePath: ${e.message}")
         }
 
         // Fallback with MediaExtractor

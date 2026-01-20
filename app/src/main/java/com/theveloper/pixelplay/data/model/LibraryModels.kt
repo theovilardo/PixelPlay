@@ -11,7 +11,18 @@ data class Album(
     val year: Int,
     val albumArtUriString: String?,
     val songCount: Int
-)
+) {
+    companion object {
+        fun empty() = Album(
+            id = -1,
+            title = "",
+            artist = "",
+            year = 0,
+            albumArtUriString = null,
+            songCount = 0
+        )
+    }
+}
 
 @Immutable
 data class Artist(
@@ -19,7 +30,16 @@ data class Artist(
     val name: String,
     val songCount: Int,
     val imageUrl: String? = null // Deezer artist image URL
-)
+) {
+    companion object {
+        fun empty() = Artist(
+            id = -1,
+            name = "",
+            songCount = 0,
+            imageUrl = null
+        )
+    }
+}
 
 /**
  * Represents a simplified artist reference for multi-artist support.

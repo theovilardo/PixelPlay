@@ -680,10 +680,19 @@ constructor(
      * necessary because the GENRE column in MediaStore.Audio.Media is not reliably available or
      * populated on all Android versions (especially pre-API 30).
      * 
-     * Optimized: Fetches all genres first, then queries members in parallel with controlled
-     * concurrency to avoid N+1 query problem (reduces from N+1 sequential queries to 1 + parallel batch).
+     * Optimized: 
+     * 1. Caches results for 1 hour to avoid refetching on incremental syncs
+     * 2. Fetches all genres first, then queries members in parallel with controlled concurrency
      */
-    private suspend fun fetchGenreMap(): Map<Long, String> = coroutineScope {
+    private suspend fun fetchGenreMap(forceRefresh: Boolean = false): Map<Long, String> = coroutineScope {
+        // Check cache first (valid for 1 hour)
+        val now = System.currentTimeMillis()
+        val cacheAge = now - genreMapCacheTimestamp
+        if (!forceRefresh && genreMapCache.isNotEmpty() && cacheAge < GENRE_CACHE_TTL_MS) {
+            Log.d(TAG, "Using cached genre map (${genreMapCache.size} entries, age: ${cacheAge/1000}s)")
+            return@coroutineScope genreMapCache
+        }
+        
         val genreMap = ConcurrentHashMap<Long, String>()
         val genreProjection = arrayOf(MediaStore.Audio.Genres._ID, MediaStore.Audio.Genres.NAME)
         
@@ -758,6 +767,13 @@ constructor(
             
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching genre map", e)
+        }
+        
+        // Update cache
+        if (genreMap.isNotEmpty()) {
+            genreMapCache = genreMap.toMap()
+            genreMapCacheTimestamp = System.currentTimeMillis()
+            Log.d(TAG, "Genre map cache updated with ${genreMap.size} entries")
         }
         
         genreMap
@@ -1144,6 +1160,17 @@ constructor(
         const val PROGRESS_TOTAL = "progress_total"
         const val PROGRESS_PHASE = "progress_phase"
         const val OUTPUT_TOTAL_SONGS = "output_total_songs"
+        
+        // Genre cache - shared across worker instances to avoid refetching on incremental syncs
+        private const val GENRE_CACHE_TTL_MS = 60 * 60 * 1000L // 1 hour
+        @Volatile private var genreMapCache: Map<Long, String> = emptyMap()
+        @Volatile private var genreMapCacheTimestamp: Long = 0L
+        
+        fun invalidateGenreCache() {
+            genreMapCache = emptyMap()
+            genreMapCacheTimestamp = 0L
+            Log.d(TAG, "Genre cache invalidated")
+        }
 
         fun startUpSyncWork(deepScan: Boolean = false) =
                 OneTimeWorkRequestBuilder<SyncWorker>()
