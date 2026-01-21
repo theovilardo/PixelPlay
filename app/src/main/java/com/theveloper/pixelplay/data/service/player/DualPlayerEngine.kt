@@ -42,8 +42,8 @@ class DualPlayerEngine @Inject constructor(
     private var transitionJob: Job? = null
     private var transitionRunning = false
 
-    private var playerA: ExoPlayer
-    private var playerB: ExoPlayer
+    private lateinit var playerA: ExoPlayer
+    private lateinit var playerB: ExoPlayer
 
     private val onPlayerSwappedListeners = mutableListOf<(Player) -> Unit>()
     
@@ -119,7 +119,23 @@ class DualPlayerEngine @Inject constructor(
      */
     fun getAudioSessionId(): Int = playerA.audioSessionId
 
+    private var isReleased = false
+
     init {
+        initialize()
+    }
+
+    fun initialize() {
+        if (!isReleased && ::playerA.isInitialized && playerA.applicationLooper.thread.isAlive) return
+
+        // Clean up if needed (though unlikely to be called if already initialized and alive)
+        if (::playerA.isInitialized) {
+            try { playerA.release() } catch (e: Exception) { /* Ignore */ }
+        }
+        if (::playerB.isInitialized) {
+            try { playerB.release() } catch (e: Exception) { /* Ignore */ }
+        }
+
         // We initialize BOTH players with NO internal focus handling.
         // We manage Audio Focus manually via AudioFocusManager.
         playerA = buildPlayer(handleAudioFocus = false)
@@ -127,9 +143,11 @@ class DualPlayerEngine @Inject constructor(
 
         // Attach listener to initial master
         playerA.addListener(masterPlayerListener)
-        
+
         // Initialize active session ID
         _activeAudioSessionId.value = playerA.audioSessionId
+        
+        isReleased = false
     }
 
     private fun requestAudioFocus() {
@@ -442,7 +460,8 @@ class DualPlayerEngine @Inject constructor(
      */
     fun release() {
         transitionJob?.cancel()
-        playerA.release()
-        playerB.release()
+        if (::playerA.isInitialized) playerA.release()
+        if (::playerB.isInitialized) playerB.release()
+        isReleased = true
     }
 }

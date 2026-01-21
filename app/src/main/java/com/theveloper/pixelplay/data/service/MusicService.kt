@@ -99,6 +99,9 @@ class MusicService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
+        
+        // Ensure engine is ready (re-initialize if service was restarted)
+        engine.initialize()
 
         engine.masterPlayer.addListener(playerListener)
 
