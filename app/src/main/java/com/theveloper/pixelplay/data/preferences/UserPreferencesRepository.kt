@@ -82,6 +82,7 @@ constructor(
         val MOCK_GENRES_ENABLED = booleanPreferencesKey("mock_genres_enabled")
         val LAST_DAILY_MIX_UPDATE = longPreferencesKey("last_daily_mix_update")
         val DAILY_MIX_SONG_IDS = stringPreferencesKey("daily_mix_song_ids")
+        val YOUR_MIX_SONG_IDS = stringPreferencesKey("your_mix_song_ids")
         val NAV_BAR_CORNER_RADIUS = intPreferencesKey("nav_bar_corner_radius")
         val NAV_BAR_STYLE = stringPreferencesKey("nav_bar_style")
         val CAROUSEL_STYLE = stringPreferencesKey("carousel_style")
@@ -489,6 +490,26 @@ constructor(
     suspend fun saveDailyMixSongIds(songIds: List<String>) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.DAILY_MIX_SONG_IDS] = json.encodeToString(songIds)
+        }
+    }
+
+    val yourMixSongIdsFlow: Flow<List<String>> =
+            dataStore.data.map { preferences ->
+                val jsonString = preferences[PreferencesKeys.YOUR_MIX_SONG_IDS]
+                if (jsonString != null) {
+                    try {
+                        json.decodeFromString<List<String>>(jsonString)
+                    } catch (e: Exception) {
+                        emptyList()
+                    }
+                } else {
+                    emptyList()
+                }
+            }
+
+    suspend fun saveYourMixSongIds(songIds: List<String>) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.YOUR_MIX_SONG_IDS] = json.encodeToString(songIds)
         }
     }
 

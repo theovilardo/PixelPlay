@@ -594,12 +594,15 @@ fun LibraryScreen(
                         ) { page ->
                             when (tabTitles.getOrNull(page)?.toLibraryTabIdOrNull()) {
                                 LibraryTabId.SONGS -> {
-                                    // Use paginated songs for efficient memory usage with large libraries
-                                    val paginatedSongs = playerViewModel.paginatedSongs.collectAsLazyPagingItems()
+                                    // Use sorted allSongs from LibraryStateHolder
+                                    val playerUiState by playerViewModel.playerUiState.collectAsState()
+                                    val allSongs = playerUiState.allSongs
+                                    val isLoading = playerUiState.isLoadingInitialSongs
                                     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
                                     
-                                    LibrarySongsTabPaginated(
-                                        paginatedSongs = paginatedSongs,
+                                    LibrarySongsTab(
+                                        songs = allSongs,
+                                        isLoading = isLoading,
                                         stablePlayerState = stablePlayerState,
                                         playerViewModel = playerViewModel,
                                         bottomBarHeight = bottomBarHeightDp,

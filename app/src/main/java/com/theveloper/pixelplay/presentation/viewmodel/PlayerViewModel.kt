@@ -227,6 +227,7 @@ data class PlayerUiState(
     val isLoadingInitialSongs: Boolean = true,
     val isGeneratingAiMetadata: Boolean = false,
     // REMOVED: allSongs moved to separate flow to avoid copying on every state update
+    val allSongs: ImmutableList<Song> = persistentListOf(),
     // val allSongs: ImmutableList<Song> = persistentListOf(),
     val songCount: Int = 0, // Lightweight count instead of full list
     val currentPlaybackQueue: ImmutableList<Song> = persistentListOf(),
@@ -261,12 +262,7 @@ data class PlayerUiState(
     val preparingSongId: String? = null
 )
 
-private data class ExternalSongLoadResult(
-    val song: Song,
-    val relativePath: String?,
-    val bucketId: Long?,
-    val displayName: String?
-)
+
 
 sealed interface LyricsSearchUiState {
     object Idle : LyricsSearchUiState
@@ -288,7 +284,7 @@ class PlayerViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val albumArtThemeDao: AlbumArtThemeDao,
     val syncManager: SyncManager, // Inyectar SyncManager
-    private val songMetadataEditor: SongMetadataEditor,
+
     private val dailyMixManager: DailyMixManager,
     private val playbackStatsRepository: PlaybackStatsRepository,
     private val aiPlaylistGenerator: AiPlaylistGenerator,
@@ -305,7 +301,10 @@ class PlayerViewModel @Inject constructor(
     private val connectivityStateHolder: ConnectivityStateHolder,
     private val sleepTimerStateHolder: SleepTimerStateHolder,
     private val searchStateHolder: SearchStateHolder,
-    private val aiStateHolder: AiStateHolder
+    private val aiStateHolder: AiStateHolder,
+    private val libraryStateHolder: LibraryStateHolder,
+    private val metadataEditStateHolder: MetadataEditStateHolder,
+    private val externalMediaStateHolder: ExternalMediaStateHolder
 ) : ViewModel() {
 
     // AlarmManager is now managed by SleepTimerStateHolder
@@ -675,7 +674,8 @@ class PlayerViewModel @Inject constructor(
     private val _isInitialDataLoaded = MutableStateFlow(false)
 
     // Public read-only access to all songs (using _masterAllSongs declared at class level)
-    val allSongsFlow: StateFlow<List<Song>> = _masterAllSongs.asStateFlow()
+    // Library State - delegated to LibraryStateHolder
+    val allSongsFlow: StateFlow<ImmutableList<Song>> = libraryStateHolder.allSongs
 
     val genres: StateFlow<ImmutableList<Genre>> = allSongsFlow
         .map { songs ->
@@ -785,14 +785,14 @@ class PlayerViewModel @Inject constructor(
         state.currentSong?.id?.let { ids.contains(it) } ?: false
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    private val _currentFavoriteSortOptionStateFlow = MutableStateFlow<SortOption>(SortOption.LikedSongDateLiked) // Default aligned with LibraryTabId default.
-    val currentFavoriteSortOptionStateFlow: StateFlow<SortOption> = _currentFavoriteSortOptionStateFlow.asStateFlow()
+    // Library State - delegated to LibraryStateHolder
+    // val currentFavoriteSortOptionStateFlow: StateFlow<SortOption> = _currentFavoriteSortOptionStateFlow.asStateFlow() // Removed, use libraryStateHolder
 
     val favoriteSongs: StateFlow<ImmutableList<Song>> = combine(
         favoriteSongIds,
         _masterAllSongs,
-        currentFavoriteSortOptionStateFlow
-    ) { ids, allSongsList, sortOption ->
+        libraryStateHolder.currentFavoriteSortOption
+    ) { ids: Set<String>, allSongsList: List<Song>, sortOption: SortOption ->
         val favoriteSongsList = allSongsList.filter { song -> ids.contains(song.id) }
         when (sortOption) {
             SortOption.LikedSongTitleAZ -> favoriteSongsList.sortedBy { it.title.lowercase() }
@@ -1055,7 +1055,7 @@ class PlayerViewModel @Inject constructor(
                 )
             }
             // Also update the dedicated flow for favorites to ensure consistency
-            _currentFavoriteSortOptionStateFlow.value = initialLikedSort
+            // _currentFavoriteSortOptionStateFlow.value = initialLikedSort // Delegated to LibraryStateHolder
 
             sortSongs(initialSongSort, persist = false)
             sortAlbums(initialAlbumSort, persist = false)
@@ -1211,6 +1211,76 @@ class PlayerViewModel @Inject constructor(
             }
         }
 
+        viewModelScope.launch {
+            aiStateHolder.isGeneratingMetadata.collect { generating ->
+                _playerUiState.update { it.copy(isGeneratingAiMetadata = generating) }
+            }
+        }
+
+        // Initialize LibraryStateHolder
+        libraryStateHolder.initialize(viewModelScope)
+
+        // Collect LibraryStateHolder flows to sync with UI State
+        viewModelScope.launch {
+            libraryStateHolder.allSongs.collect { songs ->
+                _playerUiState.update { it.copy(allSongs = songs, songCount = songs.size) }
+                // Update master songs for Cast usage if needed
+                _masterAllSongs.value = songs
+            }
+        }
+        viewModelScope.launch {
+            libraryStateHolder.albums.collect { albums ->
+                _playerUiState.update { it.copy(albums = albums) }
+            }
+        }
+        viewModelScope.launch {
+            libraryStateHolder.artists.collect { artists ->
+                _playerUiState.update { it.copy(artists = artists) }
+            }
+        }
+        viewModelScope.launch {
+            libraryStateHolder.musicFolders.collect { folders ->
+                _playerUiState.update { it.copy(musicFolders = folders) }
+            }
+        }
+        // Sync loading states
+        viewModelScope.launch {
+            libraryStateHolder.isLoadingLibrary.collect { loading ->
+                _playerUiState.update { it.copy(isLoadingInitialSongs = loading) }
+            }
+        }
+        viewModelScope.launch {
+            libraryStateHolder.isLoadingCategories.collect { loading ->
+                _playerUiState.update { it.copy(isLoadingLibraryCategories = loading) }
+            }
+        }
+        
+        // Sync sort options
+        viewModelScope.launch {
+            libraryStateHolder.currentSongSortOption.collect { sort ->
+                _playerUiState.update { it.copy(currentSongSortOption = sort) }
+            }
+        }
+        viewModelScope.launch {
+            libraryStateHolder.currentAlbumSortOption.collect { sort ->
+                _playerUiState.update { it.copy(currentAlbumSortOption = sort) }
+            }
+        }
+        viewModelScope.launch {
+            libraryStateHolder.currentArtistSortOption.collect { sort ->
+                _playerUiState.update { it.copy(currentArtistSortOption = sort) }
+            }
+        }
+        viewModelScope.launch {
+            libraryStateHolder.currentFolderSortOption.collect { sort ->
+                _playerUiState.update { it.copy(currentFolderSortOption = sort) }
+            }
+        }
+        viewModelScope.launch {
+            libraryStateHolder.currentFavoriteSortOption.collect { sort ->
+                _playerUiState.update { it.copy(currentFavoriteSortOption = sort) }
+            }
+        }
         remoteProgressListener = RemoteMediaClient.ProgressListener { progress, _ ->
             if (!isRemotelySeeking.value) {
                 val pendingId = pendingRemoteSongId
@@ -1926,99 +1996,15 @@ class PlayerViewModel @Inject constructor(
 
     // Nueva función para carga paralela
     private fun loadInitialLibraryDataParallel() {
-        _playerUiState.update {
-            it.copy(
-                isLoadingInitialSongs = true,
-                isLoadingLibraryCategories = true
-            )
-        }
-
-        val songsJob = viewModelScope.launch {
-            Log.d("PlayerViewModel", "Loading songs in parallel...")
-            try {
-                val songsList = musicRepository.getAudioFiles().first()
-                _masterAllSongs.value = songsList.toImmutableList()
-
-                // Apply initial sort to the displayed list
-                sortSongs(_playerUiState.value.currentSongSortOption, persist = false)
-
-                _playerUiState.update { currentState ->
-                    currentState.copy(
-                        isLoadingInitialSongs = false
-                    )
-                }
-                Log.d("PlayerViewModel", "Songs loaded in parallel. Master count: ${songsList.size}")
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error loading songs in parallel", e)
-                _playerUiState.update { it.copy(isLoadingInitialSongs = false) }
-            }
-        }
-
-        val albumsJob = viewModelScope.launch {
-            Log.d("PlayerViewModel", "Loading albums in parallel...")
-            try {
-                val albumsList = musicRepository.getAllAlbumsOnce()
-                _playerUiState.update { it.copy(albums = albumsList.toImmutableList()) }
-                sortAlbums(_playerUiState.value.currentAlbumSortOption, persist = false)
-                Log.d("PlayerViewModel", "Albums loaded in parallel. Count: ${albumsList.size}")
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error loading albums in parallel", e)
-            }
-        }
-
-        val artistsJob = viewModelScope.launch {
-            Log.d("PlayerViewModel", "Loading artists in parallel...")
-            try {
-                val artistsList = musicRepository.getAllArtistsOnce()
-                _playerUiState.update { it.copy(artists = artistsList.toImmutableList()) }
-                Log.d("PlayerViewModel", "Artists loaded in parallel. Count: ${artistsList.size}")
-                
-                // Fetch Deezer images for artists without images in background
-                launch(Dispatchers.IO) {
-                    val artistsWithoutImages = artistsList.filter { it.imageUrl.isNullOrEmpty() }
-                    Log.d("PlayerViewModel", "Fetching Deezer images for ${artistsWithoutImages.size} artists...")
-                    
-                    for (artist in artistsWithoutImages) {
-                        try {
-                            val imageUrl = artistImageRepository.getArtistImageUrl(artist.name, artist.id)
-                            if (!imageUrl.isNullOrEmpty()) {
-                                // Update artist in the UI state
-                                _playerUiState.update { currentState ->
-                                    val updatedArtists = currentState.artists.map { a ->
-                                        if (a.id == artist.id) a.copy(imageUrl = imageUrl) else a
-                                    }
-                                    currentState.copy(artists = updatedArtists.toImmutableList())
-                                }
-                            }
-                        } catch (e: Exception) {
-                            Log.w("PlayerViewModel", "Failed to fetch image for ${artist.name}: ${e.message}")
-                        }
-                    }
-                    Log.d("PlayerViewModel", "Deezer artist image fetch completed")
-                }
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error loading artists in parallel", e)
-            }
-        }
-
-        viewModelScope.launch {
-            try {
-                joinAll(songsJob, albumsJob, artistsJob)
-                Log.d("PlayerViewModel", "All parallel loads (songs, albums, artists) completed.")
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error during parallel data loading completion", e)
-            } finally {
-                _playerUiState.update {
-                    it.copy(
-                        isLoadingInitialSongs = false,
-                        isLoadingLibraryCategories = false
-                    )
-                }
-                _isInitialDataLoaded.value = true
-                Log.d("PlayerViewModel", "_isInitialDataLoaded set to true after all parallel loads completed.")
-            }
-        }
+        Log.d("PlayerViewModel", "Delegating initial load to LibraryStateHolder...")
+        // Trigger loading in LibraryStateHolder. 
+        // These methods launch their own coroutines on the scope passed in initialize().
+        libraryStateHolder.loadSongsFromRepository()
+        libraryStateHolder.loadAlbumsFromRepository()
+        libraryStateHolder.loadArtistsFromRepository()
+        libraryStateHolder.loadFoldersFromRepository()
     }
+
 
     private fun resetAndLoadInitialData(caller: String = "Unknown") {
         Trace.beginSection("PlayerViewModel.resetAndLoadInitialData")
@@ -2036,188 +2022,32 @@ class PlayerViewModel @Inject constructor(
     // This function might still be called by loadSongsIfNeeded,
     // but _isInitialDataLoaded should now be primarily managed by loadInitialLibraryDataParallel
     private fun loadSongsFromRepository() {
-        Log.d("PlayerViewModel", "loadSongsFromRepository called (potentially for individual tab load or refresh).")
-        // No longer need checks for isLoadingMoreSongs or canLoadMoreSongs
-
-        viewModelScope.launch { // Default dispatcher is Main.Immediate which is fine for launching.
-            val functionStartTime = System.currentTimeMillis()
-            Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (Single Action) START")
-
-            if (!_playerUiState.value.isLoadingInitialSongs) {
-                 _playerUiState.update { it.copy(isLoadingInitialSongs = true) }
-            }
-
-            try {
-                val repoCallStartTime = System.currentTimeMillis()
-                val allSongsList: List<Song> = musicRepository.getAudioFiles().first()
-                val repoCallDuration = System.currentTimeMillis() - repoCallStartTime
-                Log.d("PlayerViewModelPerformance", "musicRepository.getAudioFiles (Single Action) took $repoCallDuration ms for ${allSongsList.size} songs.")
-
-                _masterAllSongs.value = allSongsList.toImmutableList()
-                sortSongs(_playerUiState.value.currentSongSortOption, persist = false)
-
-                _playerUiState.update { currentState ->
-                    currentState.copy(
-                        isLoadingInitialSongs = false
-                    )
-                }
-                // _isInitialDataLoaded.value = true; // This flag is now set by loadInitialLibraryDataParallel
-                Log.d("PlayerViewModel", "allSongs updated by loadSongsFromRepository. New size: ${_masterAllSongs.value.size}. isLoadingInitialSongs: ${_playerUiState.value.isLoadingInitialSongs}.")
-
-                val totalFunctionTime = System.currentTimeMillis() - functionStartTime
-                Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (Single Action) END. Data update complete. Total time: $totalFunctionTime ms")
-
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error loading songs from repository (Single Action)", e)
-                _playerUiState.update {
-                    it.copy(isLoadingInitialSongs = false)
-                }
-                val totalFunctionTime = System.currentTimeMillis() - functionStartTime
-                Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (Single Action) FAILED. Total time: $totalFunctionTime ms")
-            } finally {
-                Trace.endSection() // End PlayerViewModel.loadSongsFromRepository_coroutine
-            }
-        }
+        libraryStateHolder.loadSongsFromRepository()
     }
 
     private fun loadAlbumsFromRepository() {
-        Log.d("PlayerViewModelPerformance", "loadAlbumsFromRepository (All) called.")
-
-        viewModelScope.launch {
-            Trace.beginSection("PlayerViewModel.loadAlbumsFromRepository_coroutine")
-            val functionStartTime = System.currentTimeMillis()
-            Log.d("PlayerViewModelPerformance", "loadAlbumsFromRepository (All) START")
-
-            _playerUiState.update { it.copy(isLoadingLibraryCategories = true) }
-
-            try {
-                val repoCallAlbumsStartTime = System.currentTimeMillis()
-                // Usar la nueva función suspend del repositorio
-                val allAlbumsList: List<Album> = musicRepository.getAllAlbumsOnce()
-                val albumsLoadDuration = System.currentTimeMillis() - repoCallAlbumsStartTime
-                Log.d("PlayerViewModelPerformance", "musicRepository.getAllAlbumsOnce (All) took $albumsLoadDuration ms for ${allAlbumsList.size} albums.")
-
-                _playerUiState.update { currentState ->
-                    currentState.copy(
-                        albums = allAlbumsList.toImmutableList(),
-                        isLoadingLibraryCategories = false
-                    )
-                }
-                sortAlbums(_playerUiState.value.currentAlbumSortOption, persist = false)
-                Log.d("PlayerViewModelPerformance", "loadAlbumsFromRepository (All) END. Total time: ${System.currentTimeMillis() - functionStartTime} ms. Albums loaded: ${allAlbumsList.size}")
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error loading all albums from getAllAlbumsOnce", e)
-                _playerUiState.update { it.copy(isLoadingLibraryCategories = false) }
-            } finally {
-                Trace.endSection() // End PlayerViewModel.loadAlbumsFromRepository_coroutine
-            }
-        }
+        libraryStateHolder.loadAlbumsFromRepository()
     }
 
     fun loadSongsIfNeeded() {
-        val songsEmpty = _masterAllSongs.value.isEmpty()
-        val notLoading = !_playerUiState.value.isLoadingInitialSongs
-
-        Log.d("PlayerViewModel", "loadSongsIfNeeded: songsEmpty=$songsEmpty, notLoadingInitialSongs=$notLoading")
-        if (songsEmpty && notLoading) {
-            Log.i("PlayerViewModel", "loadSongsIfNeeded: Conditions met. Loading all songs.")
-            loadSongsFromRepository()
-        } else {
-            var reason = ""
-            if (!songsEmpty) reason += "Songs not empty. "
-            if (!notLoading) reason += "Currently loading initial songs. "
-            Log.w("PlayerViewModel", "loadSongsIfNeeded: Conditions NOT met. Skipping load. Reason: $reason")
-        }
+        libraryStateHolder.loadSongsIfNeeded()
     }
 
     fun loadAlbumsIfNeeded() {
-        val albumsEmpty = _playerUiState.value.albums.isEmpty()
-        val notLoading = !_playerUiState.value.isLoadingLibraryCategories
-        Log.d("PlayerViewModel", "loadAlbumsIfNeeded: albumsEmpty=$albumsEmpty, notLoadingLibraryCategories=$notLoading")
-        if (albumsEmpty && notLoading) { // Simplified condition
-            Log.i("PlayerViewModel", "loadAlbumsIfNeeded: Conditions met. Loading all albums.")
-            loadAlbumsFromRepository() // No isInitialLoad parameter
-        } else {
-            var reason = ""
-            if (!albumsEmpty) reason += "Albums not empty. "
-            if (!notLoading) reason += "Currently loading library categories. "
-            Log.w("PlayerViewModel", "loadAlbumsIfNeeded: Conditions NOT met. Skipping load. Reason: $reason")
-        }
+        libraryStateHolder.loadAlbumsIfNeeded()
     }
 
     // Funciones para cargar artistas
     private fun loadArtistsFromRepository() {
-        Log.d("PlayerViewModelPerformance", "loadArtistsFromRepository (All) called.")
-
-        viewModelScope.launch {
-            val functionStartTime = System.currentTimeMillis()
-            Log.d("PlayerViewModelPerformance", "loadArtistsFromRepository (All) START")
-
-            _playerUiState.update { it.copy(isLoadingLibraryCategories = true) }
-
-            try {
-                val repoCallArtistsStartTime = System.currentTimeMillis()
-                // Usar la nueva función suspend del repositorio
-                val allArtistsList: List<Artist> = musicRepository.getAllArtistsOnce()
-                val artistsLoadDuration = System.currentTimeMillis() - repoCallArtistsStartTime
-                Log.d("PlayerViewModelPerformance", "musicRepository.getAllArtistsOnce (All) took $artistsLoadDuration ms for ${allArtistsList.size} artists.")
-
-                _playerUiState.update { currentState ->
-                    currentState.copy(
-                        artists = allArtistsList.toImmutableList(),
-                        isLoadingLibraryCategories = false
-                    )
-                }
-                 Log.d("PlayerViewModelPerformance", "loadArtistsFromRepository (All) END. Total time: ${System.currentTimeMillis() - functionStartTime} ms. Artists loaded: ${allArtistsList.size}")
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error loading all artists from getAllArtistsOnce", e)
-                _playerUiState.update { it.copy(isLoadingLibraryCategories = false) }
-            }
-        }
+        libraryStateHolder.loadArtistsFromRepository()
     }
 
     fun loadArtistsIfNeeded() {
-        val artistsEmpty = _playerUiState.value.artists.isEmpty()
-        val notLoading = !_playerUiState.value.isLoadingLibraryCategories
-        Log.d("PlayerViewModel", "loadArtistsIfNeeded: artistsEmpty=$artistsEmpty, notLoadingLibraryCategories=$notLoading")
-        if (artistsEmpty && notLoading) { // Simplified condition
-            Log.i("PlayerViewModel", "loadArtistsIfNeeded: Conditions met. Loading all artists.")
-            loadArtistsFromRepository() // No isInitialLoad parameter
-        } else {
-            var reason = ""
-            if (!artistsEmpty) reason += "Artists not empty. "
-            if (!notLoading) reason += "Currently loading library categories. "
-            Log.w("PlayerViewModel", "loadArtistsIfNeeded: Conditions NOT met. Skipping load. Reason: $reason")
-        }
+        libraryStateHolder.loadArtistsIfNeeded()
     }
 
     fun loadFoldersFromRepository() {
-        Log.d("PlayerViewModelPerformance", "loadFoldersFromRepository (All) called.")
-
-        viewModelScope.launch {
-            val functionStartTime = System.currentTimeMillis()
-            Log.d("PlayerViewModelPerformance", "loadFoldersFromRepository (All) START")
-
-            _playerUiState.update { it.copy(isLoadingLibraryCategories = true) }
-
-            try {
-                val repoCallFoldersStartTime = System.currentTimeMillis()
-                val allFoldersList: List<MusicFolder> = musicRepository.getMusicFolders().first()
-                val foldersLoadDuration = System.currentTimeMillis() - repoCallFoldersStartTime
-                Log.d("PlayerViewModelPerformance", "musicRepository.getMusicFolders (All) took $foldersLoadDuration ms for ${allFoldersList.size} folders.")
-
-                _playerUiState.update { currentState ->
-                    currentState.copy(
-                        musicFolders = allFoldersList.toImmutableList(),
-                        isLoadingLibraryCategories = false
-                    )
-                }
-                 Log.d("PlayerViewModelPerformance", "loadFoldersFromRepository (All) END. Total time: ${System.currentTimeMillis() - functionStartTime} ms. Folders loaded: ${allFoldersList.size}")
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error loading all folders from getMusicFolders", e)
-                _playerUiState.update { it.copy(isLoadingLibraryCategories = false) }
-            }
-        }
+        libraryStateHolder.loadFoldersFromRepository()
     }
 
     private fun onAllowedDirectoriesChanged() {
@@ -2963,7 +2793,7 @@ class PlayerViewModel @Inject constructor(
 
     fun playExternalUri(uri: Uri) {
         viewModelScope.launch {
-            val externalResult = buildExternalSongFromUri(uri)
+            val externalResult = externalMediaStateHolder.buildExternalSongFromUri(uri)
             if (externalResult == null) {
                 sendToast(context.getString(R.string.external_playback_error))
                 return@launch
@@ -2971,7 +2801,7 @@ class PlayerViewModel @Inject constructor(
 
             transitionSchedulerJob?.cancel()
 
-            val queueSongs = buildExternalQueue(externalResult, uri)
+            val queueSongs = externalMediaStateHolder.buildExternalQueue(externalResult, uri)
             val immutableQueue = queueSongs.toImmutableList()
 
             _playerUiState.update { state ->
@@ -3005,340 +2835,13 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    private suspend fun buildExternalQueue(
-        result: ExternalSongLoadResult,
-        originalUri: Uri
-    ): List<Song> {
-        val continuation = loadAdditionalSongsFromFolder(result, originalUri)
-        if (continuation.isEmpty()) {
-            return listOf(result.song)
-        }
-
-        val queue = mutableListOf(result.song)
-        continuation.forEach { song ->
-            if (queue.none { it.id == song.id }) {
-                queue.add(song)
-            }
-        }
-
-        return queue
-    }
-
-    private suspend fun loadAdditionalSongsFromFolder(
-        reference: ExternalSongLoadResult,
-        originalUri: Uri
-    ): List<Song> = withContext(Dispatchers.IO) {
-        val relativePath = reference.relativePath
-        val bucketId = reference.bucketId
-        if (relativePath.isNullOrEmpty() && bucketId == null) {
-            return@withContext emptyList()
-        }
-
-        val selection: String
-        val selectionArgs: Array<String>
-        if (bucketId != null) {
-            selection = "${MediaStore.Audio.Media.BUCKET_ID} = ?"
-            selectionArgs = arrayOf(bucketId.toString())
-        } else {
-            selection = "${MediaStore.Audio.Media.RELATIVE_PATH} = ?"
-            selectionArgs = arrayOf(relativePath!!)
-        }
-
-        val resolver = context.contentResolver
-        val projection = arrayOf(
-            MediaStore.Audio.Media._ID,
-            MediaStore.Audio.Media.DISPLAY_NAME
-        )
-
-        val siblings = mutableListOf<Pair<Uri, String?>>()
-        try {
-            resolver.query(
-                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                projection,
-                selection,
-                selectionArgs,
-                "LOWER(${MediaStore.Audio.Media.DISPLAY_NAME}) ASC"
-            )?.use { cursor ->
-                val idIndex = cursor.getColumnIndex(MediaStore.Audio.Media._ID)
-                val nameIndex = cursor.getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME)
-                if (idIndex != -1) {
-                    while (cursor.moveToNext()) {
-                        val mediaId = cursor.getLong(idIndex)
-                        val mediaUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, mediaId)
-                        val siblingName = if (nameIndex != -1) cursor.getString(nameIndex) else null
-                        siblings.add(mediaUri to siblingName)
-                    }
-                }
-            }
-        } catch (securityException: SecurityException) {
-            Timber.w(securityException, "Unable to load sibling songs for uri: $originalUri")
-            return@withContext emptyList()
-        } catch (illegalArgumentException: IllegalArgumentException) {
-            Timber.w(illegalArgumentException, "Invalid query while loading sibling songs for uri: $originalUri")
-            return@withContext emptyList()
-        }
-
-        if (siblings.isEmpty()) return@withContext emptyList()
-
-        val normalizedTargetUri = originalUri.toString()
-        val normalizedDisplayName = reference.displayName?.lowercase()?.trim()
-
-        val startIndex = siblings.indexOfFirst { (itemUri, displayName) ->
-            itemUri == originalUri ||
-                itemUri.toString() == normalizedTargetUri ||
-                (normalizedDisplayName != null && displayName?.lowercase()?.trim() == normalizedDisplayName)
-        }
-
-        val candidates = if (startIndex != -1) {
-            siblings.drop(startIndex + 1)
-        } else {
-            siblings.filterNot { (itemUri, displayName) ->
-                itemUri == originalUri ||
-                    itemUri.toString() == normalizedTargetUri ||
-                    (normalizedDisplayName != null && displayName?.lowercase()?.trim() == normalizedDisplayName)
-            }
-        }
-
-        if (candidates.isEmpty()) return@withContext emptyList()
-
-        val resolved = mutableListOf<Song>()
-        for ((candidateUri, _) in candidates) {
-            val additional = buildExternalSongFromUri(candidateUri, captureFolderInfo = false)
-            val song = additional?.song ?: continue
-            if (song.id != reference.song.id) {
-                resolved.add(song)
-            }
-        }
-
-        resolved
-    }
-
     fun showPlayer() {
         if (stablePlayerState.value.currentSong != null) {
             _isSheetVisible.value = true
         }
     }
 
-    private suspend fun buildExternalSongFromUri(
-        uri: Uri,
-        captureFolderInfo: Boolean = true
-    ): ExternalSongLoadResult? = withContext(Dispatchers.IO) {
-        val resolver = context.contentResolver
 
-        var displayName: String? = null
-        var relativePath: String? = null
-        var bucketId: Long? = null
-        var storeTitle: String? = null
-        var storeArtist: String? = null
-        var storeAlbum: String? = null
-        var storeDuration: Long? = null
-        var storeTrack: Int? = null
-        var storeYear: Int? = null
-        var storeDateAddedSeconds: Long? = null
-
-        val projection = arrayOf(
-            OpenableColumns.DISPLAY_NAME,
-            MediaStore.Audio.Media.RELATIVE_PATH,
-            MediaStore.Audio.Media.BUCKET_ID,
-            MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.TITLE,
-            MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ALBUM,
-            MediaStore.Audio.Media.TRACK,
-            MediaStore.Audio.Media.YEAR,
-            MediaStore.Audio.Media.DATE_ADDED
-        )
-
-        try {
-            resolver.query(uri, projection, null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    val displayNameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    if (displayNameIndex != -1) displayName = cursor.getString(displayNameIndex)
-
-                    val relativePathIndex = cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
-                    if (relativePathIndex != -1) relativePath = cursor.getString(relativePathIndex)
-
-                    val bucketIdIndex = cursor.getColumnIndex(MediaStore.Audio.Media.BUCKET_ID)
-                    if (bucketIdIndex != -1) bucketId = cursor.getLong(bucketIdIndex)
-
-                    val titleIndex = cursor.getColumnIndex(MediaStore.Audio.Media.TITLE)
-                    if (titleIndex != -1) storeTitle = cursor.getString(titleIndex)
-
-                    val artistIndex = cursor.getColumnIndex(MediaStore.Audio.Media.ARTIST)
-                    if (artistIndex != -1) storeArtist = cursor.getString(artistIndex)
-
-                    val albumIndex = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM)
-                    if (albumIndex != -1) storeAlbum = cursor.getString(albumIndex)
-
-                    val durationIndex = cursor.getColumnIndex(MediaStore.Audio.Media.DURATION)
-                    if (durationIndex != -1) storeDuration = cursor.getLong(durationIndex)
-
-                    val trackIndex = cursor.getColumnIndex(MediaStore.Audio.Media.TRACK)
-                    if (trackIndex != -1) storeTrack = cursor.getInt(trackIndex)
-
-                    val yearIndex = cursor.getColumnIndex(MediaStore.Audio.Media.YEAR)
-                    if (yearIndex != -1) storeYear = cursor.getInt(yearIndex)
-
-                    val dateAddedIndex = cursor.getColumnIndex(MediaStore.Audio.Media.DATE_ADDED)
-                    if (dateAddedIndex != -1) storeDateAddedSeconds = cursor.getLong(dateAddedIndex)
-                }
-            }
-        } catch (exception: Exception) {
-            Timber.w(exception, "Failed querying metadata for external uri: $uri")
-        }
-
-        val metadataRetriever = MediaMetadataRetriever()
-        return@withContext try {
-            metadataRetriever.setDataSource(context, uri)
-
-            var metadataTitle = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
-                ?.takeIf { it.isNotBlank() }
-            var metadataArtist = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
-                ?.takeIf { it.isNotBlank() }
-            var metadataAlbum = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
-                ?.takeIf { it.isNotBlank() }
-            var metadataDuration = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                ?.toLongOrNull()
-            var metadataTrack = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
-                ?.substringBefore('/')
-                ?.toIntOrNull()
-            var metadataYear = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)
-                ?.toIntOrNull()
-            val mimeType = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)
-            val bitrate = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toIntOrNull()
-            val sampleRate = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE)?.toIntOrNull()
-            var genre = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE)
-            var embeddedArt = metadataRetriever.embeddedPicture?.takeIf { it.isNotEmpty() }
-            var embeddedArtMimeType: String? = null
-
-            if (embeddedArt != null) {
-                if (isValidImageData(embeddedArt)) {
-                    embeddedArtMimeType = guessImageMimeType(embeddedArt)
-                } else {
-                    Timber.w("MediaMetadataRetriever returned invalid embedded art for uri: $uri; falling back")
-                    embeddedArt = null
-                }
-            }
-
-            if (metadataTitle == null || metadataArtist == null || metadataAlbum == null ||
-                metadataDuration == null || metadataDuration <= 0 ||
-                metadataTrack == null || metadataYear == null ||
-                embeddedArt == null || genre.isNullOrBlank()
-            ) {
-                AudioMetadataReader.read(context, uri)?.let { fallback ->
-                    if (metadataTitle == null) metadataTitle = fallback.title
-                    if (metadataArtist == null) metadataArtist = fallback.artist
-                    if (metadataAlbum == null) metadataAlbum = fallback.album
-                    if (genre.isNullOrBlank()) genre = fallback.genre
-                    if (metadataDuration == null || metadataDuration!! <= 0) {
-                        metadataDuration = fallback.durationMs
-                    }
-                    if (metadataTrack == null) metadataTrack = fallback.trackNumber
-                    if (metadataYear == null) metadataYear = fallback.year
-                    if (embeddedArt == null) {
-                        fallback.artwork?.let { artwork ->
-                            if (artwork.bytes.isNotEmpty() && isValidImageData(artwork.bytes)) {
-                                embeddedArt = artwork.bytes
-                                embeddedArtMimeType = artwork.mimeType
-                                    ?: guessImageMimeType(artwork.bytes)
-                            } else if (artwork.bytes.isNotEmpty()) {
-                                Timber.w("JAudioTagger returned invalid artwork for uri: $uri")
-                            }
-                        }
-                    }
-                }
-            }
-
-            val albumArtUriString = embeddedArt?.let { artBytes ->
-                persistExternalAlbumArt(uri, artBytes, embeddedArtMimeType)
-            }
-
-            val duration = metadataDuration
-                ?: storeDuration?.takeIf { it > 0 }
-                ?: 0L
-
-            val trackNumber = metadataTrack
-                ?: storeTrack?.takeIf { it > 0 }?.let { track ->
-                    if (track > 1000) track % 1000 else track
-                }
-                ?: 0
-
-            val year = metadataYear ?: storeYear ?: 0
-
-            val dateAdded = storeDateAddedSeconds?.takeIf { it > 0 }
-                ?.let { TimeUnit.SECONDS.toMillis(it) }
-                ?: System.currentTimeMillis()
-
-            val song = Song(
-                id = "${EXTERNAL_MEDIA_ID_PREFIX}${uri}",
-                title = metadataTitle
-                    ?: storeTitle?.takeIf { it.isNotBlank() }
-                    ?: displayName?.substringBeforeLast('.')?.takeIf { it.isNotBlank() }
-                    ?: displayName?.takeIf { it.isNotBlank() }
-                    ?: uri.lastPathSegment?.takeIf { it.isNotBlank() }
-                    ?: context.getString(R.string.unknown_song_title),
-                artist = metadataArtist
-                    ?: storeArtist?.takeIf { it.isNotBlank() }
-                    ?: context.getString(R.string.unknown_artist),
-                artistId = -1L,
-                album = metadataAlbum
-                    ?: storeAlbum?.takeIf { it.isNotBlank() }
-                    ?: context.getString(R.string.unknown_album),
-                albumId = -1L,
-                path = uri.toString(),
-                contentUriString = uri.toString(),
-                albumArtUriString = albumArtUriString,
-                duration = duration,
-                genre = genre,
-                lyrics = null,
-                isFavorite = false,
-                trackNumber = trackNumber,
-                year = year,
-                dateAdded = dateAdded,
-                mimeType = mimeType,
-                bitrate = bitrate,
-                sampleRate = sampleRate
-            )
-
-            ExternalSongLoadResult(
-                song = song,
-                relativePath = if (captureFolderInfo) relativePath else null,
-                bucketId = if (captureFolderInfo) bucketId else null,
-                displayName = displayName
-            )
-        } catch (error: Exception) {
-            Timber.e(error, "Failed to read metadata for external uri: $uri")
-            null
-        } finally {
-            runCatching { metadataRetriever.release() }
-        }
-    }
-
-    private fun persistExternalAlbumArt(uri: Uri, data: ByteArray, mimeType: String? = null): String? {
-        return runCatching {
-            if (!isValidImageData(data)) {
-                throw IllegalArgumentException("Invalid embedded album art for uri: $uri")
-            }
-            val directory = File(context.cacheDir, "external_artwork")
-            if (!directory.exists()) {
-                directory.mkdirs()
-            }
-            val resolvedMimeType = mimeType ?: guessImageMimeType(data)
-            val extension = imageExtensionFromMimeType(resolvedMimeType) ?: "jpg"
-            val fileNamePrefix = "art_${uri.toString().hashCode()}."
-            directory.listFiles { file ->
-                file.name.startsWith(fileNamePrefix)
-            }?.forEach { it.delete() }
-            val fileName = "$fileNamePrefix$extension"
-            val file = File(directory, fileName)
-            file.outputStream().use { output ->
-                output.write(data)
-            }
-            Uri.fromFile(file).toString()
-        }.onFailure { throwable ->
-            Timber.w(throwable, "Unable to persist album art for external uri: $uri")
-        }.getOrNull()
-    }
 
     private suspend fun internalPlaySongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None", playlistId: String? = null) {
         // Update dynamic shortcut for last played playlist
@@ -3789,20 +3292,17 @@ class PlayerViewModel @Inject constructor(
                     )
                 }
             }
-            val fileInfo = FileDeletionUtils.getFileInfo(song.path)
-            if (fileInfo.exists && fileInfo.canWrite) {
-                val success = FileDeletionUtils.deleteFile(context, song.path)
-                if (success) {
-                    _toastEvents.emit("File deleted")
-                    removeFromMediaControllerQueue(song.id)
-                    removeSong(song)
-                    onResult(true)
-                } else {
-                    _toastEvents.emit("Can't delete the file")
-                }
-            } else
-                _toastEvents.emit("File does not exist or not permitted")
-            onResult(false)
+
+            val success = metadataEditStateHolder.deleteSong(song)
+            if (success) {
+                _toastEvents.emit("File deleted")
+                removeFromMediaControllerQueue(song.id)
+                removeSong(song)
+                onResult(true)
+            } else {
+                _toastEvents.emit("Can't delete the file or file not found")
+                onResult(false)
+            }
         }
     }
 
@@ -4234,97 +3734,25 @@ class PlayerViewModel @Inject constructor(
     }
 
     //Sorting
+    //Sorting
     fun sortSongs(sortOption: SortOption, persist: Boolean = true) {
-        val sortedSongs = when (sortOption) {
-            SortOption.SongTitleAZ -> _masterAllSongs.value.sortedBy { it.title.lowercase() }
-            SortOption.SongTitleZA -> _masterAllSongs.value.sortedByDescending { it.title.lowercase() }
-            SortOption.SongArtist -> _masterAllSongs.value.sortedBy { it.artist.lowercase() }
-            SortOption.SongAlbum -> _masterAllSongs.value.sortedBy { it.album.lowercase() }
-            SortOption.SongDateAdded -> _masterAllSongs.value.sortedByDescending { it.dateAdded }
-            SortOption.SongDuration -> _masterAllSongs.value.sortedBy { it.duration }
-            else -> _masterAllSongs.value
-        }.toImmutableList()
-        _masterAllSongs.value = sortedSongs
-        _playerUiState.update {
-            it.copy(
-                currentSongSortOption = sortOption
-            )
-        }
-
-        if (persist) {
-            viewModelScope.launch {
-                userPreferencesRepository.setSongsSortOption(sortOption.storageKey)
-            }
-        }
+        libraryStateHolder.sortSongs(sortOption, persist)
     }
 
     fun sortAlbums(sortOption: SortOption, persist: Boolean = true) {
-        val sortedAlbums = when (sortOption) {
-            SortOption.AlbumTitleAZ -> _playerUiState.value.albums.sortedBy { it.title.lowercase() }
-            SortOption.AlbumTitleZA -> _playerUiState.value.albums.sortedByDescending { it.title.lowercase() }
-            SortOption.AlbumArtist -> _playerUiState.value.albums.sortedBy { it.artist.lowercase() }
-            SortOption.AlbumReleaseYear -> _playerUiState.value.albums.sortedByDescending { it.year }
-            SortOption.AlbumSizeAsc -> _playerUiState.value.albums.sortedWith(compareBy<Album> { it.songCount }.thenBy { it.title.lowercase() })
-            SortOption.AlbumSizeDesc -> _playerUiState.value.albums.sortedWith(compareByDescending<Album> { it.songCount }.thenBy { it.title.lowercase() })
-            else -> _playerUiState.value.albums
-        }.toImmutableList()
-        _playerUiState.update {
-            it.copy(
-                albums = sortedAlbums,
-                currentAlbumSortOption = sortOption
-            )
-        }
-
-        if (persist) {
-            viewModelScope.launch {
-                userPreferencesRepository.setAlbumsSortOption(sortOption.storageKey)
-            }
-        }
+        libraryStateHolder.sortAlbums(sortOption, persist)
     }
 
     fun sortArtists(sortOption: SortOption, persist: Boolean = true) {
-        val sortedArtists = when (sortOption) {
-            SortOption.ArtistNameAZ -> _playerUiState.value.artists.sortedBy { it.name.lowercase() }
-            SortOption.ArtistNameZA -> _playerUiState.value.artists.sortedByDescending { it.name.lowercase() }
-            else -> _playerUiState.value.artists
-        }.toImmutableList()
-        _playerUiState.update {
-            it.copy(
-                artists = sortedArtists,
-                currentArtistSortOption = sortOption
-            )
-        }
-
-        if (persist) {
-            viewModelScope.launch {
-                userPreferencesRepository.setArtistsSortOption(sortOption.storageKey)
-            }
-        }
+        libraryStateHolder.sortArtists(sortOption, persist)
     }
 
     fun sortFavoriteSongs(sortOption: SortOption, persist: Boolean = true) {
-        _playerUiState.update { it.copy(currentFavoriteSortOption = sortOption) }
-        _currentFavoriteSortOptionStateFlow.value = sortOption // Actualizar el StateFlow dedicado
-        // The actual sorting is handled by the 'favoriteSongs' StateFlow reacting to 'currentFavoriteSortOptionStateFlow'.
-        if (persist) {
-            viewModelScope.launch {
-                userPreferencesRepository.setLikedSongsSortOption(sortOption.storageKey)
-            }
-        }
+        libraryStateHolder.sortFavoriteSongs(sortOption, persist)
     }
 
     fun sortFolders(sortOption: SortOption) {
-        val sortedFolders = when (sortOption) {
-            SortOption.FolderNameAZ -> _playerUiState.value.musicFolders.sortedBy { it.name.lowercase() }
-            SortOption.FolderNameZA -> _playerUiState.value.musicFolders.sortedByDescending { it.name.lowercase() }
-            else -> _playerUiState.value.musicFolders
-        }.toImmutableList()
-        _playerUiState.update {
-            it.copy(
-                musicFolders = sortedFolders,
-                currentFolderSortOption = sortOption
-            )
-        }
+        libraryStateHolder.sortFolders(sortOption)
     }
 
     fun setFoldersPlaylistView(isPlaylistView: Boolean) {
@@ -4600,6 +4028,7 @@ class PlayerViewModel @Inject constructor(
         mediaRouter.removeCallback(mediaRouterCallback)
         searchStateHolder.onCleared()
         aiStateHolder.onCleared()
+        libraryStateHolder.onCleared()
         sleepTimerStateHolder.onCleared()
         connectivityStateHolder.onCleared()
         sessionManager.removeSessionManagerListener(castSessionManagerListener as SessionManagerListener<CastSession>, CastSession::class.java)
@@ -4820,46 +4249,39 @@ class PlayerViewModel @Inject constructor(
         coverArtUpdate: CoverArtUpdate?,
     ) {
         viewModelScope.launch {
-            Log.e("PlayerViewModel", "METADATA_EDIT_VM: Starting editSongMetadata for song: ${song.title} (${song.contentUriString})")
-            Log.e("PlayerViewModel", "METADATA_EDIT_VM: New metadata - title=$newTitle, artist=$newArtist, album=$newAlbum")
+            Log.e("PlayerViewModel", "METADATA_EDIT_VM: Starting editSongMetadata via Holder")
+            
             val previousAlbumArt = song.albumArtUriString
-            val trimmedLyrics = newLyrics.trim()
-            val normalizedLyrics = trimmedLyrics.takeIf { it.isNotBlank() }
-            val parsedLyrics = normalizedLyrics?.let { LyricsUtils.parseLyrics(it) }
-            Log.e("PlayerViewModel", "METADATA_EDIT_VM: Calling songMetadataEditor.editSongMetadata...")
-            val result = withContext(Dispatchers.IO) {
-                songMetadataEditor.editSongMetadata(
-                    newTitle = newTitle,
-                    newArtist = newArtist,
-                    newAlbum = newAlbum,
-                    newGenre = newGenre,
-                    newLyrics = trimmedLyrics,
-                    newTrackNumber = newTrackNumber,
-                    coverArtUpdate = coverArtUpdate,
-                    songId = song.id.toLong(),
-                )
-            }
-            Log.e("PlayerViewModel", "METADATA_EDIT_VM: Result received - success=${result.success}")
+            
+            val result = metadataEditStateHolder.saveMetadata(
+                song = song,
+                newTitle = newTitle,
+                newArtist = newArtist,
+                newAlbum = newAlbum,
+                newGenre = newGenre,
+                newLyrics = newLyrics,
+                newTrackNumber = newTrackNumber,
+                coverArtUpdate = coverArtUpdate
+            )
 
-            if (result.success) {
-                val refreshedAlbumArtUri = result.updatedAlbumArtUri ?: song.albumArtUriString
+            Log.e("PlayerViewModel", "METADATA_EDIT_VM: Result success=${result.success}")
+
+            if (result.success && result.updatedSong != null) {
+                val updatedSong = result.updatedSong
+                val refreshedAlbumArtUri = result.updatedAlbumArtUri
+
                 invalidateCoverArtCaches(previousAlbumArt, refreshedAlbumArtUri)
-                withContext(Dispatchers.IO) {
-                    if (normalizedLyrics != null) {
-                        musicRepository.updateLyrics(song.id.toLong(), normalizedLyrics)
-                    } else {
-                        musicRepository.resetLyrics(song.id.toLong())
-                    }
-                }
-                val updatedSong = song.copy(
-                    title = newTitle,
-                    artist = newArtist,
-                    album = newAlbum,
-                    genre = newGenre,
-                    lyrics = normalizedLyrics,
-                    trackNumber = newTrackNumber,
-                    albumArtUriString = refreshedAlbumArtUri,
-                )
+                
+                 // Logic to update color scheme if art changed
+                 if (coverArtUpdate != null) {
+                     purgeAlbumArtThemes(previousAlbumArt, refreshedAlbumArtUri)
+                     if (refreshedAlbumArtUri != null) {
+                         getAlbumColorSchemeFlow(refreshedAlbumArtUri)
+                         extractAndGenerateColorScheme(refreshedAlbumArtUri.toUri(), isPreload = false)
+                     } else {
+                         extractAndGenerateColorScheme(null, isPreload = false)
+                     }
+                 }
 
                 _playerUiState.update { state ->
                     val queueIndex = state.currentPlaybackQueue.indexOfFirst { it.id == song.id }
@@ -4878,12 +4300,15 @@ class PlayerViewModel @Inject constructor(
                         if (existing.id == song.id) updatedSong else existing
                     }.toImmutableList()
                 }
+                
+                // Update the LibraryStateHolder which drives the UI
+                libraryStateHolder.updateSong(updatedSong)
 
                 if (_stablePlayerState.value.currentSong?.id == song.id) {
                     _stablePlayerState.update {
                         it.copy(
                             currentSong = updatedSong,
-                            lyrics = parsedLyrics
+                            lyrics = result.parsedLyrics
                         )
                     }
                 }

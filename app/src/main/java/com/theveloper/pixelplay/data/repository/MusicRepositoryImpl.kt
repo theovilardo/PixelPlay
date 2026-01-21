@@ -548,6 +548,13 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     // Implementación de las nuevas funciones suspend para carga única
+    override suspend fun getAllSongsOnce(): List<Song> = withContext(Dispatchers.IO) {
+        val (songsEntity, config) = permittedSongsOnce()
+        val artists = musicDao.getAllArtistsListRaw()
+        val crossRefs = musicDao.getAllSongArtistCrossRefsList()
+        mapSongList(songsEntity, config, artists, crossRefs)
+    }
+
     override suspend fun getAllAlbumsOnce(): List<Album> = withContext(Dispatchers.IO) {
         val (songs, _) = permittedSongsOnce()
 

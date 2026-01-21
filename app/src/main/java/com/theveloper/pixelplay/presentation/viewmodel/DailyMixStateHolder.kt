@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.update
 import java.util.Calendar
 import javax.inject.Inject
@@ -80,6 +81,7 @@ class DailyMixStateHolder @Inject constructor(
                 // Generate your mix
                 val yourMix = dailyMixManager.generateYourMix(allSongs, favoriteIds)
                 _yourMixSongs.value = yourMix.toImmutableList()
+                userPreferencesRepository.saveYourMixSongIds(yourMix.map { it.id })
             } else {
                 _yourMixSongs.value = persistentListOf()
             }
@@ -90,6 +92,7 @@ class DailyMixStateHolder @Inject constructor(
      * Load persisted daily mix from storage.
      */
     fun loadPersistedDailyMix(allSongsFlow: Flow<List<Song>>) {
+        // Load Daily Mix
         scope?.launch {
             userPreferencesRepository.dailyMixSongIdsFlow
                 .combine(allSongsFlow) { ids, allSongs ->
@@ -100,10 +103,31 @@ class DailyMixStateHolder @Inject constructor(
                         persistentListOf()
                     }
                 }
+                .flowOn(Dispatchers.Default)
                 .collect { persistedMix ->
                     // Only update if current mix is empty
                     if (_dailyMixSongs.value.isEmpty() && persistedMix.isNotEmpty()) {
                         _dailyMixSongs.value = persistedMix
+                    }
+                }
+        }
+        
+        // Load Your Mix
+        scope?.launch {
+            userPreferencesRepository.yourMixSongIdsFlow
+                .combine(allSongsFlow) { ids, allSongs ->
+                    if (ids.isNotEmpty() && allSongs.isNotEmpty()) {
+                        val songMap = allSongs.associateBy { it.id }
+                        ids.mapNotNull { songMap[it] }.toImmutableList()
+                    } else {
+                        persistentListOf()
+                    }
+                }
+                .flowOn(Dispatchers.Default)
+                .collect { persistedMix ->
+                    // Only update if current mix is empty
+                    if (_yourMixSongs.value.isEmpty() && persistedMix.isNotEmpty()) {
+                        _yourMixSongs.value = persistedMix
                     }
                 }
         }
