@@ -104,7 +104,7 @@ class TelegramClientManager @Inject constructor(
                     true, // useFileDatabase
                     true, // useChatInfoDatabase
                     true, // useMessageDatabase
-                    true, // useSecretChats
+                    false, // useSecretChats
                     2040, // apiId
                     "b18441a1ff607e10a989891a5462e627", // apiHash
                     "en", // systemLanguageCode

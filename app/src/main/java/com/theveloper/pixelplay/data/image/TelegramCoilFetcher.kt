@@ -84,8 +84,9 @@ class TelegramCoilFetcher(
             return null
         }
 
-        // Priority 1: Try embedded art from downloaded audio file
-        val embeddedArtPath = tryExtractEmbeddedArt(chatId, messageId)
+        // Priority 1: Try embedded art from FULLY DOWNLOADED audio files only
+        // This avoids IO contention during streaming while still getting high-quality art for buffered files
+        val embeddedArtPath = tryExtractEmbeddedArtIfSafe(chatId, messageId)
         if (embeddedArtPath != null) {
             Timber.v("TelegramCoilFetcher: Using embedded art for $uri")
             return SourceResult(
@@ -158,9 +159,10 @@ class TelegramCoilFetcher(
 
     /**
      * Tries to extract embedded album art from the downloaded audio file.
+     * SAFETY: Only extracts if file is fully downloaded to avoid IO contention during streaming.
      * Returns the path to the cached art file if successful, null otherwise.
      */
-    private suspend fun tryExtractEmbeddedArt(chatId: Long, messageId: Long): String? {
+    private suspend fun tryExtractEmbeddedArtIfSafe(chatId: Long, messageId: Long): String? {
         val key = "${chatId}_${messageId}"
         val cachedArtFile = File(cacheDir, "telegram_embedded_art_${key}.jpg")
         val noArtMarker = File(cacheDir, "telegram_embedded_art_${key}_none")
@@ -317,7 +319,8 @@ class TelegramCoilFetcher(
     ): String? {
         // Attempt 1: Download with initial file ID
         try {
-            val path = telegramRepository.downloadFileAwait(initialFileId, 32)
+            // Priority 1 (Min) to avoid starving audio streaming (Priority 32)
+            val path = telegramRepository.downloadFileAwait(initialFileId, 1)
             if (path != null) return path
         } catch (e: kotlinx.coroutines.CancellationException) {
             // Don't log cancellations - they're normal during fast scrolling
@@ -344,7 +347,7 @@ class TelegramCoilFetcher(
         Timber.v("TelegramCoilFetcher: Retrying with ${if (refreshedFileId == initialFileId) "same" else "new"} fileId")
 
         return try {
-            val result = telegramRepository.downloadFileAwait(refreshedFileId, 32)
+            val result = telegramRepository.downloadFileAwait(refreshedFileId, 1)
             if (result == null) {
                 telegramCacheManager?.markArtFailed(chatId, messageId)
             }

@@ -325,18 +325,17 @@ class DualPlayerEngine @Inject constructor(
         val dataSourceFactory = DefaultDataSource.Factory(context)
         val resolvingFactory = ResolvingDataSource.Factory(dataSourceFactory, resolver)
 
-        val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
-            .setBufferDurationsMs(
-                30_000, // Min buffer 30s
-                60_000, // Max buffer 60s
-                5_000,  // Buffer for playback start (Aggressive: 5s)
-                10_000  // Buffer for rebuffer (Aggressive: 10s)
-            )
-            .build()
+//        val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
+//            .setBufferDurationsMs(
+//                30_000, // Min buffer 30s
+//                60_000, // Max buffer 60s
+//                5_000,  // Buffer for playback start (Aggressive: 5s)
+//                10_000  // Buffer for rebuffer (Aggressive: 10s)
+//            )
+//            .build()
 
         return ExoPlayer.Builder(context, renderersFactory)
             .setMediaSourceFactory(DefaultMediaSourceFactory(resolvingFactory))
-            .setLoadControl(loadControl)
             .build().apply {
             setAudioAttributes(audioAttributes, handleAudioFocus)
             setHandleAudioBecomingNoisy(handleAudioFocus)
