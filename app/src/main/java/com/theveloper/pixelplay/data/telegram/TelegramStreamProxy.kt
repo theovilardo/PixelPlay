@@ -166,10 +166,10 @@ class TelegramStreamProxy @Inject constructor(
                                 
                                 // Wait for more data
                                 noDataCount++
-                                if (noDataCount > 5000) { // ~50 seconds idle (5000 * 10ms)
+                                if (noDataCount > 1000) { // ~50 seconds idle (1000 * 50ms)
                                       break // Timeout
                                 }
-                                delay(10)
+                                delay(50)
                             }
                         }
                     } catch (e: Exception) {

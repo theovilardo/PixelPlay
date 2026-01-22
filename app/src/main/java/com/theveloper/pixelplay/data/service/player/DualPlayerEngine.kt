@@ -121,9 +121,13 @@ class DualPlayerEngine @Inject constructor(
                 val fileId = uri.host?.toIntOrNull()
                 telegramCacheManager.setActivePlayback(fileId)
                 Timber.tag("DualPlayerEngine").d("Telegram playback active: fileId=$fileId")
+                // Telegram streaming needs Network Lock to prevent buffering/stuttering
+                (playerA as? ExoPlayer)?.setWakeMode(C.WAKE_MODE_NETWORK)
             } else {
                 // Non-Telegram song - clean up any previous Telegram file
                 telegramCacheManager.setActivePlayback(null)
+                // Local files don't need Wifi Lock - save battery/heat
+                 (playerA as? ExoPlayer)?.setWakeMode(C.WAKE_MODE_LOCAL)
             }
 
             // --- Pre-Resolve Next/Prev Tracks for Performance ---
@@ -374,6 +378,15 @@ class DualPlayerEngine @Inject constructor(
             playerB.clearMediaItems()
             playerB.playWhenReady = false
             playerB.setMediaItem(mediaItem)
+            
+            // Set appropriate WakeMode for the next item
+            val scheme = mediaItem.localConfiguration?.uri?.scheme
+            if (scheme == "telegram" || scheme == "http" || scheme == "https") {
+                 playerB.setWakeMode(C.WAKE_MODE_NETWORK)
+            } else {
+                 playerB.setWakeMode(C.WAKE_MODE_LOCAL)
+            }
+            
             playerB.prepare()
             playerB.volume = 0f // Start silent
             if (startPositionMs > 0) {
