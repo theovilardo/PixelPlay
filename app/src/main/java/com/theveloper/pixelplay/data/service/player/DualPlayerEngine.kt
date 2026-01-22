@@ -172,7 +172,7 @@ class DualPlayerEngine @Inject constructor(
 
         return ExoPlayer.Builder(context, renderersFactory).build().apply {
             setAudioAttributes(audioAttributes, handleAudioFocus)
-            setHandleAudioBecomingNoisy(handleAudioFocus)
+            setHandleAudioBecomingNoisy(true)
             // Explicitly keep both players live so they can overlap without affecting each other
             playWhenReady = false
         }
