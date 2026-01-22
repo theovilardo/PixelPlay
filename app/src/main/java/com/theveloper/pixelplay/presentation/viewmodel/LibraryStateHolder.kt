@@ -1,6 +1,9 @@
 package com.theveloper.pixelplay.presentation.viewmodel
 
 import android.os.Trace
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import androidx.compose.ui.graphics.toArgb
 import android.util.Log
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
@@ -69,6 +72,50 @@ class LibraryStateHolder @Inject constructor(
 
     private val _currentFavoriteSortOption = MutableStateFlow<SortOption>(SortOption.LikedSongTitleAZ)
     val currentFavoriteSortOption = _currentFavoriteSortOption.asStateFlow()
+
+
+
+    @OptIn(ExperimentalStdlibApi::class)
+    val genres: kotlinx.coroutines.flow.Flow<ImmutableList<com.theveloper.pixelplay.data.model.Genre>> = _allSongs
+        .map { songs ->
+            val genreMap = mutableMapOf<String, MutableList<Song>>()
+            val unknownGenreName = "Unknown Genre"
+
+            songs.forEach { song ->
+                val genreName = song.genre?.trim()
+                if (genreName.isNullOrBlank()) {
+                    genreMap.getOrPut(unknownGenreName) { mutableListOf() }.add(song)
+                } else {
+                    genreMap.getOrPut(genreName) { mutableListOf() }.add(song)
+                }
+            }
+
+            genreMap.toList().mapIndexedNotNull { index, (genreName, songs) ->
+                if (songs.isNotEmpty()) {
+                    val id = if (genreName.equals(unknownGenreName, ignoreCase = true)) {
+                        "unknown"
+                    } else {
+                        genreName.lowercase().replace(" ", "_").replace("/", "_")
+                    }
+                    val color = com.theveloper.pixelplay.ui.theme.GenreColors.colors[index % com.theveloper.pixelplay.ui.theme.GenreColors.colors.size]
+                    com.theveloper.pixelplay.data.model.Genre(
+                        id = id,
+                        name = genreName,
+                        lightColorHex = color.lightColor.toHexString(),
+                        onLightColorHex = color.onLightColor.toHexString(),
+                        darkColorHex = color.darkColor.toHexString(),
+                        onDarkColorHex = color.onDarkColor.toHexString()
+                    )
+                } else {
+                    null
+                }
+            }
+                .distinctBy { it.id }
+                .sortedBy { it.name.lowercase() }
+                .toImmutableList()
+        }
+        .flowOn(Dispatchers.Default)
+
     
     // Internal state
     private var scope: CoroutineScope? = null
@@ -310,4 +357,8 @@ class LibraryStateHolder @Inject constructor(
             currentList.map { if (it.id == updatedSong.id) updatedSong else it }.toImmutableList()
         }
     }
+}
+
+private fun androidx.compose.ui.graphics.Color.toHexString(): String {
+    return String.format("#%08X", this.toArgb())
 }

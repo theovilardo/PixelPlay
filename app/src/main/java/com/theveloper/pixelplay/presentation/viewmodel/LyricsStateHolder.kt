@@ -8,6 +8,8 @@ import com.theveloper.pixelplay.data.repository.LyricsSearchResult
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,12 +51,29 @@ class LyricsStateHolder @Inject constructor(
     private val _searchUiState = MutableStateFlow<LyricsSearchUiState>(LyricsSearchUiState.Idle)
     val searchUiState: StateFlow<LyricsSearchUiState> = _searchUiState.asStateFlow()
 
+
+
     /**
      * Initialize with coroutine scope and callback from ViewModel.
      */
-    fun initialize(coroutineScope: CoroutineScope, callback: LyricsLoadCallback) {
+    fun initialize(
+        coroutineScope: CoroutineScope, 
+        callback: LyricsLoadCallback,
+        stablePlayerState: StateFlow<com.theveloper.pixelplay.presentation.viewmodel.StablePlayerState>
+    ) {
         scope = coroutineScope
         loadCallback = callback
+        
+        coroutineScope.launch {
+            stablePlayerState
+                .map { it.currentSong?.id }
+                .distinctUntilChanged()
+                .collect { songId ->
+                    if (songId != null) {
+                        updateSyncOffsetForSong(songId)
+                    }
+                }
+        }
     }
 
     /**

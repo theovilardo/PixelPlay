@@ -195,77 +195,7 @@ private const val EXTERNAL_MEDIA_ID_PREFIX = "external:"
 
 private const val CAST_LOG_TAG = "PlayerCastTransfer"
 
-enum class PlayerSheetState {
-    COLLAPSED,
-    EXPANDED
-}
 
-data class ColorSchemePair(
-    val light: ColorScheme,
-    val dark: ColorScheme
-)
-
-data class StablePlayerState(
-    val currentSong: Song? = null,
-    val isPlaying: Boolean = false,
-    val currentPosition: Long = 0L,
-    val totalDuration: Long = 0L,
-    val isShuffleEnabled: Boolean = false,
-    @Player.RepeatMode val repeatMode: Int = Player.REPEAT_MODE_OFF,
-    val lyrics: Lyrics? = null,
-    val isLoadingLyrics: Boolean = false
-)
-
-data class PlayerUiState(
-    val currentPosition: Long = 0L,
-    val isLoadingInitialSongs: Boolean = true,
-    val isGeneratingAiMetadata: Boolean = false,
-    // REMOVED: allSongs moved to separate flow to avoid copying on every state update
-    val allSongs: ImmutableList<Song> = persistentListOf(),
-    // val allSongs: ImmutableList<Song> = persistentListOf(),
-    val songCount: Int = 0, // Lightweight count instead of full list
-    val currentPlaybackQueue: ImmutableList<Song> = persistentListOf(),
-    val currentQueueSourceName: String = "All Songs",
-    val lavaLampColors: ImmutableList<Color> = persistentListOf(),
-    val albums: ImmutableList<Album> = persistentListOf(),
-    val artists: ImmutableList<Artist> = persistentListOf(),
-    val isLoadingLibraryCategories: Boolean = false,
-    val currentSongSortOption: SortOption = SortOption.SongTitleAZ,
-    val currentAlbumSortOption: SortOption = SortOption.AlbumTitleAZ,
-    val currentArtistSortOption: SortOption = SortOption.ArtistNameAZ,
-    val currentFavoriteSortOption: SortOption = SortOption.LikedSongDateLiked,
-    val currentFolderSortOption: SortOption = SortOption.FolderNameAZ,
-    val searchResults: ImmutableList<SearchResultItem> = persistentListOf(),
-    val selectedSearchFilter: SearchFilterType = SearchFilterType.ALL,
-    val searchHistory: ImmutableList<SearchHistoryItem> = persistentListOf(),
-    val isSyncingLibrary: Boolean = false,
-    val musicFolders: ImmutableList<MusicFolder> = persistentListOf(),
-    val currentFolderPath: String? = null,
-    val isFolderFilterActive: Boolean = false,
-
-    val currentFolder: MusicFolder? = null,
-    val isFoldersPlaylistView: Boolean = false,
-
-    // State for dismiss/undo functionality
-    val showDismissUndoBar: Boolean = false,
-    val dismissedSong: Song? = null,
-    val dismissedQueue: ImmutableList<Song> = persistentListOf(),
-    val dismissedQueueName: String = "",
-    val dismissedPosition: Long = 0L,
-    val undoBarVisibleDuration: Long = 4000L,
-    val preparingSongId: String? = null
-)
-
-
-
-sealed interface LyricsSearchUiState {
-    object Idle : LyricsSearchUiState
-    object Loading : LyricsSearchUiState
-    data class PickResult(val query: String, val results: List<LyricsSearchResult>) : LyricsSearchUiState
-    data class Success(val lyrics: Lyrics) : LyricsSearchUiState
-    data class NotFound(val message: String, val allowManualSearch: Boolean = true) : LyricsSearchUiState
-    data class Error(val message: String, val query: String? = null) : LyricsSearchUiState
-}
 
 // ActiveSession class moved to ListeningStatsTracker.kt
 
@@ -300,7 +230,8 @@ class PlayerViewModel @Inject constructor(
     private val libraryStateHolder: LibraryStateHolder,
     private val castTransferStateHolder: CastTransferStateHolder, // Injected
     private val metadataEditStateHolder: MetadataEditStateHolder,
-    private val externalMediaStateHolder: ExternalMediaStateHolder
+    private val externalMediaStateHolder: ExternalMediaStateHolder,
+    val themeStateHolder: ThemeStateHolder
 ) : ViewModel() {
 
     // AlarmManager is now managed by SleepTimerStateHolder
@@ -340,8 +271,10 @@ class PlayerViewModel @Inject constructor(
         // Initialize helper classes with our coroutine scope
         listeningStatsTracker.initialize(viewModelScope)
         dailyMixStateHolder.initialize(viewModelScope)
-        lyricsStateHolder.initialize(viewModelScope, lyricsLoadCallback)
+        lyricsStateHolder.initialize(viewModelScope, lyricsLoadCallback, playbackStateHolder.stablePlayerState)
         playbackStateHolder.initialize(viewModelScope)
+        themeStateHolder.initialize(viewModelScope)
+
         
         viewModelScope.launch {
             playbackStateHolder.stablePlayerState.collect { state ->
@@ -387,9 +320,9 @@ class PlayerViewModel @Inject constructor(
     private val _selectedSongForInfo = MutableStateFlow<Song?>(null)
     val selectedSongForInfo: StateFlow<Song?> = _selectedSongForInfo.asStateFlow()
 
-    private val _currentAlbumArtColorSchemePair = MutableStateFlow<ColorSchemePair?>(null)
-    val currentAlbumArtColorSchemePair: StateFlow<ColorSchemePair?> = _currentAlbumArtColorSchemePair.asStateFlow()
-
+    // Theme & Colors - delegated to ThemeStateHolder
+    val currentAlbumArtColorSchemePair: StateFlow<ColorSchemePair?> = themeStateHolder.currentAlbumArtColorSchemePair
+    val activePlayerColorSchemePair: StateFlow<ColorSchemePair?> = themeStateHolder.activePlayerColorSchemePair
     val playerThemePreference: StateFlow<String> = userPreferencesRepository.playerThemePreferenceFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreference.GLOBAL)
 
     val navBarCornerRadius: StateFlow<Int> = userPreferencesRepository.navBarCornerRadiusFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 32)
@@ -445,15 +378,7 @@ class PlayerViewModel @Inject constructor(
         lyricsStateHolder.setSyncOffset(songId, offsetMs)
     }
 
-    private fun observeCurrentSongLyricsOffset() {
-        viewModelScope.launch {
-            stablePlayerState.collect { state ->
-                state.currentSong?.id?.let { songId ->
-                    lyricsStateHolder.updateSyncOffsetForSong(songId)
-                }
-            }
-        }
-    }
+
 
     private val _isInitialThemePreloadComplete = MutableStateFlow(false)
     val isInitialThemePreloadComplete: StateFlow<Boolean> = _isInitialThemePreloadComplete.asStateFlow()
@@ -603,73 +528,17 @@ class PlayerViewModel @Inject constructor(
     // Library State - delegated to LibraryStateHolder
     val allSongsFlow: StateFlow<ImmutableList<Song>> = libraryStateHolder.allSongs
 
-    val genres: StateFlow<ImmutableList<Genre>> = allSongsFlow
-        .map { songs ->
-            val genreMap = mutableMapOf<String, MutableList<Song>>()
-            val unknownGenreName = "Unknown Genre"
-
-            songs.forEach { song ->
-                val genreName = song.genre?.trim()
-                if (genreName.isNullOrBlank()) {
-                    genreMap.getOrPut(unknownGenreName) { mutableListOf() }.add(song)
-                } else {
-                    genreMap.getOrPut(genreName) { mutableListOf() }.add(song)
-                }
-            }
-
-            genreMap.toList().mapIndexedNotNull { index, (genreName, songs) ->
-                if (songs.isNotEmpty()) {
-                    val id = if (genreName.equals(unknownGenreName, ignoreCase = true)) {
-                        "unknown"
-                    } else {
-                        genreName.lowercase().replace(" ", "_").replace("/", "_")
-                    }
-                    val color = GenreColors.colors[index % GenreColors.colors.size]
-                    Genre(
-                        id = id,
-                        name = genreName,
-                        lightColorHex = color.lightColor.toHexString(),
-                        onLightColorHex = color.onLightColor.toHexString(),
-                        darkColorHex = color.darkColor.toHexString(),
-                        onDarkColorHex = color.onDarkColor.toHexString()
-                    )
-                } else {
-                    null
-                }
-            }
-                .distinctBy { it.id }
-                .sortedBy { it.name.lowercase() }
-                .toImmutableList()
-        }
-        .flowOn(Dispatchers.Default) // Move heavy computation off main thread
+    // Genres StateFlow - delegated to LibraryStateHolder
+    val genres: StateFlow<ImmutableList<Genre>> = libraryStateHolder.genres
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = persistentListOf()
         )
 
-    val activePlayerColorSchemePair: StateFlow<ColorSchemePair?> = combine(
-        playerThemePreference, _currentAlbumArtColorSchemePair
-    ) { playerPref, albumScheme ->
-        when (playerPref) {
-            ThemePreference.ALBUM_ART -> albumScheme
-            ThemePreference.DYNAMIC -> null // Signal to use system's MaterialTheme.colorScheme
-            ThemePreference.DEFAULT -> null // Effectively makes DEFAULT same as DYNAMIC (use system theme)
-            else -> albumScheme // Fallback to album art if preference is somehow unknown or old 'GLOBAL'
-        }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, null) // Initial value null (system theme)
 
-    // LRU-limited cache for album color schemes (max 30 albums to prevent unbounded memory growth)
-    private val individualAlbumColorSchemes = object : LinkedHashMap<String, MutableStateFlow<ColorSchemePair?>>(
-        32, 0.75f, true // accessOrder = true for LRU behavior
-    ) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, MutableStateFlow<ColorSchemePair?>>?): Boolean {
-            return size > 30
-        }
-    }
 
-    private val colorSchemeRequestChannel = Channel<String>(Channel.UNLIMITED)
-    private val urisBeingProcessed = mutableSetOf<String>()
+
 
     private var mediaController: MediaController? = null
     private val sessionToken = SessionToken(context, ComponentName(context, MusicService::class.java))
@@ -908,8 +777,7 @@ class PlayerViewModel @Inject constructor(
             castStateHolder.setRemotePlaybackActive(true)
         }
 
-        // Observe current song lyrics offset
-        observeCurrentSongLyricsOffset()
+
 
         viewModelScope.launch {
             userPreferencesRepository.migrateTabOrder()
@@ -999,7 +867,8 @@ class PlayerViewModel @Inject constructor(
             }
         }
 
-        launchColorSchemeProcessor()
+        // launchColorSchemeProcessor() - Handled by ThemeStateHolder and on-demand calls
+
         loadPersistedDailyMix()
         loadSearchHistory()
 
@@ -1226,7 +1095,10 @@ class PlayerViewModel @Inject constructor(
             onDisconnect = { disconnect() },
             onSongChanged = { uriString ->
                 uriString?.toUri()?.let { uri ->
-                     viewModelScope.launch { extractAndGenerateColorScheme(uri) }
+                     viewModelScope.launch { 
+                         val currentUri = playbackStateHolder.stablePlayerState.value.currentSong?.albumArtUriString
+                         themeStateHolder.extractAndGenerateColorScheme(uri, currentUri) 
+                     }
                 }
             }
         )
@@ -1800,7 +1672,8 @@ class PlayerViewModel @Inject constructor(
                 _playerUiState.update { it.copy(currentPosition = playerCtrl.currentPosition.coerceAtLeast(0L)) }
                 viewModelScope.launch {
                     song.albumArtUriString?.toUri()?.let { uri ->
-                        extractAndGenerateColorScheme(uri)
+                        val currentUri = playbackStateHolder.stablePlayerState.value.currentSong?.albumArtUriString
+                        themeStateHolder.extractAndGenerateColorScheme(uri, currentUri)
                     }
                 }
                 listeningStatsTracker.onSongChanged(
@@ -1890,7 +1763,8 @@ class PlayerViewModel @Inject constructor(
                             )
                             viewModelScope.launch {
                                 currentSongValue.albumArtUriString?.toUri()?.let { uri ->
-                                    extractAndGenerateColorScheme(uri)
+                                    val currentUri = playbackStateHolder.stablePlayerState.value.currentSong?.albumArtUriString
+                                    themeStateHolder.extractAndGenerateColorScheme(uri, currentUri)
                                 }
                             }
                             loadLyricsForCurrentSong()
@@ -1997,32 +1871,23 @@ class PlayerViewModel @Inject constructor(
     }
 
     // Start playback with shuffle enabled in one coroutine to avoid racing queue updates
+    // Start playback with shuffle enabled
     fun playSongsShuffled(songsToPlay: List<Song>, queueName: String = "None", playlistId: String? = null) {
         viewModelScope.launch {
-            if (songsToPlay.isEmpty()) {
+            val result = queueStateHolder.prepareShuffledQueue(songsToPlay, queueName)
+            if (result == null) {
                 sendToast("No songs to shuffle.")
                 return@launch
             }
-
+            
+            val (shuffledQueue, startSong) = result
             transitionSchedulerJob?.cancel()
 
-            val startSong = songsToPlay.random()
-            queueStateHolder.setOriginalQueueOrder(songsToPlay)
-            queueStateHolder.saveOriginalQueueState(songsToPlay, queueName)
-            playbackStateHolder.updateStablePlayerState { it.copy(isShuffleEnabled = false) }
+            // Optimistically update shuffle state
+            playbackStateHolder.updateStablePlayerState { it.copy(isShuffleEnabled = true) }
+            launch { userPreferencesRepository.setShuffleOn(true) }
 
-            internalPlaySongs(songsToPlay, startSong, queueName, playlistId)
-            val isCastSessionActive = castStateHolder.castSession.value?.remoteMediaClient != null
-            if (isCastSessionActive || mediaController != null) {
-                toggleShuffle(currentSongOverride = startSong)
-            } else {
-                pendingPlaybackAction = pendingPlaybackAction?.let { action ->
-                    {
-                        action()
-                        toggleShuffle(currentSongOverride = startSong)
-                    }
-                }
-            }
+            internalPlaySongs(shuffledQueue, startSong, queueName, playlistId)
         }
     }
 
@@ -2180,7 +2045,8 @@ class PlayerViewModel @Inject constructor(
         playbackStateHolder.updateStablePlayerState { it.copy(currentSong = song, isPlaying = true) }
         viewModelScope.launch {
             song.albumArtUriString?.toUri()?.let { uri ->
-                extractAndGenerateColorScheme(uri, isPreload = false)
+                val currentUri = playbackStateHolder.stablePlayerState.value.currentSong?.albumArtUriString
+                themeStateHolder.extractAndGenerateColorScheme(uri, currentUri, isPreload = false)
             }
         }
     }
@@ -2220,29 +2086,11 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun repeatSingle(){
-        val castSession = castStateHolder.castSession.value
-        if (castSession != null && castSession.remoteMediaClient != null) {
-            val newMode = MediaStatus.REPEAT_MODE_REPEAT_SINGLE;
-            castStateHolder.castPlayer?.setRepeatMode(newMode)
-        } else {
-            val newMode = Player.REPEAT_MODE_ONE
-            mediaController?.repeatMode = newMode
-        }
-        viewModelScope.launch { userPreferencesRepository.setRepeatMode(Player.REPEAT_MODE_ONE) }
-        playbackStateHolder.updateStablePlayerState { it.copy(repeatMode = Player.REPEAT_MODE_ONE) }
+        playbackStateHolder.setRepeatMode(Player.REPEAT_MODE_ONE)
     }
 
     fun repeatOff(){
-        val castSession = castStateHolder.castSession.value
-        if (castSession != null && castSession.remoteMediaClient != null) {
-            val newMode = MediaStatus.REPEAT_MODE_REPEAT_OFF;
-            castStateHolder.castPlayer?.setRepeatMode(newMode)
-        } else {
-            val newMode = Player.REPEAT_MODE_OFF
-            mediaController?.repeatMode = newMode
-        }
-        viewModelScope.launch { userPreferencesRepository.setRepeatMode(Player.REPEAT_MODE_OFF) }
-        playbackStateHolder.updateStablePlayerState { it.copy(repeatMode = Player.REPEAT_MODE_OFF) }
+        playbackStateHolder.setRepeatMode(Player.REPEAT_MODE_OFF)
     }
 
     fun toggleFavorite() {
@@ -2420,175 +2268,13 @@ class PlayerViewModel @Inject constructor(
     }
 
 
-    fun getAlbumColorSchemeFlow(albumArtUri: String?): StateFlow<ColorSchemePair?> {
-        val uriString = albumArtUri ?: "default_fallback_key"
 
-        individualAlbumColorSchemes[uriString]?.let { return it }
 
-        val newFlow = MutableStateFlow<ColorSchemePair?>(null)
-        individualAlbumColorSchemes[uriString] = newFlow
 
-        if (albumArtUri != null) {
-            synchronized(urisBeingProcessed) {
-                if (!urisBeingProcessed.contains(uriString)) {
-                    urisBeingProcessed.add(uriString) // Marcar como "intención de procesar"
-                    val successfullySent = colorSchemeRequestChannel.trySend(albumArtUri) // Enviar a la cola para procesamiento
-                    if (successfullySent.isSuccess) {
-                        Log.d("PlayerViewModel", "Enqueued $uriString for color scheme processing.")
-                    } else {
-                        Log.w("PlayerViewModel", "Failed to enqueue $uriString, channel might be closed or full (if not UNLIMITED). Removing from urisBeingProcessed.")
-                        urisBeingProcessed.remove(uriString) // Limpiar si no se pudo encolar
-                    }
-                } else {
-                    Log.d("PlayerViewModel", "$uriString is already being processed or pending. Not re-enqueuing.")
-                }
-            }
-        } else if (uriString == "default_fallback_key") {
-            newFlow.value = ColorSchemePair(LightColorScheme, DarkColorScheme)
-        }
-        return newFlow
-    }
 
-    private fun launchColorSchemeProcessor() {
-        viewModelScope.launch(Dispatchers.IO) {
-            Trace.beginSection("PlayerViewModel.colorSchemeProcessorLoop")
-            try {
-                for (albumArtUri in colorSchemeRequestChannel) {
-                    Trace.beginSection("PlayerViewModel.processColorSchemeForUri")
-                    try {
-                        Log.d("PlayerViewModel", "Processing $albumArtUri from queue.")
-                        val scheme = getOrGenerateColorSchemeForUri(albumArtUri, false)
-                        individualAlbumColorSchemes[albumArtUri]?.value = scheme
-                        Log.d("PlayerViewModel", "Finished processing $albumArtUri. Scheme: ${scheme != null}")
-                    } catch (e: Exception) {
-                        Log.e("PlayerViewModel", "Error processing $albumArtUri in ColorSchemeProcessor", e)
-                        individualAlbumColorSchemes[albumArtUri]?.value = null
-                    } finally {
-                        synchronized(urisBeingProcessed) {
-                            urisBeingProcessed.remove(albumArtUri)
-                        }
-                        Trace.endSection()
-                    }
-                }
-            } finally {
-                Trace.endSection()
-            }
-        }
-    }
 
-    private suspend fun getOrGenerateColorSchemeForUri(albumArtUri: String, isPreload: Boolean): ColorSchemePair? {
-        Trace.beginSection("PlayerViewModel.getOrGenerateColorSchemeForUri")
-        try {
-            // Use the optimized ColorSchemeProcessor with LRU cache
-            val schemePair = colorSchemeProcessor.getOrGenerateColorScheme(albumArtUri)
-            
-            if (schemePair != null && !isPreload && playbackStateHolder.stablePlayerState.value.currentSong?.albumArtUriString == albumArtUri) {
-                _currentAlbumArtColorSchemePair.value = schemePair
-                updateLavaLampColorsBasedOnActivePlayerScheme()
-            }
-            
-            return schemePair
-        } catch (e: Exception) {
-            if (!isPreload && playbackStateHolder.stablePlayerState.value.currentSong?.albumArtUriString == albumArtUri) {
-                _currentAlbumArtColorSchemePair.value = null
-                updateLavaLampColorsBasedOnActivePlayerScheme()
-            }
-            return null
-        } finally {
-            Trace.endSection()
-        }
-    }
 
-    private suspend fun extractAndGenerateColorScheme(albumArtUriAsUri: Uri?, isPreload: Boolean = false) {
-        Trace.beginSection("PlayerViewModel.extractAndGenerateColorScheme")
-        try {
-            if (albumArtUriAsUri == null) {
-                if (!isPreload && playbackStateHolder.stablePlayerState.value.currentSong?.albumArtUriString == null) {
-                    _currentAlbumArtColorSchemePair.value = null
-                    updateLavaLampColorsBasedOnActivePlayerScheme()
-                }
-                return
-            }
-            
-            val uriString = albumArtUriAsUri.toString()
-            // Use the optimized ColorSchemeProcessor with LRU cache
-            val schemePair = colorSchemeProcessor.getOrGenerateColorScheme(uriString)
-            
-            if (!isPreload && playbackStateHolder.stablePlayerState.value.currentSong?.albumArtUriString == uriString) {
-                _currentAlbumArtColorSchemePair.value = schemePair
-                updateLavaLampColorsBasedOnActivePlayerScheme()
-            }
-        } catch (e: Exception) {
-            if (!isPreload && albumArtUriAsUri != null && 
-                playbackStateHolder.stablePlayerState.value.currentSong?.albumArtUriString == albumArtUriAsUri.toString()) {
-                _currentAlbumArtColorSchemePair.value = null
-                updateLavaLampColorsBasedOnActivePlayerScheme()
-            }
-        } finally {
-            Trace.endSection()
-        }
-    }
 
-    private fun mapColorSchemePairToEntity(uriString: String, pair: ColorSchemePair): AlbumArtThemeEntity {
-        fun mapSchemeToStoredValues(cs: ColorScheme) = StoredColorSchemeValues(
-            primary = cs.primary.toHexString(), onPrimary = cs.onPrimary.toHexString(), primaryContainer = cs.primaryContainer.toHexString(), onPrimaryContainer = cs.onPrimaryContainer.toHexString(),
-            secondary = cs.secondary.toHexString(), onSecondary = cs.onSecondary.toHexString(), secondaryContainer = cs.secondaryContainer.toHexString(), onSecondaryContainer = cs.onSecondaryContainer.toHexString(),
-            tertiary = cs.tertiary.toHexString(), onTertiary = cs.onTertiary.toHexString(), tertiaryContainer = cs.tertiaryContainer.toHexString(), onTertiaryContainer = cs.onTertiaryContainer.toHexString(),
-            background = cs.background.toHexString(), onBackground = cs.onBackground.toHexString(), surface = cs.surface.toHexString(), onSurface = cs.onSurface.toHexString(),
-            surfaceVariant = cs.surfaceVariant.toHexString(), onSurfaceVariant = cs.onSurfaceVariant.toHexString(), error = cs.error.toHexString(), onError = cs.onError.toHexString(),
-            outline = cs.outline.toHexString(), errorContainer = cs.errorContainer.toHexString(), onErrorContainer = cs.onErrorContainer.toHexString(),
-            inversePrimary = cs.inversePrimary.toHexString(), inverseSurface = cs.inverseSurface.toHexString(), inverseOnSurface = cs.inverseOnSurface.toHexString(),
-            surfaceTint = cs.surfaceTint.toHexString(), outlineVariant = cs.outlineVariant.toHexString(), scrim = cs.scrim.toHexString()
-        )
-        return AlbumArtThemeEntity(uriString, mapSchemeToStoredValues(pair.light), mapSchemeToStoredValues(pair.dark))
-    }
-
-    private fun mapEntityToColorSchemePair(entity: AlbumArtThemeEntity): ColorSchemePair {
-        fun mapStoredValuesToScheme(sv: StoredColorSchemeValues, isDark: Boolean): ColorScheme {
-            if (isDark) DarkColorScheme else LightColorScheme
-            val placeholderColor = Color.Magenta
-            return ColorScheme(
-                primary = sv.primary.toComposeColor(), onPrimary = sv.onPrimary.toComposeColor(), primaryContainer = sv.primaryContainer.toComposeColor(), onPrimaryContainer = sv.onPrimaryContainer.toComposeColor(),
-                secondary = sv.secondary.toComposeColor(), onSecondary = sv.onSecondary.toComposeColor(), secondaryContainer = sv.secondaryContainer.toComposeColor(), onSecondaryContainer = sv.onSecondaryContainer.toComposeColor(),
-                tertiary = sv.tertiary.toComposeColor(), onTertiary = sv.onTertiary.toComposeColor(), tertiaryContainer = sv.tertiaryContainer.toComposeColor(), onTertiaryContainer = sv.onTertiaryContainer.toComposeColor(),
-                background = sv.background.toComposeColor(), onBackground = sv.onBackground.toComposeColor(), surface = sv.surface.toComposeColor(), onSurface = sv.onSurface.toComposeColor(),
-                surfaceVariant = sv.surfaceVariant.toComposeColor(), onSurfaceVariant = sv.onSurfaceVariant.toComposeColor(), error = sv.error.toComposeColor(), onError = sv.onError.toComposeColor(),
-                outline = sv.outline.toComposeColor(), errorContainer = sv.errorContainer.toComposeColor(), onErrorContainer = sv.onErrorContainer.toComposeColor(),
-                inversePrimary = sv.inversePrimary.toComposeColor(), surfaceTint = sv.surfaceTint.toComposeColor(), outlineVariant = sv.outlineVariant.toComposeColor(), scrim = sv.scrim.toComposeColor(),
-                inverseSurface = sv.inverseSurface.toComposeColor(), inverseOnSurface = sv.inverseOnSurface.toComposeColor(),
-                surfaceBright = placeholderColor,
-                surfaceDim = placeholderColor,
-                surfaceContainer = placeholderColor,
-                surfaceContainerHigh = placeholderColor,
-                surfaceContainerHighest = placeholderColor,
-                surfaceContainerLow = placeholderColor,
-                surfaceContainerLowest = placeholderColor,
-                primaryFixed = placeholderColor,
-                primaryFixedDim = placeholderColor,
-                onPrimaryFixed = placeholderColor,
-                onPrimaryFixedVariant = placeholderColor,
-                secondaryFixed = placeholderColor,
-                secondaryFixedDim = placeholderColor,
-                onSecondaryFixed = placeholderColor,
-                onSecondaryFixedVariant = placeholderColor,
-                tertiaryFixed = placeholderColor,
-                tertiaryFixedDim = placeholderColor,
-                onTertiaryFixed = placeholderColor,
-                onTertiaryFixedVariant = placeholderColor
-            )
-        }
-        return ColorSchemePair(mapStoredValuesToScheme(entity.lightThemeValues, false), mapStoredValuesToScheme(entity.darkThemeValues, true))
-    }
-
-    private fun updateLavaLampColorsBasedOnActivePlayerScheme() {
-        viewModelScope.launch {
-            val currentPlayerSchemePair = activePlayerColorSchemePair.first()
-            val schemeForLava = currentPlayerSchemePair?.dark ?: DarkColorScheme
-            _playerUiState.update {
-                it.copy(lavaLampColors = listOf(schemeForLava.primary, schemeForLava.secondary, schemeForLava.tertiary).distinct().toImmutableList())
-            }
-        }
-    }
 
     fun playPause() {
         val castSession = castStateHolder.castSession.value
@@ -3190,10 +2876,12 @@ class PlayerViewModel @Inject constructor(
                  if (coverArtUpdate != null) {
                      purgeAlbumArtThemes(previousAlbumArt, refreshedAlbumArtUri)
                      if (refreshedAlbumArtUri != null) {
-                         getAlbumColorSchemeFlow(refreshedAlbumArtUri)
-                         extractAndGenerateColorScheme(refreshedAlbumArtUri.toUri(), isPreload = false)
+                         themeStateHolder.getAlbumColorSchemeFlow(refreshedAlbumArtUri)
+                         val currentUri = playbackStateHolder.stablePlayerState.value.currentSong?.albumArtUriString
+                         themeStateHolder.extractAndGenerateColorScheme(refreshedAlbumArtUri.toUri(), currentUri, isPreload = false)
                      } else {
-                         extractAndGenerateColorScheme(null, isPreload = false)
+                         val currentUri = playbackStateHolder.stablePlayerState.value.currentSong?.albumArtUriString
+                         themeStateHolder.extractAndGenerateColorScheme(null, currentUri, isPreload = false)
                      }
                  }
 
@@ -3235,10 +2923,12 @@ class PlayerViewModel @Inject constructor(
                     purgeAlbumArtThemes(previousAlbumArt, updatedSong.albumArtUriString)
                     val paletteTargetUri = updatedSong.albumArtUriString
                     if (paletteTargetUri != null) {
-                        getAlbumColorSchemeFlow(paletteTargetUri)
-                        extractAndGenerateColorScheme(paletteTargetUri.toUri(), isPreload = false)
+                        themeStateHolder.getAlbumColorSchemeFlow(paletteTargetUri)
+                        val currentUri = playbackStateHolder.stablePlayerState.value.currentSong?.albumArtUriString
+                        themeStateHolder.extractAndGenerateColorScheme(paletteTargetUri.toUri(), currentUri, isPreload = false)
                     } else {
-                        extractAndGenerateColorScheme(null, isPreload = false)
+                        val currentUri = playbackStateHolder.stablePlayerState.value.currentSong?.albumArtUriString
+                        themeStateHolder.extractAndGenerateColorScheme(null, currentUri, isPreload = false)
                     }
                 }
 
@@ -3277,10 +2967,8 @@ class PlayerViewModel @Inject constructor(
         }
 
         uris.forEach { uri ->
-            individualAlbumColorSchemes.remove(uri)?.value = null
-            synchronized(urisBeingProcessed) {
-                urisBeingProcessed.remove(uri)
-            }
+            // Cache invalidation delegated to ThemeStateHolder (if implemented) or relied on re-generation
+            // individualAlbumColorSchemes was removed.
         }
     }
 

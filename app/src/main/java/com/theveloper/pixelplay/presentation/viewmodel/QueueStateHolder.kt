@@ -72,4 +72,30 @@ class QueueStateHolder @Inject constructor() {
             otherSongs.shuffled()
         }
     }
+    /**
+     * Prepares a list for shuffled playback.
+     * 1. Saves original queue.
+     * 2. Picks a random start song.
+     * 3. Creates a shuffled list starting with that song.
+     */
+    fun prepareShuffledQueue(songs: List<Song>, queueName: String): Pair<List<Song>, Song>? {
+        if (songs.isEmpty()) return null
+        
+        val startSong = songs.random()
+        saveOriginalQueueState(songs, queueName)
+        
+        val otherSongs = songs.filter { it.id != startSong.id }.shuffled()
+        val shuffledQueue = listOf(startSong) + otherSongs
+        
+        return Pair(shuffledQueue, startSong)
+    }
+
+    /**
+     * Prepares a list for shuffled playback with a specific start song.
+     */
+    fun prepareShuffledQueueWithStart(songs: List<Song>, startSong: Song, queueName: String): List<Song> {
+         saveOriginalQueueState(songs, queueName)
+         val otherSongs = songs.filter { it.id != startSong.id }.shuffled()
+         return listOf(startSong) + otherSongs
+    }
 }

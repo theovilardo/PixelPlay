@@ -2437,7 +2437,7 @@ fun LibraryAlbumsTab(
                     }
                     items(albums, key = { "album_${it.id}" }) { album ->
                         val albumSpecificColorSchemeFlow =
-                            playerViewModel.getAlbumColorSchemeFlow(album.albumArtUriString)
+                            playerViewModel.themeStateHolder.getAlbumColorSchemeFlow(album.albumArtUriString ?: "")
                         val rememberedOnClick = remember(album.id) { { onAlbumClick(album.id) } }
                         AlbumGridItemRedesigned(
                             album = album,

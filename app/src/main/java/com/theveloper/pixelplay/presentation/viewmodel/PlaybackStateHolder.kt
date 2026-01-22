@@ -157,6 +157,25 @@ class PlaybackStateHolder @Inject constructor(
         }
     }
 
+    fun setRepeatMode(mode: Int) {
+        val castSession = castStateHolder.castSession.value
+        val remoteMediaClient = castSession?.remoteMediaClient
+
+        if (castSession != null && remoteMediaClient != null) {
+            val remoteMode = when (mode) {
+                Player.REPEAT_MODE_ONE -> MediaStatus.REPEAT_MODE_REPEAT_SINGLE
+                Player.REPEAT_MODE_ALL -> MediaStatus.REPEAT_MODE_REPEAT_ALL
+                else -> MediaStatus.REPEAT_MODE_REPEAT_OFF
+            }
+            castStateHolder.castPlayer?.setRepeatMode(remoteMode)
+        } else {
+             mediaController?.repeatMode = mode
+        }
+        
+        scope?.launch { userPreferencesRepository.setRepeatMode(mode) }
+        _stablePlayerState.update { it.copy(repeatMode = mode) }
+    }
+
     /* -------------------------------------------------------------------------- */
     /*                               Progress Updates                             */
     /* -------------------------------------------------------------------------- */
