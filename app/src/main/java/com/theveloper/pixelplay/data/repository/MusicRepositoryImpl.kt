@@ -177,19 +177,9 @@ class MusicRepositoryImpl @Inject constructor(
         return combine(
             permittedSongsFlow,
             allArtistsFlow,
-            allCrossRefsFlow,
-            telegramDao.getAllTelegramSongs(),
-            telegramDao.getAllChannels()
-        ) { songs, artists, crossRefs, telegramEntities, channels ->
-            val localSongs = mapSongList(songs, null, artists, crossRefs)
-            
-            val channelMap = channels.associateBy { it.chatId }
-            
-            val telegramSongs = telegramEntities.map { 
-                val channelTitle = channelMap[it.chatId]?.title
-                it.toSong(channelTitle = channelTitle) 
-            }
-            localSongs + telegramSongs
+            allCrossRefsFlow
+        ) { songs, artists, crossRefs ->
+            mapSongList(songs, null, artists, crossRefs)
         }.flowOn(Dispatchers.IO)
     }
     
@@ -256,6 +246,10 @@ class MusicRepositoryImpl @Inject constructor(
          val entities = songs.mapNotNull { it.toTelegramEntity() }
          if (entities.isNotEmpty()) {
              telegramDao.insertSongs(entities)
+             // Trigger sync to update main DB
+             androidx.work.WorkManager.getInstance(context).enqueue(
+                 com.theveloper.pixelplay.data.worker.SyncWorker.incrementalSyncWork()
+             )
          }
     }
 
@@ -387,7 +381,7 @@ class MusicRepositoryImpl @Inject constructor(
     override fun searchSongs(query: String): Flow<List<Song>> {
         if (query.isBlank()) return flowOf(emptyList())
         
-        val localSongsFlow = combine(
+        return combine(
             musicDao.searchSongs(
                 query = query,
                 allowedParentDirs = emptyList(),
@@ -398,21 +392,6 @@ class MusicRepositoryImpl @Inject constructor(
             allCrossRefsFlow
         ) { songs, config, artists, crossRefs ->
             mapSongList(songs, config, artists, crossRefs)
-        }
-
-        val telegramSongsFlow = combine(
-            telegramDao.searchSongs(query),
-            telegramDao.getAllChannels()
-        ) { songs, channels ->
-            val channelMap = channels.associateBy { it.chatId }
-            songs.map { 
-                val title = channelMap[it.chatId]?.title
-                it.toSong(channelTitle = title)
-            }
-        }
-
-        return combine(localSongsFlow, telegramSongsFlow) { local, telegram ->
-            local + telegram
         }.conflate().flowOn(Dispatchers.IO)
     }
 

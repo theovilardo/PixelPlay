@@ -233,13 +233,23 @@ class DualPlayerEngine @Inject constructor(
                 eventListener: AudioRendererEventListener,
                 out: ArrayList<Renderer>
             ) {
+                // Use provided sink or create one with Float output enabled
+                // Note: We use the provided audioSink if it works, but here we want to enforce config.
+                // Since super.buildAudioRenderers takes the sink, we can just pass our configured one.
+                // But wait, the parameter 'audioSink' is passed IN. 
+                // We should probably ignore the passed one if we want to enforce ours, OR configure ours and pass it to super.
+                
+                val sink = androidx.media3.exoplayer.audio.DefaultAudioSink.Builder()
+                    .setEnableFloatOutput(true) // Enable 32-bit float output for Hi-Res processing
+                    .build()
+
                 out.add(object : MediaCodecAudioRenderer(
                     context,
                     mediaCodecSelector,
                     enableDecoderFallback,
                     eventHandler,
                     eventListener,
-                    audioSink
+                    sink
                 ) {
                     override fun getCodecMaxInputSize(
                         codecInfo: MediaCodecInfo,
@@ -251,9 +261,10 @@ class DualPlayerEngine @Inject constructor(
                     }
                 })
 
-                super.buildAudioRenderers(context, extensionRendererMode, mediaCodecSelector, enableDecoderFallback, audioSink, eventHandler, eventListener, out)
+                super.buildAudioRenderers(context, extensionRendererMode, mediaCodecSelector, enableDecoderFallback, sink, eventHandler, eventListener, out)
             }
-        }.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+        }.setEnableAudioFloatOutput(true) // Helper method on factory
+         .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
 
         val audioAttributes = AudioAttributes.Builder()
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -339,7 +350,7 @@ class DualPlayerEngine @Inject constructor(
             .build().apply {
             setAudioAttributes(audioAttributes, handleAudioFocus)
             setHandleAudioBecomingNoisy(handleAudioFocus)
-            setWakeMode(C.WAKE_MODE_NETWORK) // Prevent WiFi/CPU from sleeping during streaming
+            setWakeMode(C.WAKE_MODE_LOCAL) // Use CPU lock only. WiFi lock unused as we proxy via localhost. Saves battery.
             // Explicitly keep both players live so they can overlap without affecting each other
             playWhenReady = false
         }

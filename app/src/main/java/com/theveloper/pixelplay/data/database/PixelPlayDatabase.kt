@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TelegramChannelEntity::class,
         SongEngagementEntity::class
     ],
-    version = 15, // Incremented for combined updates
+    version = 16, // Incremented for combined updates
     exportSchema = false
 )
 abstract class PixelPlayDatabase : RoomDatabase() {
@@ -133,6 +133,13 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                         last_played_timestamp INTEGER NOT NULL DEFAULT 0
                     )
                 """.trimIndent())
+            }
+        }
+        
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE songs ADD COLUMN telegram_chat_id INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE songs ADD COLUMN telegram_file_id INTEGER DEFAULT NULL")
             }
         }
     }

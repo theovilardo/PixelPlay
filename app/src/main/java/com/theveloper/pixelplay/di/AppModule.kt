@@ -86,7 +86,8 @@ object AppModule {
             PixelPlayDatabase.MIGRATION_11_12,
             PixelPlayDatabase.MIGRATION_12_13,
             PixelPlayDatabase.MIGRATION_13_14,
-            PixelPlayDatabase.MIGRATION_14_15
+            PixelPlayDatabase.MIGRATION_14_15,
+            PixelPlayDatabase.MIGRATION_15_16
         )
             .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
@@ -199,8 +200,12 @@ object AppModule {
 
     @Singleton
     @Provides
-    fun provideSongMetadataEditor(@ApplicationContext context: Context, musicDao: MusicDao): SongMetadataEditor {
-        return SongMetadataEditor(context, musicDao)
+    fun provideSongMetadataEditor(
+        @ApplicationContext context: Context,
+        musicDao: MusicDao,
+        telegramDao: com.theveloper.pixelplay.data.database.TelegramDao
+    ): SongMetadataEditor {
+        return SongMetadataEditor(context, musicDao, telegramDao)
     }
 
     /**
