@@ -168,6 +168,8 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -263,22 +265,6 @@ class PlayerViewModel @Inject constructor(
             playbackStateHolder.updateStablePlayerState { state ->
                 if (state.currentSong?.id != songId) state
                 else state.copy(isLoadingLyrics = false, lyrics = lyrics)
-            }
-        }
-    }
-
-    init {
-        // Initialize helper classes with our coroutine scope
-        listeningStatsTracker.initialize(viewModelScope)
-        dailyMixStateHolder.initialize(viewModelScope)
-        lyricsStateHolder.initialize(viewModelScope, lyricsLoadCallback, playbackStateHolder.stablePlayerState)
-        playbackStateHolder.initialize(viewModelScope)
-        themeStateHolder.initialize(viewModelScope)
-
-        
-        viewModelScope.launch {
-            playbackStateHolder.stablePlayerState.collect { state ->
-                _playerUiState.update { it.copy(currentPosition = state.currentPosition) }
             }
         }
     }
@@ -408,14 +394,10 @@ class PlayerViewModel @Inject constructor(
     val artistNavigationRequests = _artistNavigationRequests.asSharedFlow()
     private var artistNavigationJob: Job? = null
 
-    private val _castRoutes = MutableStateFlow<List<MediaRouter.RouteInfo>>(emptyList())
-    val castRoutes: StateFlow<List<MediaRouter.RouteInfo>> = _castRoutes.asStateFlow()
-    private val _selectedRoute = MutableStateFlow<MediaRouter.RouteInfo?>(null)
-    val selectedRoute: StateFlow<MediaRouter.RouteInfo?> = _selectedRoute.asStateFlow()
-    private val _routeVolume = MutableStateFlow(0)
-    val routeVolume: StateFlow<Int> = _routeVolume.asStateFlow()
-    private val _isRefreshingRoutes = MutableStateFlow(false)
-    val isRefreshingRoutes: StateFlow<Boolean> = _isRefreshingRoutes.asStateFlow()
+    val castRoutes: StateFlow<List<MediaRouter.RouteInfo>> = castStateHolder.castRoutes
+    val selectedRoute: StateFlow<MediaRouter.RouteInfo?> = castStateHolder.selectedRoute
+    val routeVolume: StateFlow<Int> = castStateHolder.routeVolume
+    val isRefreshingRoutes: StateFlow<Boolean> = castStateHolder.isRefreshingRoutes
 
     // Connectivity state delegated to ConnectivityStateHolder
     val isWifiEnabled: StateFlow<Boolean> = connectivityStateHolder.isWifiEnabled
@@ -425,8 +407,7 @@ class PlayerViewModel @Inject constructor(
     val bluetoothName: StateFlow<String?> = connectivityStateHolder.bluetoothName
     val bluetoothAudioDevices: StateFlow<List<String>> = connectivityStateHolder.bluetoothAudioDevices
 
-    private val mediaRouter: MediaRouter
-    private val mediaRouterCallback: MediaRouter.Callback
+
     
     // Connectivity is now managed by ConnectivityStateHolder
     
@@ -443,6 +424,45 @@ class PlayerViewModel @Inject constructor(
     private val _trackVolume = MutableStateFlow(1.0f)
     val trackVolume: StateFlow<Float> = _trackVolume.asStateFlow()
 
+
+    @Inject
+    lateinit var mediaMapper: com.theveloper.pixelplay.data.media.MediaMapper
+
+    @Inject
+    lateinit var imageCacheManager: com.theveloper.pixelplay.data.media.ImageCacheManager
+
+    init {
+        // Initialize helper classes with our coroutine scope
+        listeningStatsTracker.initialize(viewModelScope)
+        dailyMixStateHolder.initialize(viewModelScope)
+        lyricsStateHolder.initialize(viewModelScope, lyricsLoadCallback, playbackStateHolder.stablePlayerState)
+        playbackStateHolder.initialize(viewModelScope)
+        themeStateHolder.initialize(viewModelScope)
+
+        viewModelScope.launch {
+            playbackStateHolder.stablePlayerState.collect { state ->
+                _playerUiState.update { it.copy(currentPosition = state.currentPosition) }
+            }
+        }
+
+        viewModelScope.launch {
+            lyricsStateHolder.songUpdates.collect { update: Pair<com.theveloper.pixelplay.data.model.Song, com.theveloper.pixelplay.data.model.Lyrics?> ->
+                val song = update.first
+                val lyrics = update.second
+                // Check if this update is relevant to the currently playing song OR the selected song
+                if (playbackStateHolder.stablePlayerState.value.currentSong?.id == song.id) {
+                     updateSongInStates(song, lyrics)
+                }
+                if (_selectedSongForInfo.value?.id == song.id) {
+                    _selectedSongForInfo.value = song
+                }
+            }
+        }
+
+        lyricsStateHolder.messageEvents
+            .onEach { msg: String -> _toastEvents.emit(msg) }
+            .launchIn(viewModelScope)
+    }
 
     fun setTrackVolume(volume: Float) {
         mediaController?.let {
@@ -909,41 +929,20 @@ class PlayerViewModel @Inject constructor(
             }
         }, ContextCompat.getMainExecutor(context))
 
-        mediaRouter = MediaRouter.getInstance(context)
-        val mediaRouteSelector = buildCastRouteSelector()
-
-        mediaRouterCallback = object : MediaRouter.Callback() {
-            private fun updateRoutes(router: MediaRouter) {
-                val routes = router.routes.filter { it.isCastRoute() }.distinctBy { it.id }
-                _castRoutes.value = routes
-                _selectedRoute.value = router.selectedRoute
-                _routeVolume.value = router.selectedRoute.volume
-            }
-
-            override fun onRouteAdded(router: MediaRouter, route: MediaRouter.RouteInfo) { updateRoutes(router) }
-            override fun onRouteRemoved(router: MediaRouter, route: MediaRouter.RouteInfo) { updateRoutes(router) }
-            override fun onRouteChanged(router: MediaRouter, route: MediaRouter.RouteInfo) { updateRoutes(router) }
-            override fun onRouteSelected(router: MediaRouter, route: MediaRouter.RouteInfo) {
-                updateRoutes(router)
-                if (route.supportsControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK) && !route.isDefault) {
-                    viewModelScope.launch {
-                        castTransferStateHolder.ensureHttpServerRunning()
-                    }
-                } else if (route.isDefault) {
-                    context.stopService(Intent(context, MediaFileHttpServerService::class.java))
-                }
-            }
-            override fun onRouteUnselected(router: MediaRouter, route: MediaRouter.RouteInfo) { updateRoutes(router) }
-            override fun onRouteVolumeChanged(router: MediaRouter, route: MediaRouter.RouteInfo) {
-                if (route.id == _selectedRoute.value?.id) {
-                    _routeVolume.value = route.volume
+        
+        // Start Cast discovery
+        castStateHolder.startDiscovery()
+        
+        // Observe selection for HTTP server management
+        viewModelScope.launch {
+            castStateHolder.selectedRoute.collect { route ->
+                if (route != null && !route.isDefault && route.supportsControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK)) {
+                     castTransferStateHolder.ensureHttpServerRunning()
+                } else if (route?.isDefault == true) {
+                     context.stopService(Intent(context, MediaFileHttpServerService::class.java))
                 }
             }
         }
-        // Initial route setup
-        mediaRouter.addCallback(mediaRouteSelector, mediaRouterCallback, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY)
-        _castRoutes.value = mediaRouter.routes.filter { it.isCastRoute() }.distinctBy { it.id }
-        _selectedRoute.value = mediaRouter.selectedRoute
 
         // Initialize connectivity monitoring (WiFi/Bluetooth)
         connectivityStateHolder.initialize()
@@ -1534,68 +1533,7 @@ class PlayerViewModel @Inject constructor(
         _playerUiState.value.currentPlaybackQueue.find { it.id == mediaItem.mediaId }?.let { return it }
         _masterAllSongs.value.find { it.id == mediaItem.mediaId }?.let { return it }
 
-        val metadata = mediaItem.mediaMetadata
-        val extras = metadata.extras
-        val contentUri = extras?.getString(MediaItemBuilder.EXTERNAL_EXTRA_CONTENT_URI)
-            ?: mediaItem.localConfiguration?.uri?.toString()
-            ?: return null
-        
-        // If content URI is missing, we can't play it.
-        // It's possible we are playing a local library song but the MediaItem 
-        // somehow has 'external:' prefix or we are re-parsing. 
-        // But logic below specifically handles external songs.
-
-        if (contentUri == null) {
-            // Log or handle error? For now fallback to defaults or null?
-            // Existing logic didn't null check strictly but `getString` returns null.
-        }
-
-        val title = metadata.title?.toString()?.takeIf { it.isNotBlank() }
-            ?: context.getString(R.string.unknown_song_title)
-        val artist = metadata.artist?.toString()?.takeIf { it.isNotBlank() }
-            ?: context.getString(R.string.unknown_artist)
-        val album = extras?.getString(MediaItemBuilder.EXTERNAL_EXTRA_ALBUM)?.takeIf { it.isNotBlank() }
-            ?: metadata.albumTitle?.toString()?.takeIf { it.isNotBlank() }
-            ?: context.getString(R.string.unknown_album)
-        // Use 0L as default if not present or <= 0
-        val duration = extras?.getLong(MediaItemBuilder.EXTERNAL_EXTRA_DURATION)?.takeIf { it > 0 } ?: 0L
-        val albumArt = extras?.getString(MediaItemBuilder.EXTERNAL_EXTRA_ALBUM_ART)
-            ?: metadata.artworkUri?.toString()
-        val genre = extras?.getString(MediaItemBuilder.EXTERNAL_EXTRA_GENRE)
-        val trackNumber = extras?.getInt(MediaItemBuilder.EXTERNAL_EXTRA_TRACK) ?: 0
-        val year = extras?.getInt(MediaItemBuilder.EXTERNAL_EXTRA_YEAR) ?: 0
-        val dateAdded = extras?.getLong(MediaItemBuilder.EXTERNAL_EXTRA_DATE_ADDED)?.takeIf { it > 0 }
-            ?: System.currentTimeMillis()
-        val mimeType = extras?.getString(MediaItemBuilder.EXTERNAL_EXTRA_MIME_TYPE)?.takeIf { true }
-            ?: "-"
-        // Use 0 as default
-        val bitrate = extras?.getInt(MediaItemBuilder.EXTERNAL_EXTRA_BITRATE)?.takeIf { it > 0 }
-            ?: 0
-        // Use 0 as default
-        val sampleRate = extras?.getInt(MediaItemBuilder.EXTERNAL_EXTRA_SAMPLE_RATE)?.takeIf { it > 0 }
-            ?: 0
-
-        return Song(
-            id = mediaItem.mediaId,
-            title = title,
-            artist = artist,
-            artistId = -1L,
-            album = album,
-            albumId = -1L,
-            path = contentUri,
-            contentUriString = contentUri,
-            albumArtUriString = albumArt,
-            duration = duration,
-            genre = genre,
-            lyrics = null,
-            isFavorite = false,
-            trackNumber = trackNumber,
-            year = year,
-            dateAdded = dateAdded,
-            mimeType = mimeType,
-            bitrate = bitrate,
-            sampleRate = sampleRate
-        )
+        return mediaMapper.resolveSongFromMediaItem(mediaItem)
     }
 
     private fun updateCurrentPlaybackQueueFromPlayer(playerCtrl: MediaController?) {
@@ -2552,10 +2490,11 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun selectRoute(route: MediaRouter.RouteInfo) {
-        val selectedRouteId = _selectedRoute.value?.id
+        val selectedRouteId = castStateHolder.selectedRoute.value?.id
         val isCastRoute = route.isCastRoute() && !route.isDefault
+        // Use castStateHolder.isRemotePlaybackActive directly
         val isSwitchingBetweenRemotes = isCastRoute &&
-            (isRemotePlaybackActive.value || isCastConnecting.value) &&
+            (castStateHolder.isRemotePlaybackActive.value || castStateHolder.isCastConnecting.value) &&
             selectedRouteId != null &&
             selectedRouteId != route.id
 
@@ -2566,13 +2505,14 @@ class PlayerViewModel @Inject constructor(
         } else {
             castStateHolder.setPendingCastRouteId(null)
         }
-        mediaRouter.selectRoute(route)
+        
+        castStateHolder.selectRoute(route)
     }
 
     fun disconnect(resetConnecting: Boolean = true) {
         val start = SystemClock.elapsedRealtime()
         castStateHolder.setPendingCastRouteId(null)
-        val wasRemote = isRemotePlaybackActive.value
+        val wasRemote = castStateHolder.isRemotePlaybackActive.value
         if (wasRemote) {
             Timber.tag(CAST_LOG_TAG).i(
                 "Manual disconnect requested; marking castConnecting=true until session ends. mainThread=%s",
@@ -2580,7 +2520,7 @@ class PlayerViewModel @Inject constructor(
             )
             castStateHolder.setCastConnecting(true)
         }
-        mediaRouter.selectRoute(mediaRouter.defaultRoute)
+        castStateHolder.disconnect()
         castStateHolder.setRemotePlaybackActive(false)
         if (resetConnecting && !wasRemote) {
             castStateHolder.setCastConnecting(false)
@@ -2594,29 +2534,11 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun setRouteVolume(volume: Int) {
-        _routeVolume.value = volume
-        _selectedRoute.value?.requestSetVolume(volume)
+        castStateHolder.setRouteVolume(volume)
     }
 
     fun refreshCastRoutes() {
-        viewModelScope.launch {
-            _isRefreshingRoutes.value = true
-            mediaRouter.removeCallback(mediaRouterCallback)
-            val mediaRouteSelector = buildCastRouteSelector()
-            mediaRouter.addCallback(
-                mediaRouteSelector,
-                mediaRouterCallback,
-                MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY or MediaRouter.CALLBACK_FLAG_PERFORM_ACTIVE_SCAN
-            )
-            _castRoutes.value = mediaRouter.routes.filter { it.isCastRoute() }.distinctBy { it.id }
-            _selectedRoute.value = mediaRouter.selectedRoute
-            delay(1800) // Allow active scan to run briefly
-            mediaRouter.removeCallback(mediaRouterCallback)
-            mediaRouter.addCallback(mediaRouteSelector, mediaRouterCallback, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY)
-            _castRoutes.value = mediaRouter.routes.filter { it.isCastRoute() }.distinctBy { it.id }
-            _selectedRoute.value = mediaRouter.selectedRoute
-            _isRefreshingRoutes.value = false
-        }
+        castStateHolder.refreshRoutes(viewModelScope)
     }
 
 
@@ -2625,7 +2547,8 @@ class PlayerViewModel @Inject constructor(
         super.onCleared()
         stopProgressUpdates()
         listeningStatsTracker.onCleared()
-        mediaRouter.removeCallback(mediaRouterCallback)
+        listeningStatsTracker.onCleared()
+        castStateHolder.onCleared()
         searchStateHolder.onCleared()
         aiStateHolder.onCleared()
         libraryStateHolder.onCleared()
@@ -2942,20 +2865,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun invalidateCoverArtCaches(vararg uriStrings: String?) {
-        val imageLoader = context.imageLoader
-        val memoryCache = imageLoader.memoryCache
-        val diskCache = imageLoader.diskCache
-        if (memoryCache == null && diskCache == null) return
-
-        val knownSizeSuffixes = listOf(null, "128x128", "150x150", "168x168", "256x256", "300x300", "512x512", "600x600")
-
-        uriStrings.mapNotNull { it?.takeIf(String::isNotBlank) }.forEach { baseUri ->
-            knownSizeSuffixes.forEach { suffix ->
-                val cacheKey = suffix?.let { "${baseUri}_${it}" } ?: baseUri
-                memoryCache?.remove(MemoryCache.Key(cacheKey))
-                diskCache?.remove(cacheKey)
-            }
-        }
+        imageCacheManager.invalidateCoverArtCaches(*uriStrings)
     }
 
     private suspend fun purgeAlbumArtThemes(vararg uriStrings: String?) {
@@ -3001,63 +2911,13 @@ class PlayerViewModel @Inject constructor(
     /**
      * Busca la letra de la canción actual en el servicio remoto.
      */
+    /**
+     * Busca la letra de la canción actual en el servicio remoto.
+     */
     fun fetchLyricsForCurrentSong(forcePickResults: Boolean = false) {
-        val currentSong = stablePlayerState.value.currentSong
-        viewModelScope.launch {
-            lyricsStateHolder.setSearchState(LyricsSearchUiState.Loading)
-            if (currentSong != null) {
-                if (forcePickResults) {
-                    musicRepository.searchRemoteLyrics(currentSong)
-                        .onSuccess { (query, results) ->
-                            lyricsStateHolder.setSearchState(LyricsSearchUiState.PickResult(query, results))
-                        }
-                        .onFailure { error ->
-                            if (error is NoLyricsFoundException) {
-                                lyricsStateHolder.setSearchState(
-                                    LyricsSearchUiState.NotFound(
-                                        message = context.getString(R.string.lyrics_not_found)
-                                    )
-                                )
-                            } else {
-                                lyricsStateHolder.setSearchState(
-                                    LyricsSearchUiState.Error(error.message ?: "Unknown error")
-                                )
-                            }
-                        }
-                } else {
-                    musicRepository.getLyricsFromRemote(currentSong)
-                        .onSuccess { (lyrics, rawLyrics) ->
-                            lyricsStateHolder.setSearchState(LyricsSearchUiState.Success(lyrics))
-                            val updatedSong = currentSong.copy(lyrics = rawLyrics)
-                            updateSongInStates(updatedSong, lyrics)
-                        }
-                        .onFailure { error ->
-                            if (error is NoLyricsFoundException) {
-                                musicRepository.searchRemoteLyrics(currentSong)
-                                    .onSuccess { (query, results) ->
-                                        lyricsStateHolder.setSearchState(LyricsSearchUiState.PickResult(query, results))
-                                    }
-                                    .onFailure { searchError ->
-                                        if (searchError is NoLyricsFoundException) {
-                                            lyricsStateHolder.setSearchState(
-                                                LyricsSearchUiState.NotFound(
-                                                    message = context.getString(R.string.lyrics_not_found)
-                                                )
-                                            )
-                                        } else {
-                                            lyricsStateHolder.setSearchState(
-                                                LyricsSearchUiState.Error(error.message ?: "Unknown error")
-                                            )
-                                        }
-                                    }
-                            } else {
-                                lyricsStateHolder.setSearchState(LyricsSearchUiState.Error(error.message ?: "Unknown error"))
-                            }
-                        }
-                }
-            } else {
-                lyricsStateHolder.setSearchState(LyricsSearchUiState.Error("No song is currently playing."))
-            }
+        val currentSong = stablePlayerState.value.currentSong ?: return
+        lyricsStateHolder.fetchLyricsForSong(currentSong, forcePickResults) { resId ->
+            context.getString(resId)
         }
     }
 
@@ -3065,59 +2925,23 @@ class PlayerViewModel @Inject constructor(
      * Manual search lyrics using query provided by user (title and artist)
      */
     fun searchLyricsManually(title: String, artist: String? = null) {
-        if (title.isBlank()) return
-
-        viewModelScope.launch {
-            lyricsStateHolder.setSearchState(LyricsSearchUiState.Loading)
-
-            musicRepository.searchRemoteLyricsByQuery(title, artist)
-                .onSuccess { (q, results) ->
-                    lyricsStateHolder.setSearchState(LyricsSearchUiState.PickResult(q, results))
-                }
-                .onFailure { error ->
-                    lyricsStateHolder.setSearchState(
-                        if (error is NoLyricsFoundException) {
-                            LyricsSearchUiState.NotFound(
-                                message = context.getString(R.string.lyrics_not_found)
-                            )
-                        } else {
-                            LyricsSearchUiState.Error(error.message ?: "Unknown error")
-                        }
-                    )
-                }
-        }
+        lyricsStateHolder.searchLyricsManually(title, artist)
     }
 
     fun acceptLyricsSearchResultForCurrentSong(result: LyricsSearchResult) {
-        val currentSong = stablePlayerState.value.currentSong ?: return
-        lyricsStateHolder.setSearchState(LyricsSearchUiState.Success(result.lyrics))
-
-        val updatedSong = currentSong.copy(lyrics = result.rawLyrics)
-        updateSongInStates(updatedSong, result.lyrics)
-
-        viewModelScope.launch {
-            musicRepository.updateLyrics(
-                currentSong.id.toLong(),
-                result.rawLyrics
-            )
-        }
+         val currentSong = stablePlayerState.value.currentSong ?: return
+         lyricsStateHolder.acceptLyricsSearchResult(result, currentSong)
     }
 
     fun resetLyricsForCurrentSong() {
-        resetLyricsSearchState()
-        viewModelScope.launch {
-            musicRepository.resetLyrics(stablePlayerState.value.currentSong!!.id.toLong())
-            playbackStateHolder.updateStablePlayerState { state -> state.copy(lyrics = null) }
-            // loadLyricsForCurrentSong()
-        }
+        val songId = stablePlayerState.value.currentSong?.id?.toLongOrNull() ?: return
+        lyricsStateHolder.resetLyrics(songId)
+        playbackStateHolder.updateStablePlayerState { state -> state.copy(lyrics = null) }
     }
 
     fun resetAllLyrics() {
-        resetLyricsSearchState()
-        viewModelScope.launch {
-            musicRepository.resetAllLyrics()
-            playbackStateHolder.updateStablePlayerState { state -> state.copy(lyrics = null) }
-        }
+        lyricsStateHolder.resetAllLyrics()
+        playbackStateHolder.updateStablePlayerState { state -> state.copy(lyrics = null) }
     }
 
     /**
@@ -3126,18 +2950,14 @@ class PlayerViewModel @Inject constructor(
      * @param lyricsContent El contenido de la letra como String.
      */
     fun importLyricsFromFile(songId: Long, lyricsContent: String) {
-        viewModelScope.launch {
-            musicRepository.updateLyrics(songId, lyricsContent)
-            val currentSong = playbackStateHolder.stablePlayerState.value.currentSong
-            if (currentSong != null && currentSong.id.toLong() == songId) {
-                val updatedSong = currentSong.copy(lyrics = lyricsContent)
-                val parsedLyrics = LyricsUtils.parseLyrics(lyricsContent)
-                updateSongInStates(updatedSong, parsedLyrics)
-                lyricsStateHolder.setSearchState(LyricsSearchUiState.Success(parsedLyrics))
-                _toastEvents.emit("Lyrics imported successfully!")
-            } else {
-                lyricsStateHolder.setSearchState(LyricsSearchUiState.Error("Could not associate lyrics with the current song."))
-            }
+        val currentSong = stablePlayerState.value.currentSong
+        lyricsStateHolder.importLyricsFromFile(songId, lyricsContent, currentSong)
+        
+        // Optimistic local update since holder event handles persistence
+        if (currentSong?.id?.toLong() == songId) {
+             val parsed = com.theveloper.pixelplay.utils.LyricsUtils.parseLyrics(lyricsContent)
+             val updatedSong = currentSong.copy(lyrics = lyricsContent)
+             updateSongInStates(updatedSong, parsed)
         }
     }
 

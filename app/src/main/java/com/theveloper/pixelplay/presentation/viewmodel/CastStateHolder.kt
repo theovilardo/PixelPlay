@@ -12,6 +12,8 @@ import com.google.android.gms.cast.framework.SessionManager
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.service.player.CastPlayer
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -102,7 +104,7 @@ class CastStateHolder @Inject constructor(
             .addControlCategory(castControlCategory)
             .build()
     }
-    
+
     // State setters
     fun setCastSession(session: CastSession?) {
         _castSession.value = session
@@ -165,5 +167,110 @@ class CastStateHolder @Inject constructor(
         lastRemoteStreamPosition = 0L
         lastRemoteItemId = null
         pendingRemoteSongId = null
+    }
+    
+    // MediaRouter State
+    private val mediaRouter: MediaRouter = MediaRouter.getInstance(context)
+    private val mediaRouterCallback = object : MediaRouter.Callback() {
+        override fun onRouteAdded(router: MediaRouter, route: MediaRouter.RouteInfo) {
+            updateRoutes()
+        }
+        override fun onRouteRemoved(router: MediaRouter, route: MediaRouter.RouteInfo) {
+            updateRoutes()
+        }
+        override fun onRouteChanged(router: MediaRouter, route: MediaRouter.RouteInfo) {
+            updateRoutes()
+            if (route.id == _selectedRoute.value?.id) {
+                _selectedRoute.value = route
+                _routeVolume.value = route.volume
+            }
+        }
+        override fun onRouteSelected(router: MediaRouter, route: MediaRouter.RouteInfo) {
+            _selectedRoute.value = route
+            _routeVolume.value = route.volume
+        }
+        override fun onRouteUnselected(router: MediaRouter, route: MediaRouter.RouteInfo, reason: Int) {
+            if (route.id == _selectedRoute.value?.id) {
+                 // Might default to something else, handled by onRouteSelected
+            }
+        }
+        override fun onRouteVolumeChanged(router: MediaRouter, route: MediaRouter.RouteInfo) {
+             if (route.id == _selectedRoute.value?.id) {
+                _routeVolume.value = route.volume
+            }
+        }
+    }
+
+    private val _castRoutes = MutableStateFlow<List<MediaRouter.RouteInfo>>(emptyList())
+    val castRoutes: StateFlow<List<MediaRouter.RouteInfo>> = _castRoutes.asStateFlow()
+
+    private val _selectedRoute = MutableStateFlow<MediaRouter.RouteInfo?>(null)
+    val selectedRoute: StateFlow<MediaRouter.RouteInfo?> = _selectedRoute.asStateFlow()
+
+    private val _routeVolume = MutableStateFlow(0)
+    val routeVolume: StateFlow<Int> = _routeVolume.asStateFlow()
+
+    private val _isRefreshingRoutes = MutableStateFlow(false)
+    val isRefreshingRoutes: StateFlow<Boolean> = _isRefreshingRoutes.asStateFlow()
+    
+    // Coroutine scope for delays (injected via initialize or use GlobalScope helper if Singleton? 
+    // Ideally we should have a scope. Since it is Singleton, we can use a custom scope or suspend functions.)
+    // But refreshRoutes was launched in ViewModel.
+    // We will make refreshRoutes suspend.
+
+    fun refreshRoutes(scope: kotlinx.coroutines.CoroutineScope) {
+        scope.launch {
+            _isRefreshingRoutes.value = true
+            mediaRouter.removeCallback(mediaRouterCallback)
+            val mediaRouteSelector = buildCastRouteSelector()
+            mediaRouter.addCallback(
+                mediaRouteSelector,
+                mediaRouterCallback,
+                MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY or MediaRouter.CALLBACK_FLAG_PERFORM_ACTIVE_SCAN
+            )
+            updateRoutes()
+            _selectedRoute.value = mediaRouter.selectedRoute
+            
+            kotlinx.coroutines.delay(1800) 
+            
+            mediaRouter.removeCallback(mediaRouterCallback)
+            mediaRouter.addCallback(mediaRouteSelector, mediaRouterCallback, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY)
+            updateRoutes()
+            _selectedRoute.value = mediaRouter.selectedRoute
+            _isRefreshingRoutes.value = false
+        }
+    }
+
+    fun startDiscovery() {
+        val mediaRouteSelector = buildCastRouteSelector()
+        mediaRouter.addCallback(mediaRouteSelector, mediaRouterCallback, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY)
+        updateRoutes()
+    }
+
+    private fun updateRoutes() {
+        _castRoutes.value = mediaRouter.routes.filter { it.isCastRoute() }.distinctBy { it.id }
+    }
+
+    fun selectRoute(route: MediaRouter.RouteInfo) {
+        mediaRouter.selectRoute(route)
+    }
+
+    fun setRouteVolume(volume: Int) {
+        _routeVolume.value = volume
+        _selectedRoute.value?.requestSetVolume(volume)
+    }
+    
+    fun disconnect() {
+        mediaRouter.selectRoute(mediaRouter.defaultRoute)
+    }
+    
+    fun onCleared() {
+        mediaRouter.removeCallback(mediaRouterCallback)
+    }
+
+    init {
+        // Initial setup? No, we wait for refresh or explicit usage?
+        // ViewModel initialized it.
+        // We can attach callback passively? No, battery drain.
     }
 }
