@@ -16,6 +16,10 @@ class CastPlayer(private val castSession: CastSession) {
 
     private val remoteMediaClient: RemoteMediaClient? = castSession.remoteMediaClient
 
+    /**
+     * Load a queue of songs onto the Cast device.
+     * Includes a 15-second timeout to prevent stuck "Connecting..." states.
+     */
     fun loadQueue(
         songs: List<Song>,
         startIndex: Int,
@@ -31,10 +35,24 @@ class CastPlayer(private val castSession: CastSession) {
             return
         }
 
+        // Track whether callback has been fired to prevent double-calling
+        var callbackFired = false
+        val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        val timeoutRunnable = Runnable {
+            if (!callbackFired) {
+                callbackFired = true
+                Timber.e("Cast loadQueue timed out after 15 seconds")
+                onComplete(false)
+            }
+        }
+
         try {
             val mediaItems = songs.map { song ->
                 song.toMediaQueueItem(serverAddress)
             }.toTypedArray()
+
+            // Start 15-second timeout
+            timeoutHandler.postDelayed(timeoutRunnable, 15000)
 
             client.queueLoad(
                 mediaItems,
@@ -43,11 +61,20 @@ class CastPlayer(private val castSession: CastSession) {
                 startPosition,
                 null
             ).setResultCallback { result ->
+                // Cancel timeout since we got a response
+                timeoutHandler.removeCallbacks(timeoutRunnable)
+                
+                if (callbackFired) {
+                    // Timeout already fired, ignore this late callback
+                    Timber.w("Cast loadQueue result received after timeout, ignoring")
+                    return@setResultCallback
+                }
+                callbackFired = true
+                
                 if (result.status.isSuccess) {
                     if (autoPlay) {
                         client.play()
                     }
-
                     // Immediately acknowledge success and request a status update to avoid UI stalls.
                     onComplete(true)
                     client.requestStatus()
@@ -57,8 +84,12 @@ class CastPlayer(private val castSession: CastSession) {
                 }
             }
         } catch (e: Exception) {
+            timeoutHandler.removeCallbacks(timeoutRunnable)
             Timber.e(e, "Error loading queue to cast device")
-            onComplete(false)
+            if (!callbackFired) {
+                callbackFired = true
+                onComplete(false)
+            }
         }
     }
 

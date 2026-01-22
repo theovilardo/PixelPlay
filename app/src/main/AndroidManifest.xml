@@ -133,6 +133,7 @@
 
         <service
             android:name=".data.service.http.MediaFileHttpServerService"
+            android:foregroundServiceType="mediaPlayback"
             android:exported="false" />
         <meta-data
             android:name="preloaded_fonts"

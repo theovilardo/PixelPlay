@@ -45,43 +45,56 @@ sealed class SortOption(val storageKey: String, val displayName: String) {
     object FolderNameZA : SortOption("folder_name_za", "Name (Z-A)")
 
     companion object {
-        val SONGS: List<SortOption> = listOf(
-            SongDefaultOrder,
-            SongTitleAZ,
-            SongTitleZA,
-            SongArtist,
-            SongAlbum,
-            SongDateAdded,
-            SongDuration
-        )
-        val ALBUMS: List<SortOption> = listOf(
-            AlbumTitleAZ,
-            AlbumTitleZA,
-            AlbumArtist,
-            AlbumReleaseYear,
-            AlbumSizeAsc,
-            AlbumSizeDesc
-        )
-        val ARTISTS: List<SortOption> = listOf(
-            ArtistNameAZ,
-            ArtistNameZA
-        )
-        val PLAYLISTS: List<SortOption> = listOf(
-            PlaylistNameAZ,
-            PlaylistNameZA,
-            PlaylistDateCreated
-        )
-        val FOLDERS: List<SortOption> = listOf(
-            FolderNameAZ,
-            FolderNameZA
-        )
-        val LIKED: List<SortOption> = listOf(
-            LikedSongTitleAZ,
-            LikedSongTitleZA,
-            LikedSongArtist,
-            LikedSongAlbum,
-            LikedSongDateLiked
-        )
+
+        val SONGS: List<SortOption> by lazy {
+             listOf(
+                SongDefaultOrder,
+                SongTitleAZ,
+                SongTitleZA,
+                SongArtist,
+                SongAlbum,
+                SongDateAdded,
+                SongDuration
+            )
+        }
+        val ALBUMS: List<SortOption> by lazy {
+            listOf(
+                AlbumTitleAZ,
+                AlbumTitleZA,
+                AlbumArtist,
+                AlbumReleaseYear,
+                AlbumSizeAsc,
+                AlbumSizeDesc
+            )
+        }
+        val ARTISTS: List<SortOption> by lazy {
+            listOf(
+                ArtistNameAZ,
+                ArtistNameZA
+            )
+        }
+        val PLAYLISTS: List<SortOption> by lazy {
+            listOf(
+                PlaylistNameAZ,
+                PlaylistNameZA,
+                PlaylistDateCreated
+            )
+        }
+        val FOLDERS: List<SortOption> by lazy {
+            listOf(
+                FolderNameAZ,
+                FolderNameZA
+            )
+        }
+        val LIKED: List<SortOption> by lazy {
+            listOf(
+                LikedSongTitleAZ,
+                LikedSongTitleZA,
+                LikedSongArtist,
+                LikedSongAlbum,
+                LikedSongDateLiked
+            )
+        }
 
         fun fromStorageKey(
             rawValue: String?,
