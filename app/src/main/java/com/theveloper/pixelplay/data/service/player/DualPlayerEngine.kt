@@ -340,6 +340,7 @@ class DualPlayerEngine @Inject constructor(
             setAudioAttributes(audioAttributes, handleAudioFocus)
             setHandleAudioBecomingNoisy(handleAudioFocus)
             setWakeMode(C.WAKE_MODE_NETWORK) // Prevent WiFi/CPU from sleeping during streaming
+            setHandleAudioBecomingNoisy(true)
             // Explicitly keep both players live so they can overlap without affecting each other
             playWhenReady = false
         }
