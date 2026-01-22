@@ -3,21 +3,13 @@ package com.theveloper.pixelplay.presentation.viewmodel
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ComponentName
-import android.content.ContentUris
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.net.Uri
-import android.media.MediaMetadataRetriever
 import android.os.SystemClock
 import android.os.Trace
 import android.os.Looper
 import android.util.Log
 import androidx.compose.animation.core.Animatable
-import androidx.compose.material3.ColorScheme
-import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
-import androidx.core.graphics.createBitmap
-import androidx.core.graphics.drawable.toBitmap
 import com.theveloper.pixelplay.data.model.LibraryTabId
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
@@ -28,77 +20,27 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
-import android.Manifest
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothManager
-import android.bluetooth.BluetoothProfile
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkCapabilities
-import android.net.NetworkRequest
-import android.net.wifi.WifiManager
-import android.os.Build
 import android.os.Bundle
-import android.content.pm.PackageManager
-import android.provider.MediaStore
-import android.provider.OpenableColumns
-import android.app.AlarmManager
-import android.app.PendingIntent
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.view.ContextThemeWrapper
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.runtime.snapshotFlow
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
 import androidx.media3.common.Timeline
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionError
 import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
 import androidx.mediarouter.media.MediaControlIntent
-import androidx.mediarouter.media.MediaRouteSelector
 import androidx.mediarouter.media.MediaRouter
-import coil.imageLoader
-import coil.memory.MemoryCache
-import com.google.android.gms.cast.framework.CastContext
-import com.google.android.gms.cast.framework.CastSession
 import com.google.android.gms.cast.framework.SessionManager
 import com.google.android.gms.cast.CastMediaControlIntent
-import com.google.android.gms.cast.framework.SessionManagerListener
-import com.google.android.gms.cast.framework.media.RemoteMediaClient
-import com.google.android.gms.cast.MediaInfo
-import com.google.android.gms.cast.MediaQueueItem
-import com.google.android.gms.cast.MediaSeekOptions
-import com.google.android.gms.cast.MediaStatus
-import com.google.android.gms.common.images.WebImage
-import coil.request.CachePolicy
-import coil.request.ImageRequest
-import coil.size.Size
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.theveloper.pixelplay.R
-import com.theveloper.pixelplay.data.DailyMixManager
 import com.theveloper.pixelplay.data.EotStateHolder
-import com.theveloper.pixelplay.data.ai.AiMetadataGenerator
-import com.theveloper.pixelplay.data.ai.AiPlaylistGenerator
 import com.theveloper.pixelplay.data.ai.SongMetadata
 import com.theveloper.pixelplay.data.database.AlbumArtThemeDao
-import com.theveloper.pixelplay.data.database.AlbumArtThemeEntity
-import com.theveloper.pixelplay.data.database.StoredColorSchemeValues
-import com.theveloper.pixelplay.data.database.toComposeColor
-import com.theveloper.pixelplay.data.media.AudioMetadataReader
 import com.theveloper.pixelplay.data.media.CoverArtUpdate
-import com.theveloper.pixelplay.data.media.SongMetadataEditor
-import com.theveloper.pixelplay.data.media.guessImageMimeType
-import com.theveloper.pixelplay.data.media.imageExtensionFromMimeType
-import com.theveloper.pixelplay.data.media.isValidImageData
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.Genre
@@ -106,36 +48,23 @@ import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.data.model.LyricsSourcePreference
 import com.theveloper.pixelplay.data.model.MusicFolder
 import com.theveloper.pixelplay.data.model.SearchFilterType
-import com.theveloper.pixelplay.data.model.SearchHistoryItem
-import com.theveloper.pixelplay.data.model.SearchResultItem
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.model.SortOption
 import com.theveloper.pixelplay.data.model.toLibraryTabIdOrNull
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.LibraryNavigationMode
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
-import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.data.preferences.FullPlayerLoadingTweaks
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.LyricsSearchResult
-import com.theveloper.pixelplay.data.repository.ArtistImageRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
-import com.theveloper.pixelplay.data.repository.NoLyricsFoundException
 import com.theveloper.pixelplay.data.service.MusicNotificationProvider
 import com.theveloper.pixelplay.data.service.MusicService
 import com.theveloper.pixelplay.data.service.player.CastPlayer
-import com.theveloper.pixelplay.data.stats.PlaybackStatsRepository
 import com.theveloper.pixelplay.data.service.http.MediaFileHttpServerService
 import com.theveloper.pixelplay.data.service.player.DualPlayerEngine
 import com.theveloper.pixelplay.data.worker.SyncManager
-import com.theveloper.pixelplay.ui.theme.DarkColorScheme
-import com.theveloper.pixelplay.ui.theme.GenreColors
-import com.theveloper.pixelplay.ui.theme.LightColorScheme
-import com.theveloper.pixelplay.ui.theme.extractSeedColor
-import com.theveloper.pixelplay.ui.theme.generateColorSchemeFromSeed
-import com.theveloper.pixelplay.utils.FileDeletionUtils
-import com.theveloper.pixelplay.utils.LyricsUtils
-import com.theveloper.pixelplay.utils.toHexString
+import com.theveloper.pixelplay.utils.AppShortcutManager
 import com.theveloper.pixelplay.utils.QueueUtils
 import com.theveloper.pixelplay.utils.MediaItemBuilder
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -143,19 +72,13 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import androidx.paging.PagingData
-import androidx.paging.cachedIn
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -170,36 +93,18 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
-import org.json.JSONObject
 import timber.log.Timber
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.ArrayDeque
-import java.util.Calendar
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
-import kotlin.random.Random
-
-
-
-// Constants migrated to MediaItemBuilder
-private const val EXTERNAL_MEDIA_ID_PREFIX = "external:"
-// Other EXTERNAL_EXTRA_* constants removed as they are now in MediaItemBuilder
 
 private const val CAST_LOG_TAG = "PlayerCastTransfer"
-
-
-
-// ActiveSession class moved to ListeningStatsTracker.kt
 
 @UnstableApi
 @SuppressLint("LogNotTimber")
@@ -211,15 +116,9 @@ class PlayerViewModel @Inject constructor(
     private val albumArtThemeDao: AlbumArtThemeDao,
     val syncManager: SyncManager, // Inyectar SyncManager
 
-    private val dailyMixManager: DailyMixManager,
-    private val playbackStatsRepository: PlaybackStatsRepository,
-    private val aiPlaylistGenerator: AiPlaylistGenerator,
-    private val aiMetadataGenerator: AiMetadataGenerator,
-    private val artistImageRepository: ArtistImageRepository,
     private val dualPlayerEngine: DualPlayerEngine,
-    private val appShortcutManager: com.theveloper.pixelplay.utils.AppShortcutManager,
+    private val appShortcutManager: AppShortcutManager,
     private val listeningStatsTracker: ListeningStatsTracker,
-    private val colorSchemeProcessor: ColorSchemeProcessor,
     private val dailyMixStateHolder: DailyMixStateHolder,
     private val lyricsStateHolder: LyricsStateHolder,
     private val castStateHolder: CastStateHolder,
@@ -230,27 +129,18 @@ class PlayerViewModel @Inject constructor(
     private val searchStateHolder: SearchStateHolder,
     private val aiStateHolder: AiStateHolder,
     private val libraryStateHolder: LibraryStateHolder,
-    private val castTransferStateHolder: CastTransferStateHolder, // Injected
+    private val castTransferStateHolder: CastTransferStateHolder,
     private val metadataEditStateHolder: MetadataEditStateHolder,
     private val externalMediaStateHolder: ExternalMediaStateHolder,
     val themeStateHolder: ThemeStateHolder
 ) : ViewModel() {
 
-    // AlarmManager is now managed by SleepTimerStateHolder
-    
     private val _playerUiState = MutableStateFlow(PlayerUiState())
     val playerUiState: StateFlow<PlayerUiState> = _playerUiState.asStateFlow()
     
     val stablePlayerState: StateFlow<StablePlayerState> = playbackStateHolder.stablePlayerState
     
     private val _masterAllSongs = MutableStateFlow<ImmutableList<Song>>(persistentListOf())
-    
-    /**
-     * Paginated songs for efficient display in LibraryScreen.
-     * Uses Paging 3 for memory-efficient loading of large libraries.
-     */
-    val paginatedSongs: Flow<PagingData<Song>> = musicRepository.getPaginatedSongs()
-        .cachedIn(viewModelScope)
 
     // Lyrics load callback for LyricsStateHolder
     private val lyricsLoadCallback = object : LyricsLoadCallback {
@@ -285,7 +175,6 @@ class PlayerViewModel @Inject constructor(
     private val _sheetState = MutableStateFlow(PlayerSheetState.COLLAPSED)
     val sheetState: StateFlow<PlayerSheetState> = _sheetState.asStateFlow()
     private val _isSheetVisible = MutableStateFlow(false)
-    val isSheetVisible: StateFlow<Boolean> = _isSheetVisible.asStateFlow()
     private val _bottomBarHeight = MutableStateFlow(0)
     val bottomBarHeight: StateFlow<Int> = _bottomBarHeight.asStateFlow()
     private val _predictiveBackCollapseFraction = MutableStateFlow(0f)
@@ -309,7 +198,6 @@ class PlayerViewModel @Inject constructor(
     // Theme & Colors - delegated to ThemeStateHolder
     val currentAlbumArtColorSchemePair: StateFlow<ColorSchemePair?> = themeStateHolder.currentAlbumArtColorSchemePair
     val activePlayerColorSchemePair: StateFlow<ColorSchemePair?> = themeStateHolder.activePlayerColorSchemePair
-    val playerThemePreference: StateFlow<String> = userPreferencesRepository.playerThemePreferenceFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreference.GLOBAL)
 
     val navBarCornerRadius: StateFlow<Int> = userPreferencesRepository.navBarCornerRadiusFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 32)
 
@@ -341,13 +229,6 @@ class PlayerViewModel @Inject constructor(
             initialValue = FullPlayerLoadingTweaks()
         )
 
-    private val disableCastAutoplay: StateFlow<Boolean> = userPreferencesRepository.disableCastAutoplayFlow
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = false
-        )
-
 
     // Lyrics sync offset - now managed by LyricsStateHolder
     val currentSongLyricsSyncOffset: StateFlow<Int> = lyricsStateHolder.currentSongSyncOffset
@@ -367,14 +248,7 @@ class PlayerViewModel @Inject constructor(
 
 
     private val _isInitialThemePreloadComplete = MutableStateFlow(false)
-    val isInitialThemePreloadComplete: StateFlow<Boolean> = _isInitialThemePreloadComplete.asStateFlow()
 
-    // Manual shuffle state - now managed by QueueStateHolder
-    private val originalQueueOrder: List<Song> get() = queueStateHolder.originalQueueOrder
-    private val originalQueueName: String get() = queueStateHolder.originalQueueName
-
-    // Sleep Timer StateFlows - delegated to SleepTimerStateHolder
-    val sleepTimerEndTimeMillis: StateFlow<Long?> = sleepTimerStateHolder.sleepTimerEndTimeMillis
     val isEndOfTrackTimerActive: StateFlow<Boolean> = sleepTimerStateHolder.isEndOfTrackTimerActive
     val activeTimerValueDisplay: StateFlow<String?> = sleepTimerStateHolder.activeTimerValueDisplay
     val playCount: StateFlow<Float> = sleepTimerStateHolder.playCount
@@ -382,9 +256,6 @@ class PlayerViewModel @Inject constructor(
     // Lyrics search UI state - managed by LyricsStateHolder
     val lyricsSearchUiState: StateFlow<LyricsSearchUiState> = lyricsStateHolder.searchUiState
 
-    // lyricsLoadingJob moved to LyricsStateHolder
-    private var countedMediaListener: Player.Listener? = null
-    private var countedOriginalSongId: String? = null
 
     // Toast Events
     private val _toastEvents = MutableSharedFlow<String>()
@@ -413,12 +284,10 @@ class PlayerViewModel @Inject constructor(
     
     // Cast state is now managed by CastStateHolder
     private val sessionManager: SessionManager get() = castStateHolder.sessionManager
-    private var castSessionManagerListener: SessionManagerListener<CastSession>? = null
 
     val isRemotePlaybackActive: StateFlow<Boolean> = castStateHolder.isRemotePlaybackActive
     val isCastConnecting: StateFlow<Boolean> = castStateHolder.isCastConnecting
     private val castControlCategory get() = CastMediaControlIntent.categoryForCast(CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID)
-    private val pendingCastRouteId: String? get() = castStateHolder.pendingCastRouteId
     val remotePosition: StateFlow<Long> = castStateHolder.remotePosition
 
     private val _trackVolume = MutableStateFlow(1.0f)
@@ -477,12 +346,6 @@ class PlayerViewModel @Inject constructor(
             _toastEvents.emit(message)
         }
     }
-
-    private fun markPendingRemoteSong(song: Song?) {
-        if (song == null) return
-        castTransferStateHolder.markPendingRemoteSong(song)
-    }
-
 
 
     // Last Library Tab Index
@@ -601,7 +464,6 @@ class PlayerViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     // Library State - delegated to LibraryStateHolder
-    // val currentFavoriteSortOptionStateFlow: StateFlow<SortOption> = _currentFavoriteSortOptionStateFlow.asStateFlow() // Removed, use libraryStateHolder
 
     val favoriteSongs: StateFlow<ImmutableList<Song>> = combine(
         favoriteSongIds,
@@ -734,17 +596,7 @@ class PlayerViewModel @Inject constructor(
         )
     }
 
-    private var progressJob: Job? = null
-    private var remoteProgressObserverJob: Job? = null
     private var transitionSchedulerJob: Job? = null
-    // ListeningStatsTracker is now injected via constructor
-    private var lastKnownRemoteIsPlaying = false
-    
-    // Lifecycle-aware progress updates for battery optimization
-    // Uses sheet visibility and state as proxy for UI visibility
-    private fun isPlayerUiActive(): Boolean {
-        return _isSheetVisible.value && _sheetState.value == PlayerSheetState.EXPANDED
-    }
 
     private fun incrementSongScore(song: Song) {
         listeningStatsTracker.onVoluntarySelection(song.id)
@@ -766,20 +618,10 @@ class PlayerViewModel @Inject constructor(
     ): SortOption {
         return SortOption.fromStorageKey(optionKey, allowed, fallback)
     }
-    // Connectivity permission checks delegated to ConnectivityStateHolder
-    fun hasBluetoothPermission(): Boolean = connectivityStateHolder.hasBluetoothPermission()
-    fun hasLocationPermission(): Boolean = connectivityStateHolder.hasLocationPermission()
 
     private fun MediaRouter.RouteInfo.isCastRoute(): Boolean {
         return supportsControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK) ||
             supportsControlCategory(castControlCategory)
-    }
-
-    private fun buildCastRouteSelector(): MediaRouteSelector {
-        return MediaRouteSelector.Builder()
-            .addControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK)
-            .addControlCategory(castControlCategory)
-            .build()
     }
 
     // Connectivity refresh delegated to ConnectivityStateHolder
@@ -1129,61 +971,6 @@ class PlayerViewModel @Inject constructor(
         Trace.endSection()
     }
 
-    fun loadDummyDataForBenchmark() {
-        Log.i("PlayerViewModel", "Loading dummy data for benchmark")
-        val dummySong = Song(
-            id = "dummy_1",
-            title = "Benchmark Song",
-            artist = "Benchmark Artist",
-            artistId = 1L,
-            album = "Benchmark Album",
-            albumId = 1L,
-            path = "",
-            contentUriString = "",
-            albumArtUriString = null,
-            duration = 180000L,
-            genre = "Benchmark",
-            lyrics = null,
-            isFavorite = false,
-            trackNumber = 1,
-            year = 2024,
-            dateAdded = System.currentTimeMillis(),
-            mimeType = "audio/mpeg",
-            bitrate = 320,
-            sampleRate = 44100
-        )
-
-        _playerUiState.update {
-            it.copy(
-                isLoadingInitialSongs = false,
-                isLoadingLibraryCategories = false
-            )
-        }
-
-        val dummyList = persistentListOf(dummySong)
-        _masterAllSongs.value = dummyList
-        _playerUiState.update {
-            it.copy(
-                currentPlaybackQueue = dummyList,
-                currentQueueSourceName = "Benchmark",
-                currentPosition = 30000L
-            )
-        }
-
-        playbackStateHolder.updateStablePlayerState {
-            it.copy(
-                currentSong = dummySong,
-                isPlaying = true,
-                totalDuration = 180000L
-            )
-        }
-
-        _isSheetVisible.value = true
-        viewModelScope.launch {
-            delay(500)
-            _sheetState.value = PlayerSheetState.EXPANDED
-        }
-    }
 
     private fun checkAndUpdateDailyMixIfNeeded() {
         // Delegate to DailyMixStateHolder
@@ -1195,101 +982,36 @@ class PlayerViewModel @Inject constructor(
 
     private fun preloadThemesAndInitialData() {
         Trace.beginSection("PlayerViewModel.preloadThemesAndInitialData")
-        val functionStartTime = System.currentTimeMillis()
-        Log.d("PlayerViewModelPerformance", "preloadThemesAndInitialData START")
-
-        viewModelScope.launch { // Main.immediate by default
-            val overallInitStartTime = System.currentTimeMillis()
-            _isInitialThemePreloadComplete.value = false // Mantener esto
-            Log.d("PlayerViewModelPerformance", "preloadThemesAndInitialData: _isInitialThemePreloadComplete set to false. Time from start: ${System.currentTimeMillis() - overallInitStartTime} ms")
+        viewModelScope.launch {
+            _isInitialThemePreloadComplete.value = false
             if (isSyncingStateFlow.value && !_isInitialDataLoaded.value) {
-                Log.i("PlayerViewModel", "preloadThemesAndInitialData: Sync is active and initial data not yet loaded, deferring initial load to sync completion handler.")
-            } else if (!_isInitialDataLoaded.value && _masterAllSongs.value.isEmpty()) { // Check _isInitialDataLoaded
-                Log.i("PlayerViewModel", "preloadThemesAndInitialData: Sync not active or already finished, and initial data not loaded. Calling resetAndLoadInitialData from preload.")
+                // Sync is active - defer to sync completion handler
+            } else if (!_isInitialDataLoaded.value && _masterAllSongs.value.isEmpty()) {
                 resetAndLoadInitialData("preloadThemesAndInitialData")
-            } else {
-                Log.i("PlayerViewModel", "preloadThemesAndInitialData: Initial data already loaded or sync is active and will trigger load. Skipping direct call to resetAndLoadInitialData from preload.")
             }
             _isInitialThemePreloadComplete.value = true
-            val timeToComplete = System.currentTimeMillis() - overallInitStartTime
-            Log.d("PlayerViewModelPerformance", "Initial theme preload complete (async data loading dispatched). Total time since overallInitStart: ${timeToComplete} ms")
         }
-        Log.d("PlayerViewModelPerformance", "preloadThemesAndInitialData END. Total function time: ${System.currentTimeMillis() - functionStartTime} ms (dispatching async work)")
         Trace.endSection()
     }
 
-    // Nueva función para carga paralela
     private fun loadInitialLibraryDataParallel() {
-        Log.d("PlayerViewModel", "Delegating initial load to LibraryStateHolder...")
-        // Trigger loading in LibraryStateHolder. 
-        // These methods launch their own coroutines on the scope passed in initialize().
         libraryStateHolder.loadSongsFromRepository()
         libraryStateHolder.loadAlbumsFromRepository()
         libraryStateHolder.loadArtistsFromRepository()
         libraryStateHolder.loadFoldersFromRepository()
     }
-
 
     private fun resetAndLoadInitialData(caller: String = "Unknown") {
         Trace.beginSection("PlayerViewModel.resetAndLoadInitialData")
-        val functionStartTime = System.currentTimeMillis()
-        Log.i("PlayerViewModel", "resetAndLoadInitialData called from: $caller. Proceeding with load.")
-        Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData START - Called by: $caller")
-
         loadInitialLibraryDataParallel()
         updateDailyMix()
-
-        Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData END (dispatching parallel async work). Total function time: ${System.currentTimeMillis() - functionStartTime} ms")
-        Trace.endSection() // End PlayerViewModel.resetAndLoadInitialData
+        Trace.endSection()
     }
 
-    // This function might still be called by loadSongsIfNeeded,
-    // but _isInitialDataLoaded should now be primarily managed by loadInitialLibraryDataParallel
-    private fun loadSongsFromRepository() {
-        libraryStateHolder.loadSongsFromRepository()
-    }
-
-    private fun loadAlbumsFromRepository() {
-        libraryStateHolder.loadAlbumsFromRepository()
-    }
-
-    fun loadSongsIfNeeded() {
-        libraryStateHolder.loadSongsIfNeeded()
-    }
-
-    fun loadAlbumsIfNeeded() {
-        libraryStateHolder.loadAlbumsIfNeeded()
-    }
-
-    // Funciones para cargar artistas
-    private fun loadArtistsFromRepository() {
-        libraryStateHolder.loadArtistsFromRepository()
-    }
-
-    fun loadArtistsIfNeeded() {
-        libraryStateHolder.loadArtistsIfNeeded()
-    }
-
-    fun loadFoldersFromRepository() {
-        libraryStateHolder.loadFoldersFromRepository()
-    }
-
-    private fun onAllowedDirectoriesChanged() {
-        _loadedTabs.value = emptySet()
-
-        _playerUiState.update { state ->
-            if (_currentLibraryTabId.value == LibraryTabId.FOLDERS) {
-                state.copy(currentFolder = null, currentFolderPath = null)
-            } else {
-                state
-            }
-        }
-
-        loadSongsFromRepository()
-        loadAlbumsFromRepository()
-        loadArtistsFromRepository()
-        loadFoldersFromRepository()
-    }
+    fun loadSongsIfNeeded() = libraryStateHolder.loadSongsIfNeeded()
+    fun loadAlbumsIfNeeded() = libraryStateHolder.loadAlbumsIfNeeded()
+    fun loadArtistsIfNeeded() = libraryStateHolder.loadArtistsIfNeeded()
+    fun loadFoldersFromRepository() = libraryStateHolder.loadFoldersFromRepository()
 
     fun showAndPlaySong(
         song: Song,
@@ -1381,19 +1103,6 @@ class PlayerViewModel @Inject constructor(
     private fun List<Song>.matchesSongOrder(contextSongs: List<Song>): Boolean {
         if (size != contextSongs.size) return false
         return indices.all { this[it].id == contextSongs[it].id }
-    }
-
-    private fun List<MediaQueueItem>.matchesQueueSongOrder(contextSongs: List<Song>): Boolean {
-        if (size != contextSongs.size) return false
-
-        for (index in indices) {
-            val queueSongId = this[index].customData?.optString("songId")
-            if (queueSongId.isNullOrEmpty() || queueSongId != contextSongs[index].id) {
-                return false
-            }
-        }
-
-        return true
     }
 
     fun playAlbum(album: Album) {
@@ -1774,9 +1483,8 @@ class PlayerViewModel @Inject constructor(
         Trace.endSection()
     }
 
-// Helper functions (fisherYatesCopy, generateShuffleOrder, buildAnchoredShuffleQueue, buildMediaItemFromSong) moved to Utils
 
-// rebuildPlayerQueue functionality moved to PlaybackStateHolder (simplified)
+    // rebuildPlayerQueue functionality moved to PlaybackStateHolder (simplified)
     fun playSongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None", playlistId: String? = null) {
         viewModelScope.launch {
             transitionSchedulerJob?.cancel()
@@ -1809,7 +1517,6 @@ class PlayerViewModel @Inject constructor(
     }
 
     // Start playback with shuffle enabled in one coroutine to avoid racing queue updates
-    // Start playback with shuffle enabled
     fun playSongsShuffled(songsToPlay: List<Song>, queueName: String = "None", playlistId: String? = null) {
         viewModelScope.launch {
             val result = queueStateHolder.prepareShuffledQueue(songsToPlay, queueName)
@@ -2023,14 +1730,6 @@ class PlayerViewModel @Inject constructor(
         playbackStateHolder.cycleRepeatMode()
     }
 
-    fun repeatSingle(){
-        playbackStateHolder.setRepeatMode(Player.REPEAT_MODE_ONE)
-    }
-
-    fun repeatOff(){
-        playbackStateHolder.setRepeatMode(Player.REPEAT_MODE_OFF)
-    }
-
     fun toggleFavorite() {
         playbackStateHolder.stablePlayerState.value.currentSong?.id?.let { songId ->
             viewModelScope.launch {
@@ -2187,16 +1886,6 @@ class PlayerViewModel @Inject constructor(
                 if (window.mediaItem.mediaId == songId) {
                     // Remove the media item by index
                     controller.removeMediaItem(i)
-
-                    // If the currently playing song was removed, handle playback
-//                    val currentMediaItem = controller.currentMediaItem
-//                    if (currentMediaItem?.mediaId == songId) {
-//                        when {
-//                            controller.hasNextMediaItem() -> controller.seekToNextMediaItem()
-//                            controller.hasPreviousMediaItem() -> controller.seekToPreviousMediaItem()
-//                            else -> controller.stop()
-//                        }
-//                    }
                     break
                 }
             }
@@ -2204,15 +1893,6 @@ class PlayerViewModel @Inject constructor(
             Log.e("MediaController", "Error removing from queue: ${e.message}")
         }
     }
-
-
-
-
-
-
-
-
-
 
     fun playPause() {
         val castSession = castStateHolder.castSession.value
@@ -2292,44 +1972,10 @@ class PlayerViewModel @Inject constructor(
         playbackStateHolder.stopProgressUpdates()
     }
 
-    private suspend fun loadArtworkData(uriString: String?): ByteArray? {
-        if (uriString == null) return null
-        return withContext(Dispatchers.IO) {
-            try {
-                val request = ImageRequest.Builder(context)
-                    .data(uriString.toUri())
-                    .size(Size(256, 256))
-                    .allowHardware(false)
-                    .bitmapConfig(Bitmap.Config.ARGB_8888)
-                    .build()
-                val drawable = context.imageLoader.execute(request).drawable
-                drawable?.let {
-                    val bitmap = it.toBitmap(
-                        width = it.intrinsicWidth.coerceAtMost(256).coerceAtLeast(1),
-                        height = it.intrinsicHeight.coerceAtMost(256).coerceAtLeast(1),
-                        config = Bitmap.Config.ARGB_8888
-                    )
-
-                    val stream = ByteArrayOutputStream()
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, stream)
-                    } else {
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream)
-                    }
-                    stream.toByteArray()
-                }
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error loading artwork data for MediaMetadata: $uriString", e)
-                null
-            }
-        }
-    }
-
     suspend fun getSongs(songIds: List<String>) : List<Song>{
         return musicRepository.getSongsByIds(songIds).first()
     }
 
-    //Sorting
     //Sorting
     fun sortSongs(sortOption: SortOption, persist: Boolean = true) {
         libraryStateHolder.sortSongs(sortOption, persist)
@@ -2419,15 +2065,6 @@ class PlayerViewModel @Inject constructor(
                 currentFolderPath = null,
                 currentFolder = null
             )
-        }
-    }
-
-    fun toggleFolderFilter() {
-        viewModelScope.launch {
-            val newFilterState = !_playerUiState.value.isFolderFilterActive
-            userPreferencesRepository.setFolderFilterActive(newFilterState)
-            _playerUiState.update { it.copy(isFolderFilterActive = newFilterState) }
-            loadFoldersFromRepository()
         }
     }
 
@@ -2794,19 +2431,6 @@ class PlayerViewModel @Inject constructor(
                 val refreshedAlbumArtUri = result.updatedAlbumArtUri
 
                 invalidateCoverArtCaches(previousAlbumArt, refreshedAlbumArtUri)
-                
-                 // Logic to update color scheme if art changed
-                 if (coverArtUpdate != null) {
-                     purgeAlbumArtThemes(previousAlbumArt, refreshedAlbumArtUri)
-                     if (refreshedAlbumArtUri != null) {
-                         themeStateHolder.getAlbumColorSchemeFlow(refreshedAlbumArtUri)
-                         val currentUri = playbackStateHolder.stablePlayerState.value.currentSong?.albumArtUriString
-                         themeStateHolder.extractAndGenerateColorScheme(refreshedAlbumArtUri.toUri(), currentUri, isPreload = false)
-                     } else {
-                         val currentUri = playbackStateHolder.stablePlayerState.value.currentSong?.albumArtUriString
-                         themeStateHolder.extractAndGenerateColorScheme(null, currentUri, isPreload = false)
-                     }
-                 }
 
                 _playerUiState.update { state ->
                     val queueIndex = state.currentPlaybackQueue.indexOfFirst { it.id == song.id }
