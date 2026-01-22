@@ -58,7 +58,7 @@ class ColorSchemeProcessor @Inject constructor(
      * Channel for queuing color scheme requests.
      * Used by PlayerViewModel for background processing.
      */
-    val requestChannel = Channel<String>(Channel.UNLIMITED)
+    val requestChannel = Channel<String>(Channel.BUFFERED)
 
     /**
      * Gets or generates a color scheme for the given album art URI.
@@ -195,6 +195,14 @@ class ColorSchemeProcessor @Inject constructor(
      */
     fun evictFromCache(uri: String) {
         memoryCache.remove(uri)
+    }
+
+    /**
+     * Returns a cached scheme if available (memory only).
+     * Useful for instant UI updates without IO.
+     */
+    fun getCachedColorScheme(uri: String): ColorSchemePair? {
+        return memoryCache.get(uri)
     }
 
     // Mapping functions

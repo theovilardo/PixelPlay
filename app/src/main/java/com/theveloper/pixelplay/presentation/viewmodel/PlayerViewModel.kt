@@ -64,6 +64,7 @@ import androidx.media3.session.SessionToken
 import androidx.mediarouter.media.MediaControlIntent
 import androidx.mediarouter.media.MediaRouteSelector
 import androidx.mediarouter.media.MediaRouter
+import coil.annotation.ExperimentalCoilApi
 import coil.imageLoader
 import coil.memory.MemoryCache
 import com.google.android.gms.cast.framework.CastContext
@@ -340,6 +341,18 @@ class PlayerViewModel @Inject constructor(
      */
     val paginatedSongs: Flow<PagingData<Song>> = musicRepository.getPaginatedSongs()
         .cachedIn(viewModelScope)
+
+    /**
+     * Paginated albums for efficient display in LibraryScreen.
+     */
+    val paginatedAlbums: Flow<PagingData<Album>> = musicRepository.getPaginatedAlbums()
+        .cachedIn(viewModelScope)
+
+    /**
+     * Paginated artists for efficient display in LibraryScreen.
+     */
+    val paginatedArtists: Flow<PagingData<Artist>> = musicRepository.getPaginatedArtists()
+        .cachedIn(viewModelScope)
     
     private val _stablePlayerState = MutableStateFlow(StablePlayerState())
     val stablePlayerState: StateFlow<StablePlayerState> = _stablePlayerState.asStateFlow()
@@ -533,6 +546,7 @@ class PlayerViewModel @Inject constructor(
     // Keep lastRemote* as local variables for safety - many internal assignments
     private var lastRemoteMediaStatus: MediaStatus? = null
     private var lastRemoteQueue: List<Song> = emptyList()
+    private val maxRemoteQueueCacheSize = 200
     private var lastRemoteSongId: String? = null
     private var lastRemoteStreamPosition: Long = 0L
     private var lastRemoteRepeatMode: Int = Player.REPEAT_MODE_OFF
@@ -544,6 +558,10 @@ class PlayerViewModel @Inject constructor(
     private val isRemotelySeeking = MutableStateFlow(false)
     private var remoteMediaClientCallback: RemoteMediaClient.Callback? = null
     private var remoteProgressListener: RemoteMediaClient.ProgressListener? = null
+
+    private fun trimRemoteQueue(queue: List<Song>): List<Song> {
+        return if (queue.size > maxRemoteQueueCacheSize) queue.take(maxRemoteQueueCacheSize) else queue
+    }
 
     private data class QueueTransferData(
         val finalQueue: List<Song>,
@@ -609,6 +627,7 @@ class PlayerViewModel @Inject constructor(
             }
             state.copy(currentPlaybackQueue = updatedQueue.toImmutableList(), currentPosition = 0L)
         }
+        prefetchUpcomingColorSchemes(song.id, _playerUiState.value.currentPlaybackQueue)
         castStateHolder.setRemotePosition(0L)
     }
 
@@ -761,7 +780,8 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    private val colorSchemeRequestChannel = Channel<String>(Channel.UNLIMITED)
+    private val colorSchemePrefetchCount = 2
+    private val colorSchemeRequestChannel = Channel<String>(Channel.BUFFERED)
     private val urisBeingProcessed = mutableSetOf<String>()
 
     private var mediaController: MediaController? = null
@@ -1011,6 +1031,7 @@ class PlayerViewModel @Inject constructor(
             } else {
                 // Fallback to WifiManager for older APIs or if transportInfo failed
                 val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+                @Suppress("DEPRECATION")
                 val info = wifiManager?.connectionInfo
                 val fallbackSsid = info?.ssid
                 if (fallbackSsid != null && fallbackSsid != "<unknown ssid>") {
@@ -1467,7 +1488,7 @@ class PlayerViewModel @Inject constructor(
                             lastRemoteQueue.any { it.id == song.id }
                         }
                     if (!isShrunkSubset || lastRemoteQueue.isEmpty()) {
-                        lastRemoteQueue = newQueue
+                        lastRemoteQueue = trimRemoteQueue(newQueue)
                         Timber.tag(CAST_LOG_TAG).d("Cached remote queue items: %d", newQueue.size)
                     } else {
                         Timber.tag(CAST_LOG_TAG)
@@ -1569,6 +1590,7 @@ class PlayerViewModel @Inject constructor(
                         totalDuration = streamDuration
                     )
                 }
+                prefetchUpcomingColorSchemes(currentSongFallback?.id, queueForUi)
                 if (castSession.value != null) {
                     _isSheetVisible.value = true
                 }
@@ -1611,7 +1633,7 @@ class PlayerViewModel @Inject constructor(
                     }
 
                     lastRemoteMediaStatus = null
-                    lastRemoteQueue = currentQueue
+                    lastRemoteQueue = trimRemoteQueue(currentQueue)
                     lastRemoteSongId = currentQueue.getOrNull(currentSongIndex)?.id
                     lastRemoteStreamPosition = currentPosition
                     lastRemoteRepeatMode = castRepeatMode
@@ -1745,8 +1767,8 @@ class PlayerViewModel @Inject constructor(
                     return
                 }
                 Timber.tag(CAST_LOG_TAG).i(
-                    "Transfer back: mediaController available=%s at +%dms",
-                    localPlayer != null,
+                    "Transfer back: mediaController ready (items=%d) at +%dms",
+                    localPlayer.mediaItemCount,
                     SystemClock.elapsedRealtime() - startMs
                 )
 
@@ -2774,6 +2796,7 @@ class PlayerViewModel @Inject constructor(
                         extractAndGenerateColorScheme(uri)
                     }
                 }
+                prefetchUpcomingColorSchemes(song.id, _playerUiState.value.currentPlaybackQueue)
                 listeningStatsTracker.onSongChanged(
                     song = song,
                     positionMs = playerCtrl.currentPosition.coerceAtLeast(0L),
@@ -2864,6 +2887,7 @@ class PlayerViewModel @Inject constructor(
                                     extractAndGenerateColorScheme(uri)
                                 }
                             }
+                            prefetchUpcomingColorSchemes(currentSongValue.id, _playerUiState.value.currentPlaybackQueue)
                             loadLyricsForCurrentSong()
                         }
                     } ?: run {
@@ -3530,7 +3554,7 @@ class PlayerViewModel @Inject constructor(
             // Keep UI and callbacks pinned to the intended target while the cast queue rebuilds
             // to avoid bouncing back to the previous track when switching contexts.
             markPendingRemoteSong(startSong)
-            lastRemoteQueue = songsToPlay
+            lastRemoteQueue = trimRemoteQueue(songsToPlay)
             lastRemoteSongId = startSong.id
             lastRemoteStreamPosition = 0L
             lastRemoteRepeatMode = repeatMode
@@ -4055,6 +4079,35 @@ class PlayerViewModel @Inject constructor(
         return newFlow
     }
 
+    private fun prefetchUpcomingColorSchemes(currentSongId: String?, queue: List<Song>) {
+        if (currentSongId == null || queue.isEmpty()) return
+        val currentIndex = queue.indexOfFirst { it.id == currentSongId }
+        if (currentIndex == -1) return
+
+        val urisToPrefetch =
+            (1..colorSchemePrefetchCount)
+                .mapNotNull { offset -> queue.getOrNull(currentIndex + offset)?.albumArtUriString }
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .distinct()
+
+        if (urisToPrefetch.isEmpty()) return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            urisToPrefetch.forEach { uri ->
+                val cached = colorSchemeProcessor.getCachedColorScheme(uri)
+                if (cached != null) {
+                    individualAlbumColorSchemes[uri]?.value = cached
+                } else {
+                    val scheme = colorSchemeProcessor.getOrGenerateColorScheme(uri)
+                    if (scheme != null) {
+                        individualAlbumColorSchemes[uri]?.value = scheme
+                    }
+                }
+            }
+        }
+    }
+
     private fun launchColorSchemeProcessor() {
         viewModelScope.launch(Dispatchers.IO) {
             Trace.beginSection("PlayerViewModel.colorSchemeProcessorLoop")
@@ -4117,6 +4170,12 @@ class PlayerViewModel @Inject constructor(
             }
             
             val uriString = albumArtUriAsUri.toString()
+            if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) {
+                colorSchemeProcessor.getCachedColorScheme(uriString)?.let { cachedScheme ->
+                    _currentAlbumArtColorSchemePair.value = cachedScheme
+                    updateLavaLampColorsBasedOnActivePlayerScheme()
+                }
+            }
             // Use the optimized ColorSchemeProcessor with LRU cache
             val schemePair = colorSchemeProcessor.getOrGenerateColorScheme(uriString)
             
@@ -4205,7 +4264,7 @@ class PlayerViewModel @Inject constructor(
             } else {
                 // If there are items in the remote queue, just play.
                 // Otherwise, load the current local queue to the remote player.
-                if (remoteMediaClient.mediaQueue != null && remoteMediaClient.mediaQueue.itemCount > 0) {
+                if (remoteMediaClient.mediaQueue.itemCount > 0) {
                     castPlayer?.play()
                 } else {
                     val queue = _playerUiState.value.currentPlaybackQueue
@@ -4385,14 +4444,18 @@ class PlayerViewModel @Inject constructor(
                         height = it.intrinsicHeight.coerceAtMost(256).coerceAtLeast(1),
                         config = Bitmap.Config.ARGB_8888
                     )
-
-                    val stream = ByteArrayOutputStream()
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, stream)
-                    } else {
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream)
+                    try {
+                        ByteArrayOutputStream().use { stream ->
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, stream)
+                            } else {
+                                bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream)
+                            }
+                            stream.toByteArray()
+                        }
+                    } finally {
+                        bitmap.recycle()
                     }
-                    stream.toByteArray()
                 }
             } catch (e: Exception) {
                 Log.e("PlayerViewModel", "Error loading artwork data for MediaMetadata: $uriString", e)
@@ -5385,6 +5448,7 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    @OptIn(ExperimentalCoilApi::class)
     private fun invalidateCoverArtCaches(vararg uriStrings: String?) {
         val imageLoader = context.imageLoader
         val memoryCache = imageLoader.memoryCache

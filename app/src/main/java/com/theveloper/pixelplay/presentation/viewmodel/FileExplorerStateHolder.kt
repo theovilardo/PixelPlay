@@ -8,6 +8,7 @@ import com.theveloper.pixelplay.utils.StorageInfo
 import com.theveloper.pixelplay.utils.StorageUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -25,7 +26,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
-import java.util.concurrent.ConcurrentHashMap
+import android.util.LruCache
 
 data class DirectoryEntry(
     val file: File,
@@ -44,6 +45,7 @@ private data class RawDirectoryEntry(
     val displayName: String? = null
 )
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class FileExplorerStateHolder(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val scope: CoroutineScope,
@@ -53,7 +55,8 @@ class FileExplorerStateHolder(
 
     private var visibleRoot: File = initialRoot
     private var rootCanonicalPath: String = normalizePath(visibleRoot)
-    private val audioCountCache = ConcurrentHashMap<String, AudioCount>()
+    private val cacheLock = Any()
+    private val audioCountCache = LruCache<String, AudioCount>(AUDIO_COUNT_CACHE_MAX_ENTRIES)
 
     // Available storages (Internal, SD Card, USB)
     private val _availableStorages = MutableStateFlow<List<StorageInfo>>(emptyList())
@@ -63,7 +66,7 @@ class FileExplorerStateHolder(
     val selectedStorageIndex: StateFlow<Int> = _selectedStorageIndex.asStateFlow()
 
     // Cache for "Raw" entries (without selection state)
-    private val directoryChildrenCache = mutableMapOf<String, List<RawDirectoryEntry>>()
+    private val directoryChildrenCache = LruCache<String, List<RawDirectoryEntry>>(DIR_CHILDREN_CACHE_MAX_ENTRIES)
 
     private val _currentPath = MutableStateFlow(visibleRoot)
     val currentPath: StateFlow<File> = _currentPath.asStateFlow()
@@ -184,7 +187,8 @@ class FileExplorerStateHolder(
     }
 
     fun primeExplorerRoot(): Job? {
-        if (_isExplorerReady.value && directoryChildrenCache.containsKey(rootCanonicalPath)) return null
+        val hasRootCached = synchronized(cacheLock) { directoryChildrenCache.get(rootCanonicalPath) != null }
+        if (_isExplorerReady.value && hasRootCached) return null
         if (_isPrimingExplorer.value) return null
 
         _isPrimingExplorer.value = true
@@ -239,7 +243,7 @@ class FileExplorerStateHolder(
         val targetKey = normalizePath(target)
 
         if (forceRefresh) {
-            directoryChildrenCache.remove(targetKey)
+            synchronized(cacheLock) { directoryChildrenCache.remove(targetKey) }
         }
 
         if (updatePath) {
@@ -247,7 +251,7 @@ class FileExplorerStateHolder(
         }
 
         val cachedEntries = if (!forceRefresh) {
-            directoryChildrenCache[targetKey]
+            synchronized(cacheLock) { directoryChildrenCache.get(targetKey) }
         } else null
 
         if (cachedEntries != null) {
@@ -276,7 +280,9 @@ class FileExplorerStateHolder(
                     }
                 }.mapNotNull { it.await() }
                     .sortedWith(compareBy({ it.file.name.lowercase() }))
-            }.also { directoryChildrenCache[targetKey] = it }
+            }.also { entries ->
+                synchronized(cacheLock) { directoryChildrenCache.put(targetKey, entries) }
+            }
         }
 
         _rawCurrentDirectoryChildren.value = resultEntries
@@ -287,7 +293,7 @@ class FileExplorerStateHolder(
     private fun countAudioFiles(directory: File, forceRefresh: Boolean): AudioCount {
         val key = normalizePath(directory)
         if (!forceRefresh) {
-            audioCountCache[key]?.let { return it }
+            synchronized(cacheLock) { audioCountCache.get(key) }?.let { return it }
         }
 
         val filesQueue: ArrayDeque<File> = ArrayDeque()
@@ -325,18 +331,27 @@ class FileExplorerStateHolder(
                          // We can stop here for performance. The UI handles "99+" logic if we want,
                          // but currently the UI code says: `if (audioCount > 99) "99+" else audioCount.toString()`.
                          // So we MUST return at least 100 to trigger "99+".
-                         return AudioCount(directCount, totalCount).also { audioCountCache[key] = it }
+                         return AudioCount(directCount, totalCount).also {
+                             synchronized(cacheLock) { audioCountCache.put(key, it) }
+                         }
                     }
                 }
             }
         }
 
-        return AudioCount(directCount, totalCount).also { audioCountCache[key] = it }
+        return AudioCount(directCount, totalCount).also {
+            synchronized(cacheLock) { audioCountCache.put(key, it) }
+        }
     }
 
     fun isAtRoot(): Boolean = _currentPath.value.path == visibleRoot.path
 
     fun rootDirectory(): File = visibleRoot
+
+    companion object {
+        private const val AUDIO_COUNT_CACHE_MAX_ENTRIES = 500
+        private const val DIR_CHILDREN_CACHE_MAX_ENTRIES = 100
+    }
 
     private fun normalizePath(file: File): String = runCatching { file.canonicalPath }.getOrDefault(file.absolutePath)
     private fun normalizePath(path: String): String = runCatching { File(path).canonicalPath }.getOrDefault(path)

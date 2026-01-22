@@ -101,6 +101,36 @@ private sealed interface SettingsUiUpdate {
     ) : SettingsUiUpdate
 }
 
+private data class Group1Core(
+    val appRebrandDialogShown: Boolean,
+    val appThemeMode: String,
+    val playerThemePreference: String,
+    val mockGenresEnabled: Boolean,
+    val navBarCornerRadius: Int
+)
+
+private data class Group1Navigation(
+    val navBarStyle: String,
+    val libraryNavigationMode: String,
+    val carouselStyle: String,
+    val launchTab: String
+)
+
+private data class Group2Playback(
+    val keepPlayingInBackground: Boolean,
+    val disableCastAutoplay: Boolean,
+    val showQueueHistory: Boolean,
+    val isCrossfadeEnabled: Boolean,
+    val crossfadeDuration: Int
+)
+
+private data class Group2Preferences(
+    val persistentShuffleEnabled: Boolean,
+    val lyricsSourcePreference: LyricsSourcePreference,
+    val autoScanLrcFiles: Boolean,
+    val blockedDirectories: Set<String>
+)
+
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
@@ -154,27 +184,47 @@ class SettingsViewModel @Inject constructor(
         
         // Group 1: Core UI settings (theme, navigation, appearance)
         viewModelScope.launch {
-            combine(
+            val group1CoreFlow = combine(
                 userPreferencesRepository.appRebrandDialogShownFlow,
                 userPreferencesRepository.appThemeModeFlow,
                 userPreferencesRepository.playerThemePreferenceFlow,
                 userPreferencesRepository.mockGenresEnabledFlow,
-                userPreferencesRepository.navBarCornerRadiusFlow,
+                userPreferencesRepository.navBarCornerRadiusFlow
+            ) { appRebrandDialogShown, appThemeMode, playerThemePreference, mockGenresEnabled, navBarCornerRadius ->
+                Group1Core(
+                    appRebrandDialogShown = appRebrandDialogShown,
+                    appThemeMode = appThemeMode,
+                    playerThemePreference = playerThemePreference,
+                    mockGenresEnabled = mockGenresEnabled,
+                    navBarCornerRadius = navBarCornerRadius
+                )
+            }
+
+            val group1NavigationFlow = combine(
                 userPreferencesRepository.navBarStyleFlow,
                 userPreferencesRepository.libraryNavigationModeFlow,
                 userPreferencesRepository.carouselStyleFlow,
                 userPreferencesRepository.launchTabFlow
-            ) { values ->
+            ) { navBarStyle, libraryNavigationMode, carouselStyle, launchTab ->
+                Group1Navigation(
+                    navBarStyle = navBarStyle,
+                    libraryNavigationMode = libraryNavigationMode,
+                    carouselStyle = carouselStyle,
+                    launchTab = launchTab
+                )
+            }
+
+            combine(group1CoreFlow, group1NavigationFlow) { core, navigation ->
                 SettingsUiUpdate.Group1(
-                    appRebrandDialogShown = values[0] as Boolean,
-                    appThemeMode = values[1] as String,
-                    playerThemePreference = values[2] as String,
-                    mockGenresEnabled = values[3] as Boolean,
-                    navBarCornerRadius = values[4] as Int,
-                    navBarStyle = values[5] as String,
-                    libraryNavigationMode = values[6] as String,
-                    carouselStyle = values[7] as String,
-                    launchTab = values[8] as String
+                    appRebrandDialogShown = core.appRebrandDialogShown,
+                    appThemeMode = core.appThemeMode,
+                    playerThemePreference = core.playerThemePreference,
+                    mockGenresEnabled = core.mockGenresEnabled,
+                    navBarCornerRadius = core.navBarCornerRadius,
+                    navBarStyle = navigation.navBarStyle,
+                    libraryNavigationMode = navigation.libraryNavigationMode,
+                    carouselStyle = navigation.carouselStyle,
+                    launchTab = navigation.launchTab
                 )
             }.collect { update ->
                 _uiState.update { state ->
@@ -195,27 +245,47 @@ class SettingsViewModel @Inject constructor(
         
         // Group 2: Playback and system settings
         viewModelScope.launch {
-            combine(
+            val group2PlaybackFlow = combine(
                 userPreferencesRepository.keepPlayingInBackgroundFlow,
                 userPreferencesRepository.disableCastAutoplayFlow,
                 userPreferencesRepository.showQueueHistoryFlow,
                 userPreferencesRepository.isCrossfadeEnabledFlow,
-                userPreferencesRepository.crossfadeDurationFlow,
+                userPreferencesRepository.crossfadeDurationFlow
+            ) { keepPlayingInBackground, disableCastAutoplay, showQueueHistory, isCrossfadeEnabled, crossfadeDuration ->
+                Group2Playback(
+                    keepPlayingInBackground = keepPlayingInBackground,
+                    disableCastAutoplay = disableCastAutoplay,
+                    showQueueHistory = showQueueHistory,
+                    isCrossfadeEnabled = isCrossfadeEnabled,
+                    crossfadeDuration = crossfadeDuration
+                )
+            }
+
+            val group2PreferencesFlow = combine(
                 userPreferencesRepository.persistentShuffleEnabledFlow,
                 userPreferencesRepository.lyricsSourcePreferenceFlow,
                 userPreferencesRepository.autoScanLrcFilesFlow,
                 userPreferencesRepository.blockedDirectoriesFlow
-            ) { values ->
+            ) { persistentShuffleEnabled, lyricsSourcePreference, autoScanLrcFiles, blockedDirectories ->
+                Group2Preferences(
+                    persistentShuffleEnabled = persistentShuffleEnabled,
+                    lyricsSourcePreference = lyricsSourcePreference,
+                    autoScanLrcFiles = autoScanLrcFiles,
+                    blockedDirectories = blockedDirectories
+                )
+            }
+
+            combine(group2PlaybackFlow, group2PreferencesFlow) { playback, preferences ->
                 SettingsUiUpdate.Group2(
-                    keepPlayingInBackground = values[0] as Boolean,
-                    disableCastAutoplay = values[1] as Boolean,
-                    showQueueHistory = values[2] as Boolean,
-                    isCrossfadeEnabled = values[3] as Boolean,
-                    crossfadeDuration = values[4] as Int,
-                    persistentShuffleEnabled = values[5] as Boolean,
-                    lyricsSourcePreference = values[6] as LyricsSourcePreference,
-                    autoScanLrcFiles = values[7] as Boolean,
-                    blockedDirectories = @Suppress("UNCHECKED_CAST") (values[8] as Set<String>)
+                    keepPlayingInBackground = playback.keepPlayingInBackground,
+                    disableCastAutoplay = playback.disableCastAutoplay,
+                    showQueueHistory = playback.showQueueHistory,
+                    isCrossfadeEnabled = playback.isCrossfadeEnabled,
+                    crossfadeDuration = playback.crossfadeDuration,
+                    persistentShuffleEnabled = preferences.persistentShuffleEnabled,
+                    lyricsSourcePreference = preferences.lyricsSourcePreference,
+                    autoScanLrcFiles = preferences.autoScanLrcFiles,
+                    blockedDirectories = preferences.blockedDirectories
                 )
             }.collect { update ->
                 _uiState.update { state ->

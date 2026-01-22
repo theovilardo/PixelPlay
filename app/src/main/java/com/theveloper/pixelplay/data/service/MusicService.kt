@@ -4,13 +4,11 @@ import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.util.Log
 import android.util.LruCache
 import androidx.core.app.NotificationCompat
-import androidx.core.graphics.drawable.toBitmap
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.media3.common.AudioAttributes
@@ -26,9 +24,6 @@ import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionResult
-import coil.imageLoader
-import coil.request.ImageRequest
-import coil.size.Size
 import android.os.Bundle
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionCommands
@@ -44,6 +39,7 @@ import com.theveloper.pixelplay.ui.glancewidget.PixelPlayGlanceWidget
 import com.theveloper.pixelplay.ui.glancewidget.PlayerActions
 import com.theveloper.pixelplay.ui.glancewidget.PlayerInfoStateDefinition
 import com.theveloper.pixelplay.utils.LogUtils
+import com.theveloper.pixelplay.utils.AlbumArtUtils
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -56,7 +52,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.runBlocking
 import timber.log.Timber
-import java.io.ByteArrayOutputStream
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.service.player.DualPlayerEngine
 import com.theveloper.pixelplay.data.service.player.TransitionController
@@ -408,8 +403,13 @@ class MusicService : MediaSessionService() {
         val mediaId = currentItem?.mediaId
         val artworkUri = currentItem?.mediaMetadata?.artworkUri
         val artworkData = currentItem?.mediaMetadata?.artworkData
+        val currentSongId = mediaId?.toLongOrNull()
 
-        val (artBytes, artUriString) = getAlbumArtForWidget(artworkData, artworkUri)
+        val artUriString = getAlbumArtForWidget(
+            songId = currentSongId,
+            embeddedArt = artworkData,
+            artUri = artworkUri
+        )
 
         val isFavorite = false
 //        val isFavorite = mediaId?.let {
@@ -432,14 +432,15 @@ class MusicService : MediaSessionService() {
                 val mediaItem = window.mediaItem
                 val songId = mediaItem.mediaId.toLongOrNull()
                 if (songId != null) {
-                    val (artBytes, _) = getAlbumArtForWidget(
+                    val queueArtUri = getAlbumArtForWidget(
+                        songId = songId,
                         embeddedArt = mediaItem.mediaMetadata?.artworkData,
                         artUri = mediaItem.mediaMetadata?.artworkUri
                     )
                     queueItems.add(
                         com.theveloper.pixelplay.data.model.QueueItem(
                             id = songId,
-                            albumArtBitmapData = artBytes
+                            albumArtUri = queueArtUri
                         )
                     )
                 }
@@ -451,7 +452,6 @@ class MusicService : MediaSessionService() {
             artistName = artist,
             isPlaying = isPlaying,
             albumArtUri = artUriString,
-            albumArtBitmapData = artBytes,
             currentPositionMs = currentPosition,
             totalDurationMs = totalDuration,
             isFavorite = isFavorite,
@@ -459,23 +459,33 @@ class MusicService : MediaSessionService() {
         )
     }
 
-    private val widgetArtByteArrayCache = LruCache<String, ByteArray>(5)
+    private val widgetArtUriCache = LruCache<String, String>(20)
 
-    private suspend fun getAlbumArtForWidget(embeddedArt: ByteArray?, artUri: Uri?): Pair<ByteArray?, String?> = withContext(Dispatchers.IO) {
-        if (embeddedArt != null && embeddedArt.isNotEmpty()) {
-            return@withContext embeddedArt to artUri?.toString()
+    private suspend fun getAlbumArtForWidget(
+        songId: Long?,
+        embeddedArt: ByteArray?,
+        artUri: Uri?
+    ): String? = withContext(Dispatchers.IO) {
+        artUri?.toString()?.let { uriString ->
+            widgetArtUriCache.put(uriString, uriString)
+            return@withContext uriString
         }
-        val uri = artUri ?: return@withContext null to null
-        val artUriString = uri.toString()
-        val cachedArt = widgetArtByteArrayCache.get(artUriString)
-        if (cachedArt != null) {
-            return@withContext cachedArt to artUriString
+
+        val artBytes = embeddedArt ?: return@withContext null
+        if (songId == null || artBytes.isEmpty()) return@withContext null
+
+        val cacheKey = songId.toString()
+        val cached = widgetArtUriCache.get(cacheKey)
+        if (cached != null) return@withContext cached
+
+        val cachedUri = runCatching {
+            AlbumArtUtils.saveAlbumArtToCache(applicationContext, artBytes, songId).toString()
+        }.getOrNull()
+
+        if (!cachedUri.isNullOrBlank()) {
+            widgetArtUriCache.put(cacheKey, cachedUri)
         }
-        val loadedArt = loadBitmapDataFromUri(uri = uri, context = baseContext)
-        if (loadedArt != null) {
-            widgetArtByteArrayCache.put(artUriString, loadedArt)
-        }
-        return@withContext loadedArt to artUriString
+        return@withContext cachedUri
     }
 
     private suspend fun updateGlanceWidgets(playerInfo: PlayerInfo) = withContext(Dispatchers.IO) {
@@ -496,26 +506,6 @@ class MusicService : MediaSessionService() {
         }
     }
 
-    private suspend fun loadBitmapDataFromUri(context: Context, uri: Uri): ByteArray? = withContext(Dispatchers.IO) {
-        try {
-            val request = ImageRequest.Builder(context).data(uri).size(Size(256, 256)).allowHardware(false).build()
-            val drawable = context.imageLoader.execute(request).drawable
-            drawable?.let {
-                val bitmap = it.toBitmap(256, 256)
-                val stream = ByteArrayOutputStream()
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, stream)
-                } else {
-                    bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream)
-                }
-                stream.toByteArray()
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Fallo al cargar bitmap desde URI: $uri", e)
-            null
-        }
-    }
-
     fun isSongFavorite(songId: String?): Boolean {
         return songId != null && favoriteSongIds.contains(songId)
     }
@@ -524,6 +514,7 @@ class MusicService : MediaSessionService() {
         return isManualShuffleEnabled
     }
 
+    @Suppress("DEPRECATION")
     private fun refreshMediaSessionUi(session: MediaSession) {
         val buttons = buildMediaButtonPreferences(session)
         session.setMediaButtonPreferences(buttons)
@@ -556,6 +547,7 @@ class MusicService : MediaSessionService() {
         refreshMediaSessionUi(session)
     }
 
+    @Suppress("DEPRECATION")
     private fun buildMediaButtonPreferences(session: MediaSession): List<CommandButton> {
         val player = session.player
         val songId = player.currentMediaItem?.mediaId

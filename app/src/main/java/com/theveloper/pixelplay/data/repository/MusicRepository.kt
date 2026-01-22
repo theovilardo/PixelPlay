@@ -27,6 +27,18 @@ interface MusicRepository {
     fun getPaginatedSongs(): Flow<PagingData<Song>>
 
     /**
+     * Returns paginated albums for efficient display of large libraries.
+     * @return Flow of PagingData<Album> for use with LazyPagingItems.
+     */
+    fun getPaginatedAlbums(): Flow<PagingData<Album>>
+
+    /**
+     * Returns paginated artists for efficient display of large libraries.
+     * @return Flow of PagingData<Artist> for use with LazyPagingItems.
+     */
+    fun getPaginatedArtists(): Flow<PagingData<Artist>>
+
+    /**
      * Returns the count of songs in the library.
      * @return Flow emitting the current song count.
      */

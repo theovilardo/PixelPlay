@@ -609,17 +609,8 @@ fun LibraryScreen(
                                     )
                                 }
                                 LibraryTabId.ALBUMS -> {
-                                    val albums by remember {
-                                        playerViewModel.playerUiState
-                                            .map { it.albums }
-                                            .distinctUntilChanged()
-                                    }.collectAsState(initial = persistentListOf())
-
-                                    val isLoading by remember {
-                                        playerViewModel.playerUiState
-                                            .map { it.isLoadingLibraryCategories }
-                                            .distinctUntilChanged()
-                                    }.collectAsState(initial = albums.isEmpty())
+                                    val paginatedAlbums =
+                                        playerViewModel.paginatedAlbums.collectAsLazyPagingItems()
 
                                     val stableOnAlbumClick: (Long) -> Unit = remember(navController) {
                                         { albumId: Long ->
@@ -627,8 +618,7 @@ fun LibraryScreen(
                                         }
                                     }
                                     LibraryAlbumsTab(
-                                        albums = albums,
-                                        isLoading = isLoading,
+                                        paginatedAlbums = paginatedAlbums,
                                         playerViewModel = playerViewModel,
                                         bottomBarHeight = bottomBarHeightDp,
                                         onAlbumClick = stableOnAlbumClick,
@@ -638,21 +628,11 @@ fun LibraryScreen(
                                 }
 
                                 LibraryTabId.ARTISTS -> {
-                                    val artists by remember {
-                                        playerViewModel.playerUiState
-                                            .map { it.artists }
-                                            .distinctUntilChanged()
-                                    }.collectAsState(initial = persistentListOf())
-
-                                    val isLoading by remember {
-                                        playerViewModel.playerUiState
-                                            .map { it.isLoadingLibraryCategories }
-                                            .distinctUntilChanged()
-                                    }.collectAsState(initial = artists.isEmpty())
+                                    val paginatedArtists =
+                                        playerViewModel.paginatedArtists.collectAsLazyPagingItems()
 
                                     LibraryArtistsTab(
-                                        artists = artists,
-                                        isLoading = isLoading,
+                                        paginatedArtists = paginatedArtists,
                                         playerViewModel = playerViewModel,
                                         bottomBarHeight = bottomBarHeightDp,
                                         onArtistClick = { artistId ->
@@ -830,12 +810,9 @@ fun LibraryScreen(
         }
     }
 
-    val allSongs by playerViewModel.allSongsFlow.collectAsState(initial = emptyList())
-
-
     CreatePlaylistDialog(
         visible = showCreatePlaylistDialog,
-        allSongs = allSongs,
+        songs = playerViewModel.paginatedSongs,
         onDismiss = { showCreatePlaylistDialog = false },
         onCreate = { name, imageUri, color, icon, songIds, cropScale, cropPanX, cropPanY, shapeType, d1, d2, d3, d4 ->
             playlistViewModel.createPlaylist(
@@ -2312,8 +2289,7 @@ fun EnhancedSongListItem(
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun LibraryAlbumsTab(
-    albums: ImmutableList<Album>,
-    isLoading: Boolean,
+    paginatedAlbums: androidx.paging.compose.LazyPagingItems<Album>,
     playerViewModel: PlayerViewModel,
     bottomBarHeight: Dp,
     onAlbumClick: (Long) -> Unit,
@@ -2325,14 +2301,14 @@ fun LibraryAlbumsTab(
     val imageLoader = context.imageLoader
 
     // Prefetching logic for LibraryAlbumsTab
-    LaunchedEffect(albums, gridState) {
+    LaunchedEffect(paginatedAlbums, gridState) {
         snapshotFlow { gridState.layoutInfo }
             .distinctUntilChanged()
             .collect { layoutInfo ->
                 val visibleItemsInfo = layoutInfo.visibleItemsInfo
-                if (visibleItemsInfo.isNotEmpty() && albums.isNotEmpty()) {
+                if (visibleItemsInfo.isNotEmpty() && paginatedAlbums.itemCount > 0) {
                     val lastVisibleItemIndex = visibleItemsInfo.last().index
-                    val totalItemsCount = albums.size
+                    val totalItemsCount = paginatedAlbums.itemCount
                     val prefetchThreshold = 5 // Start prefetching when 5 items are left to be displayed from current visible ones
                     val prefetchCount = 10 // Prefetch next 10 items
 
@@ -2341,7 +2317,7 @@ fun LibraryAlbumsTab(
                         val endIndexToPrefetch = (startIndexToPrefetch + prefetchCount).coerceAtMost(totalItemsCount)
 
                         (startIndexToPrefetch until endIndexToPrefetch).forEach { indexToPrefetch ->
-                            val album = albums.getOrNull(indexToPrefetch)
+                            val album = paginatedAlbums.peek(indexToPrefetch)
                             album?.albumArtUriString?.let { uri ->
                                 val request = ImageRequest.Builder(context)
                                     .data(uri)
@@ -2355,7 +2331,9 @@ fun LibraryAlbumsTab(
             }
     }
 
-    if (isLoading && albums.isEmpty()) {
+    val isInitialLoading =
+        paginatedAlbums.loadState.refresh is LoadState.Loading && paginatedAlbums.itemCount == 0
+    if (isInitialLoading) {
         // Show skeleton grid during loading
         LazyVerticalGrid(
             modifier = Modifier
@@ -2387,7 +2365,7 @@ fun LibraryAlbumsTab(
                 )
             }
         }
-    } else if (albums.isEmpty() && !isLoading) { // canLoadMore removed
+    } else if (paginatedAlbums.itemCount == 0 && paginatedAlbums.loadState.refresh is LoadState.NotLoading) { // canLoadMore removed
         Box(modifier = Modifier
             .fillMaxSize()
             .padding(16.dp), contentAlignment = Alignment.Center) {
@@ -2432,16 +2410,42 @@ fun LibraryAlbumsTab(
                     item(key = "albums_top_spacer", span = { GridItemSpan(maxLineSpan) }) {
                         Spacer(Modifier.height(4.dp))
                     }
-                    items(albums, key = { "album_${it.id}" }) { album ->
-                        val albumSpecificColorSchemeFlow =
-                            playerViewModel.getAlbumColorSchemeFlow(album.albumArtUriString)
-                        val rememberedOnClick = remember(album.id) { { onAlbumClick(album.id) } }
-                        AlbumGridItemRedesigned(
-                            album = album,
-                            albumColorSchemePairFlow = albumSpecificColorSchemeFlow,
-                            onClick = rememberedOnClick,
-                            isLoading = isLoading && albums.isEmpty() // Shimmer solo si está cargando Y la lista está vacía
-                        )
+                    items(
+                        count = paginatedAlbums.itemCount,
+                        key = { index ->
+                            paginatedAlbums.peek(index)?.id?.let { "album_$it" }
+                                ?: "album_placeholder_$index"
+                        }
+                    ) { index ->
+                        val album = paginatedAlbums[index]
+                        if (album != null) {
+                            val albumSpecificColorSchemeFlow =
+                                playerViewModel.getAlbumColorSchemeFlow(album.albumArtUriString)
+                            val rememberedOnClick = remember(album.id) { { onAlbumClick(album.id) } }
+                            AlbumGridItemRedesigned(
+                                album = album,
+                                albumColorSchemePairFlow = albumSpecificColorSchemeFlow,
+                                onClick = rememberedOnClick,
+                                isLoading = false
+                            )
+                        } else {
+                            AlbumGridItemRedesigned(
+                                album = Album.empty(),
+                                albumColorSchemePairFlow = MutableStateFlow(null),
+                                onClick = {},
+                                isLoading = true
+                            )
+                        }
+                    }
+                    if (paginatedAlbums.loadState.append is LoadState.Loading) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Box(
+                                Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                LoadingIndicator(modifier = Modifier.size(32.dp))
+                            }
+                        }
                     }
                 }
             }
@@ -2604,9 +2608,7 @@ fun AlbumGridItemRedesigned(
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun LibraryArtistsTab(
-    artists: ImmutableList<Artist>,
-    isLoading: Boolean, // This now represents the loading state for all artists
-    // canLoadMore: Boolean, // Removed
+    paginatedArtists: androidx.paging.compose.LazyPagingItems<Artist>,
     playerViewModel: PlayerViewModel,
     bottomBarHeight: Dp,
     onArtistClick: (Long) -> Unit,
@@ -2614,7 +2616,9 @@ fun LibraryArtistsTab(
     onRefresh: () -> Unit
 ) {
     val listState = rememberLazyListState()
-    if (isLoading && artists.isEmpty()) {
+    val isInitialLoading =
+        paginatedArtists.loadState.refresh is LoadState.Loading && paginatedArtists.itemCount == 0
+    if (isInitialLoading) {
         // Show skeleton list during loading
         LazyColumn(
             modifier = Modifier
@@ -2642,7 +2646,7 @@ fun LibraryArtistsTab(
             }
         }
     }
-    else if (artists.isEmpty() && !isLoading) { /* ... No artists ... */ } // canLoadMore removed
+    else if (paginatedArtists.itemCount == 0 && paginatedArtists.loadState.refresh is LoadState.NotLoading) { /* ... No artists ... */ } // canLoadMore removed
     else {
         Box(
             modifier = Modifier.fillMaxSize()
@@ -2679,16 +2683,31 @@ fun LibraryArtistsTab(
                     item(key = "artists_top_spacer") {
                         Spacer(Modifier.height(4.dp))
                     }
-                    items(artists, key = { "artist_${it.id}" }) { artist ->
-                        val rememberedOnClick = remember(artist) { { onArtistClick(artist.id) } }
-                        ArtistListItem(artist = artist, onClick = rememberedOnClick)
+                    items(
+                        count = paginatedArtists.itemCount,
+                        key = { index ->
+                            paginatedArtists.peek(index)?.id?.let { "artist_$it" }
+                                ?: "artist_placeholder_$index"
+                        }
+                    ) { index ->
+                        val artist = paginatedArtists[index]
+                        if (artist != null) {
+                            val rememberedOnClick = remember(artist) { { onArtistClick(artist.id) } }
+                            ArtistListItem(artist = artist, onClick = rememberedOnClick)
+                        } else {
+                            ArtistListItem(artist = Artist.empty(), onClick = {}, isLoading = true)
+                        }
                     }
-                    // "Load more" indicator removed as all artists are loaded at once
-                    // if (isLoading && artists.isNotEmpty()) {
-                    //     item { Box(Modifier
-                    //         .fillMaxWidth()
-                    //         .padding(16.dp), Alignment.Center) { CircularProgressIndicator() } }
-                    // }
+                    if (paginatedArtists.loadState.append is LoadState.Loading) {
+                        item {
+                            Box(
+                                Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                LoadingIndicator(modifier = Modifier.size(32.dp))
+                            }
+                        }
+                    }
                 }
             }
 //            Box(

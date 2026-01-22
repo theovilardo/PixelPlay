@@ -17,6 +17,7 @@ import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
+import androidx.glance.LocalSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import kotlin.math.PI
@@ -62,6 +63,9 @@ fun WavyLinearProgressIndicator(
     waveFrequency: Float = 0.08f
 ) {
     val context = LocalContext.current
+    val widgetSize = LocalSize.current
+    val density = context.resources.displayMetrics.density
+    val bitmapWidthPx = (widgetSize.width.value * density).toInt().coerceAtLeast(1)
     // El componente en Glance es simplemente una Imagen. El Bitmap se genera bajo demanda.
     Image(
         provider = ImageProvider(
@@ -78,6 +82,7 @@ fun WavyLinearProgressIndicator(
                 thumbRadius = thumbRadius,
                 waveAmplitude = waveAmplitude,
                 waveFrequency = waveFrequency,
+                bitmapWidth = bitmapWidthPx,
                 bitmapHeight = (height.value * context.resources.displayMetrics.density).toInt()
             )
         ),

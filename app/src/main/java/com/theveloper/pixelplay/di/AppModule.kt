@@ -129,7 +129,7 @@ object AppModule {
             .allowHardware(true) // Re-enable hardware bitmaps for better performance
             .memoryCache {
                 MemoryCache.Builder(context)
-                    .maxSizePercent(0.20) // Use 20% of app memory for image cache
+                    .maxSizePercent(0.15) // Use 15% of app memory for image cache
                     .build()
             }
             .diskCache {

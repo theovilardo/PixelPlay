@@ -8,6 +8,7 @@ import androidx.room.Query
 import androidx.room.RawQuery
 import androidx.room.Transaction
 import androidx.sqlite.db.SimpleSQLiteQuery
+import androidx.sqlite.db.SupportSQLiteQuery
 import com.theveloper.pixelplay.utils.AudioMeta
 import kotlinx.coroutines.flow.Flow
 
@@ -155,6 +156,13 @@ interface MusicDao {
     @Query("SELECT COUNT(*) FROM songs")
     suspend fun getSongCountOnce(): Int
 
+    @Query("""
+        SELECT DISTINCT parent_directory_path
+        FROM songs
+        WHERE parent_directory_path != ''
+    """)
+    suspend fun getAllParentDirectoryPaths(): List<String>
+
     /**
      * Returns random songs for efficient shuffle without loading all songs into memory.
      * Uses SQLite RANDOM() for true randomness.
@@ -195,6 +203,9 @@ interface MusicDao {
         applyDirectoryFilter: Boolean
     ): PagingSource<Int, SongEntity>
 
+    @RawQuery(observedEntities = [SongEntity::class])
+    fun getSongsPaginatedRaw(query: SupportSQLiteQuery): PagingSource<Int, SongEntity>
+
     // --- Album Queries ---
     @Query("""
         SELECT DISTINCT albums.* FROM albums
@@ -206,6 +217,9 @@ interface MusicDao {
         allowedParentDirs: List<String>,
         applyDirectoryFilter: Boolean
     ): Flow<List<AlbumEntity>>
+
+    @RawQuery(observedEntities = [AlbumEntity::class, SongEntity::class])
+    fun getAlbumsPaginatedRaw(query: SupportSQLiteQuery): PagingSource<Int, AlbumEntity>
 
     @Query("SELECT * FROM albums WHERE id = :albumId")
     fun getAlbumById(albumId: Long): Flow<AlbumEntity?>
@@ -255,6 +269,9 @@ interface MusicDao {
         allowedParentDirs: List<String>,
         applyDirectoryFilter: Boolean
     ): Flow<List<ArtistEntity>>
+
+    @RawQuery(observedEntities = [ArtistEntity::class, SongEntity::class])
+    fun getArtistsPaginatedRaw(query: SupportSQLiteQuery): PagingSource<Int, ArtistEntity>
 
     /**
      * Unfiltered list of all artists (including those only reachable via cross-refs).

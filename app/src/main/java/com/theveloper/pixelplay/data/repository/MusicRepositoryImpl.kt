@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.data.repository
 
+import android.app.ActivityManager
 import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.Context
@@ -118,6 +119,32 @@ class MusicRepositoryImpl @Inject constructor(
 
     private val allCrossRefsFlow = musicDao.getAllSongArtistCrossRefs()
 
+    private val isLowRamDevice: Boolean =
+        (context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)?.isLowRamDevice == true
+
+    private val libraryPagingConfig: PagingConfig = PagingConfig(
+        pageSize = if (isLowRamDevice) 40 else 60,
+        prefetchDistance = if (isLowRamDevice) 20 else 30,
+        initialLoadSize = if (isLowRamDevice) 80 else 120,
+        maxSize = if (isLowRamDevice) 160 else 240,
+        enablePlaceholders = true
+    )
+
+    private val songsSortOptionFlow: Flow<SortOption> =
+        userPreferencesRepository.songsSortOptionFlow.map { key ->
+            SortOption.fromStorageKey(key, SortOption.SONGS, SortOption.SongTitleAZ)
+        }
+
+    private val albumsSortOptionFlow: Flow<SortOption> =
+        userPreferencesRepository.albumsSortOptionFlow.map { key ->
+            SortOption.fromStorageKey(key, SortOption.ALBUMS, SortOption.AlbumTitleAZ)
+        }
+
+    private val artistsSortOptionFlow: Flow<SortOption> =
+        userPreferencesRepository.artistsSortOptionFlow.map { key ->
+            SortOption.fromStorageKey(key, SortOption.ARTISTS, SortOption.ArtistNameAZ)
+        }
+
     private fun normalizePath(path: String): String =
         runCatching { File(path).canonicalPath }.getOrElse { File(path).absolutePath }
 
@@ -131,6 +158,57 @@ class MusicRepositoryImpl @Inject constructor(
             !resolver.isBlocked(normalizedParent)
         }
     }
+
+    private fun songOrderBy(sortOption: SortOption): String =
+        when (sortOption) {
+            SortOption.SongTitleAZ -> "title COLLATE NOCASE ASC"
+            SortOption.SongTitleZA -> "title COLLATE NOCASE DESC"
+            SortOption.SongArtist -> "artist_name COLLATE NOCASE ASC"
+            SortOption.SongAlbum -> "album_name COLLATE NOCASE ASC"
+            SortOption.SongDateAdded -> "date_added DESC"
+            SortOption.SongDuration -> "duration ASC"
+            else -> "title COLLATE NOCASE ASC"
+        }
+
+    private fun albumOrderBy(sortOption: SortOption): String =
+        when (sortOption) {
+            SortOption.AlbumTitleAZ -> "albums.title COLLATE NOCASE ASC"
+            SortOption.AlbumTitleZA -> "albums.title COLLATE NOCASE DESC"
+            SortOption.AlbumArtist -> "albums.artist_name COLLATE NOCASE ASC"
+            SortOption.AlbumReleaseYear -> "albums.year DESC"
+            SortOption.AlbumSizeAsc -> "albums.song_count ASC, albums.title COLLATE NOCASE ASC"
+            SortOption.AlbumSizeDesc -> "albums.song_count DESC, albums.title COLLATE NOCASE ASC"
+            else -> "albums.title COLLATE NOCASE ASC"
+        }
+
+    private fun artistOrderBy(sortOption: SortOption): String =
+        when (sortOption) {
+            SortOption.ArtistNameAZ -> "artists.name COLLATE NOCASE ASC"
+            SortOption.ArtistNameZA -> "artists.name COLLATE NOCASE DESC"
+            else -> "artists.name COLLATE NOCASE ASC"
+        }
+
+    private fun sortAlbumsInMemory(albums: List<Album>, sortOption: SortOption): List<Album> =
+        when (sortOption) {
+            SortOption.AlbumTitleAZ -> albums.sortedBy { it.title.lowercase() }
+            SortOption.AlbumTitleZA -> albums.sortedByDescending { it.title.lowercase() }
+            SortOption.AlbumArtist -> albums.sortedBy { it.artist.lowercase() }
+            SortOption.AlbumReleaseYear -> albums.sortedByDescending { it.year }
+            SortOption.AlbumSizeAsc -> albums.sortedWith(
+                compareBy<Album> { it.songCount }.thenBy { it.title.lowercase() }
+            )
+            SortOption.AlbumSizeDesc -> albums.sortedWith(
+                compareByDescending<Album> { it.songCount }.thenBy { it.title.lowercase() }
+            )
+            else -> albums
+        }
+
+    private fun sortArtistsInMemory(artists: List<Artist>, sortOption: SortOption): List<Artist> =
+        when (sortOption) {
+            SortOption.ArtistNameAZ -> artists.sortedBy { it.name.lowercase() }
+            SortOption.ArtistNameZA -> artists.sortedByDescending { it.name.lowercase() }
+            else -> artists
+        }
 
     private fun List<SongArtistCrossRef>.filterBySongs(songIds: Set<Long>): List<SongArtistCrossRef> {
         if (songIds.isEmpty()) return emptyList()
@@ -193,32 +271,81 @@ class MusicRepositoryImpl @Inject constructor(
      * Re-emits when directory filter config changes to apply updated exclusions.
      */
     override fun getPaginatedSongs(): Flow<PagingData<Song>> {
-        return directoryFilterConfig.flatMapLatest { config ->
+        return combine(directoryFilterConfig, songsSortOptionFlow) { config, sortOption ->
+            config to sortOption
+        }.flatMapLatest { (config, sortOption) ->
+            val query =
+                SimpleSQLiteQuery("SELECT * FROM songs ORDER BY ${songOrderBy(sortOption)}")
+
             Pager(
-                config = PagingConfig(
-                    pageSize = 50,
-                    prefetchDistance = 25,
-                    enablePlaceholders = false
-                ),
+                config = libraryPagingConfig,
                 pagingSourceFactory = {
-                    musicDao.getSongsPaginated(
-                        allowedParentDirs = emptyList(),
-                        applyDirectoryFilter = false
-                    )
+                    musicDao.getSongsPaginatedRaw(query)
                 }
             ).flow.map { pagingData ->
-                if (!config.isFilterActive) {
-                    // No filter active, just map entities to songs
-                    pagingData.map { entity -> entity.toSong() }
-                } else {
-                    // Apply directory filter
-                    val resolver = DirectoryRuleResolver(config.normalizedAllowed, config.normalizedBlocked)
-                    pagingData
-                        .filter { entity ->
+                val filtered =
+                    if (!config.isFilterActive) {
+                        pagingData
+                    } else {
+                        val resolver =
+                            DirectoryRuleResolver(config.normalizedAllowed, config.normalizedBlocked)
+                        pagingData.filter { entity ->
                             val normalizedParent = normalizePath(entity.parentDirectoryPath)
                             !resolver.isBlocked(normalizedParent)
                         }
-                        .map { entity -> entity.toSong() }
+                    }
+                filtered.map { entity -> entity.toSong() }
+            }
+        }.flowOn(Dispatchers.IO)
+    }
+
+    override fun getPaginatedAlbums(): Flow<PagingData<Album>> {
+        return combine(directoryFilterConfig, albumsSortOptionFlow) { config, sortOption ->
+            config to sortOption
+        }.flatMapLatest { (config, sortOption) ->
+            if (config.isFilterActive) {
+                getAlbums().map { albums ->
+                    PagingData.from(sortAlbumsInMemory(albums, sortOption))
+                }
+            } else {
+                val query = SimpleSQLiteQuery(
+                    """
+                        SELECT DISTINCT albums.* FROM albums
+                        INNER JOIN songs ON albums.id = songs.album_id
+                        ORDER BY ${albumOrderBy(sortOption)}
+                    """.trimIndent()
+                )
+                Pager(
+                    config = libraryPagingConfig,
+                    pagingSourceFactory = { musicDao.getAlbumsPaginatedRaw(query) }
+                ).flow.map { pagingData ->
+                    pagingData.map { entity -> entity.toAlbum() }
+                }
+            }
+        }.flowOn(Dispatchers.IO)
+    }
+
+    override fun getPaginatedArtists(): Flow<PagingData<Artist>> {
+        return combine(directoryFilterConfig, artistsSortOptionFlow) { config, sortOption ->
+            config to sortOption
+        }.flatMapLatest { (config, sortOption) ->
+            if (config.isFilterActive) {
+                getArtists().map { artists ->
+                    PagingData.from(sortArtistsInMemory(artists, sortOption))
+                }
+            } else {
+                val query = SimpleSQLiteQuery(
+                    """
+                        SELECT DISTINCT artists.* FROM artists
+                        INNER JOIN songs ON artists.id = songs.artist_id
+                        ORDER BY ${artistOrderBy(sortOption)}
+                    """.trimIndent()
+                )
+                Pager(
+                    config = libraryPagingConfig,
+                    pagingSourceFactory = { musicDao.getArtistsPaginatedRaw(query) }
+                ).flow.map { pagingData ->
+                    pagingData.map { entity -> entity.toArtist() }
                 }
             }
         }.flowOn(Dispatchers.IO)

@@ -26,11 +26,14 @@ import com.theveloper.pixelplay.data.repository.LyricsRepository
 import com.theveloper.pixelplay.utils.AlbumArtCacheManager
 import com.theveloper.pixelplay.utils.AlbumArtUtils
 import com.theveloper.pixelplay.utils.AudioMetaUtils.getAudioMetadata
+import com.theveloper.pixelplay.utils.DirectoryRuleResolver
+import com.theveloper.pixelplay.utils.StorageUtils
 import com.theveloper.pixelplay.utils.normalizeMetadataTextOrEmpty
 import com.theveloper.pixelplay.utils.splitArtistsByDelimiters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.io.File
+import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -39,8 +42,11 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -84,6 +90,8 @@ constructor(
                             userPreferencesRepository.groupByAlbumArtistFlow.first()
                     val rescanRequired =
                             userPreferencesRepository.artistSettingsRescanRequiredFlow.first()
+                    val allowedDirectories = userPreferencesRepository.allowedDirectoriesFlow.first()
+                    val blockedDirectories = userPreferencesRepository.blockedDirectoriesFlow.first()
                     var lastSyncTimestamp = userPreferencesRepository.getLastSyncTimestamp()
 
                     Log.d(
@@ -92,15 +100,24 @@ constructor(
                     )
 
                     // --- MEDIA SCAN PHASE ---
-                    // For INCREMENTAL or FULL sync, trigger a media scan to detect new files
-                    // that may not have been indexed by MediaStore yet (e.g., files added via USB)
-                    if (syncMode != SyncMode.REBUILD) {
-                        triggerMediaScanForNewFiles()
-                    }
+                    // Trigger a media scan to detect new files that may not have been indexed
+                    // by MediaStore yet (e.g., files added via USB/SD card).
+                    val mediaScanCompleted = triggerMediaScanForNewFiles(
+                            allowedDirectories,
+                            blockedDirectories
+                    )
 
                     // --- DELETION PHASE ---
                     // Detect and remove deleted songs efficiently using ID comparison
                     // We do this for INCREMENTAL and FULL modes. REBUILD clears everything anyway.
+                    val isFreshInstall = musicDao.getSongCount().first() == 0
+
+                    if (isFreshInstall && !mediaScanCompleted && syncMode != SyncMode.INCREMENTAL) {
+                        Log.w(TAG, "Media scan still in progress on fresh install. Retrying sync.")
+                        return@withContext Result.retry()
+                    }
+
+                    var newMediaStoreIds: Set<Long> = emptySet()
                     if (syncMode != SyncMode.REBUILD) {
                         val localSongIds = musicDao.getAllSongIds().toHashSet()
                         val mediaStoreIds = fetchMediaStoreIds()
@@ -122,19 +139,35 @@ constructor(
                         } else {
                             Log.d(TAG, "No deleted songs found.")
                         }
+
+                        if (syncMode == SyncMode.INCREMENTAL && !isFreshInstall) {
+                            newMediaStoreIds = mediaStoreIds - localSongIds
+                            if (newMediaStoreIds.isNotEmpty()) {
+                                Log.i(TAG, "Detected ${newMediaStoreIds.size} new MediaStore IDs.")
+                            }
+                        }
                     }
 
                     // --- FETCH PHASE ---
                     // Determine what to fetch based on mode
-                    val isFreshInstall = musicDao.getSongCount().first() == 0
-
                     // If REBUILD or FULL or RescanRequired or Fresh Install -> Fetch EVERYTHING
                     // (timestamp = 0)
                     // If INCREMENTAL -> Fetch only changes since lastSyncTimestamp
+                    val forceFullFetch =
+                            syncMode == SyncMode.INCREMENTAL &&
+                                    newMediaStoreIds.size > MAX_NEW_IDS_FOR_INCREMENTAL
+                    if (forceFullFetch) {
+                        Log.w(
+                                TAG,
+                                "Large incremental delta detected (${newMediaStoreIds.size} new IDs). Falling back to full fetch."
+                        )
+                    }
+
                     val fetchTimestamp =
                             if (syncMode == SyncMode.INCREMENTAL &&
                                             !rescanRequired &&
-                                            !isFreshInstall
+                                            !isFreshInstall &&
+                                            !forceFullFetch
                             ) {
                                 lastSyncTimestamp /
                                         1000 // Convert to seconds for MediaStore comparison
@@ -150,6 +183,7 @@ constructor(
                     val mediaStoreSongs =
                             fetchMusicFromMediaStore(
                                     fetchTimestamp,
+                                    if (fetchTimestamp > 0) newMediaStoreIds else emptySet(),
                                     forceMetadata,
                                     progressBatchSize
                             ) { current, total, phaseOrdinal ->
@@ -166,6 +200,11 @@ constructor(
                             TAG,
                             "Fetched ${mediaStoreSongs.size} new/modified songs from MediaStore."
                     )
+
+                    if (mediaStoreSongs.isEmpty() && !mediaScanCompleted) {
+                        Log.w(TAG, "Media scan incomplete and no songs fetched. Retrying sync.")
+                        return@withContext Result.retry()
+                    }
 
                     // --- PROCESSING PHASE ---
                     if (mediaStoreSongs.isNotEmpty()) {
@@ -194,43 +233,42 @@ constructor(
                                     emptyMap()
                                 }
 
-                        val songsToProcess = mediaStoreSongs
-
                         Log.i(
                                 TAG,
-                                "Processing ${songsToProcess.size} songs for upsert. Hash: ${songsToProcess.hashCode()}"
+                                "Processing ${mediaStoreSongs.size} songs for upsert. Hash: ${mediaStoreSongs.hashCode()}"
                         )
 
-                        val songsToInsert =
-                                songsToProcess.map { mediaStoreSong ->
-                                    val localSong = localSongsMap[mediaStoreSong.id]
-                                    if (localSong != null) {
-                                        // Preserve user-edited fields
-                                        val needsArtistCompare =
-                                                !rescanRequired &&
-                                                        localSong.artistName.isNotBlank() &&
-                                                        localSong.artistName !=
-                                                                mediaStoreSong.artistName
+                        val songsToInsert = mediaStoreSongs
+                        for (index in songsToInsert.indices) {
+                            val mediaStoreSong = songsToInsert[index]
+                            val localSong = localSongsMap[mediaStoreSong.id]
+                            if (localSong != null) {
+                                // Preserve user-edited fields
+                                val needsArtistCompare =
+                                        !rescanRequired &&
+                                                localSong.artistName.isNotBlank() &&
+                                                localSong.artistName != mediaStoreSong.artistName
 
-                                        val shouldPreserveArtistName =
-                                                if (needsArtistCompare) {
-                                                    val mediaStoreArtists =
-                                                            mediaStoreSong.artistName
-                                                                    .splitArtistsByDelimiters(
-                                                                            artistDelimiters
-                                                                    )
-                                                    val mediaStorePrimaryArtist =
-                                                            mediaStoreArtists.firstOrNull()?.trim()
-                                                    val mediaStoreHasMultipleArtists =
-                                                            mediaStoreArtists.size > 1
-                                                    !(mediaStoreHasMultipleArtists &&
-                                                            mediaStorePrimaryArtist != null &&
-                                                            localSong.artistName.trim() ==
-                                                                    mediaStorePrimaryArtist)
-                                                } else {
-                                                    false
-                                                }
+                                val shouldPreserveArtistName =
+                                        if (needsArtistCompare) {
+                                            val mediaStoreArtists =
+                                                    mediaStoreSong.artistName
+                                                            .splitArtistsByDelimiters(
+                                                                    artistDelimiters
+                                                            )
+                                            val mediaStorePrimaryArtist =
+                                                    mediaStoreArtists.firstOrNull()?.trim()
+                                            val mediaStoreHasMultipleArtists =
+                                                    mediaStoreArtists.size > 1
+                                            !(mediaStoreHasMultipleArtists &&
+                                                    mediaStorePrimaryArtist != null &&
+                                                    localSong.artistName.trim() ==
+                                                            mediaStorePrimaryArtist)
+                                        } else {
+                                            false
+                                        }
 
+                                songsToInsert[index] =
                                         mediaStoreSong.copy(
                                                 dateAdded =
                                                         localSong.dateAdded, // Preserve original
@@ -267,10 +305,8 @@ constructor(
                                                 albumArtUriString = localSong.albumArtUriString
                                                                 ?: mediaStoreSong.albumArtUriString
                                         )
-                                    } else {
-                                        mediaStoreSong
-                                    }
-                                }
+                            }
+                        }
 
                         val (correctedSongs, albums, artists, crossRefs) =
                                 preProcessAndDeduplicateWithMultiArtist(
@@ -465,7 +501,7 @@ constructor(
      * cross-references.
      */
     private fun preProcessAndDeduplicateWithMultiArtist(
-            songs: List<SongEntity>,
+            songs: MutableList<SongEntity>,
             artistDelimiters: List<String>,
             groupByAlbumArtist: Boolean,
             existingArtistImageUrls: Map<Long, String?>
@@ -526,13 +562,14 @@ constructor(
         val nextArtistId = AtomicLong(maxExistingArtistId + 10000) // Safety buffer
 
         val artistNameToId = mutableMapOf<String, Long>()
-        val allCrossRefs = mutableListOf<SongArtistCrossRef>()
+        val allCrossRefs = ArrayList<SongArtistCrossRef>(songs.size)
         val artistTrackCounts = mutableMapOf<Long, Int>()
         val albumMap = mutableMapOf<Pair<String, String>, Long>()
         val artistSplitCache = mutableMapOf<String, List<String>>()
-        val correctedSongs = ArrayList<SongEntity>(songs.size)
+        val albumAccumulators = mutableMapOf<Long, AlbumAccumulator>()
 
-        songs.forEach { song ->
+        for (index in songs.indices) {
+            val song = songs[index]
             val rawArtistName = song.artistName
             val songArtistNameTrimmed = rawArtistName.trim()
             val artistsForSong =
@@ -582,35 +619,48 @@ constructor(
             val canonicalAlbumId =
                     albumMap.getOrPut(Pair(song.albumName, albumArtistName)) { song.albumId }
 
-            correctedSongs.add(
+            val correctedSong =
                     song.copy(
                             artistId = primaryArtistId,
                             artistName = primaryArtistName,
                             albumId = canonicalAlbumId
                     )
-            )
+            songs[index] = correctedSong
+
+            val albumArtistId = artistNameToId[albumArtistName] ?: primaryArtistId
+            val accumulator = albumAccumulators[canonicalAlbumId]
+            if (accumulator == null) {
+                albumAccumulators[canonicalAlbumId] =
+                        AlbumAccumulator(
+                                id = canonicalAlbumId,
+                                title = correctedSong.albumName,
+                                artistName = albumArtistName,
+                                artistId = albumArtistId,
+                                albumArtUriString = correctedSong.albumArtUriString,
+                                year = correctedSong.year,
+                                songCount = 1
+                        )
+            } else {
+                accumulator.songCount += 1
+                if (accumulator.albumArtUriString.isNullOrBlank() &&
+                        !correctedSong.albumArtUriString.isNullOrBlank()
+                ) {
+                    accumulator.albumArtUriString = correctedSong.albumArtUriString
+                }
+            }
         }
 
         // Create unique albums
         val albums =
-                correctedSongs.groupBy { it.albumId }.map { (albumId, songsInAlbum) ->
-                    val firstSong = songsInAlbum.first()
-                    val albumArtistName =
-                            if (groupByAlbumArtist && !firstSong.albumArtist.isNullOrBlank()) {
-                                firstSong.albumArtist
-                            } else {
-                                firstSong.artistName
-                            }
-                    val albumArtistId = artistNameToId[albumArtistName] ?: firstSong.artistId
-
+                albumAccumulators.values.map { accumulator ->
                     AlbumEntity(
-                            id = albumId,
-                            title = firstSong.albumName,
-                            artistName = albumArtistName,
-                            artistId = albumArtistId,
-                            albumArtUriString = firstSong.albumArtUriString,
-                            songCount = songsInAlbum.size,
-                            year = firstSong.year
+                            id = accumulator.id,
+                            title = accumulator.title,
+                            artistName = accumulator.artistName,
+                            artistId = accumulator.artistId,
+                            albumArtUriString = accumulator.albumArtUriString,
+                            songCount = accumulator.songCount,
+                            year = accumulator.year
                     )
                 }
 
@@ -630,13 +680,24 @@ constructor(
                 }
 
         return MultiArtistProcessResult(
-                songs = correctedSongs,
+                songs = songs,
                 albums = albums,
                 artists = artists,
                 crossRefs = allCrossRefs
         )
     }
 
+    private data class AlbumAccumulator(
+            val id: Long,
+            val title: String,
+            val artistName: String,
+            val artistId: Long,
+            var albumArtUriString: String?,
+            val year: Int,
+            var songCount: Int
+    )
+
+    @Suppress("DEPRECATION")
     private fun fetchAlbumArtUrisByAlbumId(): Map<Long, String> {
         val projection = arrayOf(MediaStore.Audio.Albums._ID, MediaStore.Audio.Albums.ALBUM_ART)
 
@@ -797,10 +858,11 @@ constructor(
 
     private suspend fun fetchMusicFromMediaStore(
             sinceTimestamp: Long, // Seconds
+            extraIds: Set<Long>,
             forceMetadata: Boolean,
             progressBatchSize: Int,
             onProgress: suspend (current: Int, total: Int, phaseOrdinal: Int) -> Unit
-    ): List<SongEntity> {
+    ): MutableList<SongEntity> {
         Trace.beginSection("SyncWorker.fetchMusicFromMediaStore")
 
         val deepScan = forceMetadata
@@ -830,115 +892,128 @@ constructor(
         // Incremental selection
         if (sinceTimestamp > 0) {
             selectionBuilder.append(
-                    " AND (${MediaStore.Audio.Media.DATE_MODIFIED} > ? OR ${MediaStore.Audio.Media.DATE_ADDED} > ?)"
+                    " AND (${MediaStore.Audio.Media.DATE_MODIFIED} > ? OR ${MediaStore.Audio.Media.DATE_ADDED} > ?"
             )
             selectionArgsList.add(sinceTimestamp.toString())
             selectionArgsList.add(sinceTimestamp.toString())
+
+            if (extraIds.isNotEmpty()) {
+                val placeholders = extraIds.joinToString(",") { "?" }
+                selectionBuilder.append(" OR ${MediaStore.Audio.Media._ID} IN ($placeholders)")
+                selectionArgsList.addAll(extraIds.map { it.toString() })
+            }
+            selectionBuilder.append(")")
         }
 
         val selection = selectionBuilder.toString()
         val selectionArgs = selectionArgsList.toTypedArray()
 
-        // Phase 1: Fast cursor iteration to collect raw data
-        val rawDataList = mutableListOf<RawSongData>()
-
-        contentResolver.query(
+        val cursor =
+                contentResolver.query(
                         MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                         projection,
                         selection,
                         selectionArgs,
                         null
                 )
-                ?.use { cursor ->
-                    val totalCount = cursor.count
-                    onProgress(0, totalCount, SyncProgress.SyncPhase.FETCHING_MEDIASTORE.ordinal)
-
-                    val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-                    val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-                    val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-                    val artistIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST_ID)
-                    val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
-                    val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
-                    val albumArtistCol = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ARTIST)
-                    val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
-                    val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
-                    val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
-                    val yearCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
-                    val dateAddedCol =
-                            cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
-
-                    while (cursor.moveToNext()) {
-                        rawDataList.add(
-                                RawSongData(
-                                        id = cursor.getLong(idCol),
-                                        albumId = cursor.getLong(albumIdCol),
-                                        artistId = cursor.getLong(artistIdCol),
-                                        filePath = cursor.getString(dataCol) ?: "",
-                                        title =
-                                                cursor.getString(titleCol)
-                                                        .normalizeMetadataTextOrEmpty()
-                                                        .ifEmpty { "Unknown Title" },
-                                        artist =
-                                                cursor.getString(artistCol)
-                                                        .normalizeMetadataTextOrEmpty()
-                                                        .ifEmpty { "Unknown Artist" },
-                                        album =
-                                                cursor.getString(albumCol)
-                                                        .normalizeMetadataTextOrEmpty()
-                                                        .ifEmpty { "Unknown Album" },
-                                        albumArtist =
-                                                if (albumArtistCol >= 0)
-                                                        cursor.getString(albumArtistCol)
-                                                                ?.normalizeMetadataTextOrEmpty()
-                                                                ?.takeIf { it.isNotBlank() }
-                                                else null,
-                                        duration = cursor.getLong(durationCol),
-                                        trackNumber = cursor.getInt(trackCol),
-                                        year = cursor.getInt(yearCol),
-                                        dateModified = cursor.getLong(dateAddedCol)
-                                )
-                        )
-                    }
-                }
-
-        val totalCount = rawDataList.size
-        if (totalCount == 0) {
+        if (cursor == null) {
             Trace.endSection()
-            return emptyList()
+            return mutableListOf()
         }
 
-        // Phase 2: Parallel processing of songs
-        val processedCount = AtomicInteger(0)
-        val concurrencyLimit = 8 // Limit parallel operations to prevent resource exhaustion
-        val semaphore = Semaphore(concurrencyLimit)
+        cursor.use { safeCursor ->
+            val totalCount = safeCursor.count
+            onProgress(0, totalCount, SyncProgress.SyncPhase.FETCHING_MEDIASTORE.ordinal)
+            if (totalCount == 0) {
+                Trace.endSection()
+                return mutableListOf()
+            }
 
-        val songs = coroutineScope {
-            rawDataList
-                    .map { raw ->
-                        async {
-                            semaphore.withPermit {
-                                val song =
-                                        processSongData(raw, albumArtByAlbumId, genreMap, deepScan)
+            val songs = Collections.synchronizedList(ArrayList<SongEntity>(totalCount))
+            val processedCount = AtomicInteger(0)
+            val concurrencyLimit = 8 // Limit parallel operations to prevent resource exhaustion
+            val channel = Channel<RawSongData>(RAW_SONG_CHANNEL_BUFFER)
 
-                                // Report progress
-                                val count = processedCount.incrementAndGet()
-                                if (count % progressBatchSize == 0 || count == totalCount) {
-                                    onProgress(
-                                            count,
-                                            totalCount,
-                                            SyncProgress.SyncPhase.FETCHING_MEDIASTORE.ordinal
-                                    )
+            coroutineScope {
+                val workers =
+                        List(concurrencyLimit) {
+                            launch(Dispatchers.IO) {
+                                for (raw in channel) {
+                                    val song =
+                                            processSongData(
+                                                    raw,
+                                                    albumArtByAlbumId,
+                                                    genreMap,
+                                                    deepScan
+                                            )
+                                    songs.add(song)
+
+                                    val count = processedCount.incrementAndGet()
+                                    if (count % progressBatchSize == 0 || count == totalCount) {
+                                        onProgress(
+                                                count,
+                                                totalCount,
+                                                SyncProgress.SyncPhase.FETCHING_MEDIASTORE.ordinal
+                                        )
+                                    }
                                 }
-
-                                song
                             }
                         }
-                    }
-                    .awaitAll()
-        }
 
-        Trace.endSection()
-        return songs
+                val idCol = safeCursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                val titleCol = safeCursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                val artistCol = safeCursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                val artistIdCol = safeCursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST_ID)
+                val albumCol = safeCursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+                val albumIdCol = safeCursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+                val albumArtistCol = safeCursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ARTIST)
+                val durationCol = safeCursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+                val dataCol = safeCursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+                val trackCol = safeCursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
+                val yearCol = safeCursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
+                val dateAddedCol =
+                        safeCursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
+
+                while (safeCursor.moveToNext()) {
+                    channel.send(
+                            RawSongData(
+                                    id = safeCursor.getLong(idCol),
+                                    albumId = safeCursor.getLong(albumIdCol),
+                                    artistId = safeCursor.getLong(artistIdCol),
+                                    filePath = safeCursor.getString(dataCol) ?: "",
+                                    title =
+                                            safeCursor.getString(titleCol)
+                                                    .normalizeMetadataTextOrEmpty()
+                                                    .ifEmpty { "Unknown Title" },
+                                    artist =
+                                            safeCursor.getString(artistCol)
+                                                    .normalizeMetadataTextOrEmpty()
+                                                    .ifEmpty { "Unknown Artist" },
+                                    album =
+                                            safeCursor.getString(albumCol)
+                                                    .normalizeMetadataTextOrEmpty()
+                                                    .ifEmpty { "Unknown Album" },
+                                    albumArtist =
+                                            if (albumArtistCol >= 0)
+                                                    safeCursor.getString(albumArtistCol)
+                                                            ?.normalizeMetadataTextOrEmpty()
+                                                            ?.takeIf { it.isNotBlank() }
+                                            else null,
+                                    duration = safeCursor.getLong(durationCol),
+                                    trackNumber = safeCursor.getInt(trackCol),
+                                    year = safeCursor.getInt(yearCol),
+                                    dateModified = safeCursor.getLong(dateAddedCol)
+                            )
+                    )
+                }
+
+                channel.close()
+                workers.joinAll()
+            }
+
+            Trace.endSection()
+            return songs
+        }
     }
 
     /**
@@ -1047,9 +1122,27 @@ constructor(
      * This is a fast, incremental scan optimized for pull-to-refresh.
      * It compares filesystem files with MediaStore entries and only scans the difference.
      */
-    private suspend fun triggerMediaScanForNewFiles() {
-        withContext(Dispatchers.IO) {
-            val directories =
+    private suspend fun triggerMediaScanForNewFiles(
+            allowedDirectories: Set<String>,
+            blockedDirectories: Set<String>
+    ): Boolean {
+        return withContext(Dispatchers.IO) {
+            val normalizedAllowed = allowedDirectories.map(::normalizePath).toSet()
+            val normalizedBlocked = blockedDirectories.map(::normalizePath).toSet()
+            val resolver = DirectoryRuleResolver(normalizedAllowed, normalizedBlocked)
+
+            val storageRoots = StorageUtils.getAvailableStorages(applicationContext).map { it.path }
+            val libraryParentDirs = runCatching {
+                musicDao.getAllParentDirectoryPaths().map(::normalizePath).map { File(it) }
+            }.getOrElse { emptyList() }
+            val storageDefaultDirs = storageRoots.flatMap { root ->
+                listOf(
+                    File(root, "Music"),
+                    File(root, "Download"),
+                    File(root, "Downloads")
+                )
+            }
+            val fallbackDirs =
                     listOf(
                             Environment.getExternalStoragePublicDirectory(
                                     Environment.DIRECTORY_MUSIC
@@ -1058,19 +1151,29 @@ constructor(
                                     Environment.DIRECTORY_DOWNLOADS
                             ),
                             File(Environment.getExternalStorageDirectory(), "Music"),
-                            File(Environment.getExternalStorageDirectory(), "Download")
+                            File(Environment.getExternalStorageDirectory(), "Download"),
+                            File(Environment.getExternalStorageDirectory(), "Downloads")
                     )
+
+            val candidateDirs = buildList {
+                if (normalizedAllowed.isNotEmpty()) {
+                    addAll(normalizedAllowed.map { File(it) })
+                }
+                addAll(storageDefaultDirs)
+                addAll(fallbackDirs)
+                addAll(libraryParentDirs)
+            }
 
             // Filter to only existing directories
             val existingDirs =
-                    directories
+                    candidateDirs
                             .filter { it.exists() && it.isDirectory }
                             .map { it.absolutePath }
                             .distinct()
 
             if (existingDirs.isEmpty()) {
                 Log.d(TAG, "No music directories found to scan")
-                return@withContext
+                return@withContext true
             }
 
             // Get all file paths currently in MediaStore
@@ -1086,6 +1189,9 @@ constructor(
             existingDirs.forEach { dirPath ->
                 val dir = File(dirPath)
                 dir.walkTopDown()
+                        .onEnter { entering ->
+                            !resolver.isBlocked(normalizePath(entering.absolutePath))
+                        }
                         .filter { it.isFile && it.extension.lowercase() in audioExtensions }
                         .filter { it.absolutePath !in mediaStorePaths } // Only new files
                         .forEach { newFilesToScan.add(it.absolutePath) }
@@ -1093,7 +1199,7 @@ constructor(
 
             if (newFilesToScan.isEmpty()) {
                 Log.d(TAG, "No new audio files found - MediaStore is up to date")
-                return@withContext
+                return@withContext true
             }
 
             Log.i(TAG, "Found ${newFilesToScan.size} NEW audio files to scan")
@@ -1117,9 +1223,10 @@ constructor(
             val completed = latch.await(15, TimeUnit.SECONDS)
             if (!completed) {
                 Log.w(TAG, "Media scan timeout after scanning $scannedCount/${newFilesToScan.size} files")
-            } else {
-                Log.i(TAG, "Media scan completed for ${newFilesToScan.size} new files")
+                return@withContext false
             }
+            Log.i(TAG, "Media scan completed for ${newFilesToScan.size} new files")
+            return@withContext true
         }
     }
 
@@ -1149,6 +1256,10 @@ constructor(
         return paths
     }
 
+    private fun normalizePath(path: String): String {
+        return runCatching { File(path).canonicalPath }.getOrElse { File(path).absolutePath }
+    }
+
     companion object {
         const val WORK_NAME = "com.theveloper.pixelplay.data.worker.SyncWorker"
         private const val TAG = "SyncWorker"
@@ -1163,6 +1274,8 @@ constructor(
         
         // Genre cache - shared across worker instances to avoid refetching on incremental syncs
         private const val GENRE_CACHE_TTL_MS = 60 * 60 * 1000L // 1 hour
+        private const val MAX_NEW_IDS_FOR_INCREMENTAL = 500
+        private const val RAW_SONG_CHANNEL_BUFFER = 64
         @Volatile private var genreMapCache: Map<Long, String> = emptyMap()
         @Volatile private var genreMapCacheTimestamp: Long = 0L
         

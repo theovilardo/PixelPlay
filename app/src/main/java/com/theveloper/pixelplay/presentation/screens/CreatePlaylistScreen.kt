@@ -141,13 +141,18 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextGeometricTransform
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
+import androidx.paging.PagingData
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.filter
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
 @Composable
 fun CreatePlaylistDialog(
     visible: Boolean,
-    allSongs: List<Song>,
+    songs: Flow<PagingData<Song>>,
     onDismiss: () -> Unit,
     onCreate: (String, String?, Int?, String?, List<String>, Float, Float, Float, String?, Float?, Float?, Float?, Float?) -> Unit // ... d4
 ) {
@@ -169,7 +174,7 @@ fun CreatePlaylistDialog(
                 label = "create_playlist_dialog"
             ) {
                 CreatePlaylistContent(
-                    allSongs = allSongs,
+                    songs = songs,
                     onDismiss = onDismiss,
                     onCreate = onCreate
                 )
@@ -232,7 +237,7 @@ fun EditPlaylistDialog(
 
 @Composable
 private fun CreatePlaylistContent(
-    allSongs: List<Song>,
+    songs: Flow<PagingData<Song>>,
     onDismiss: () -> Unit,
     onCreate: (String, String?, Int?, String?, List<String>, Float, Float, Float, String?, Float?, Float?, Float?, Float?) -> Unit
 ) {
@@ -457,13 +462,19 @@ private fun CreatePlaylistContent(
                      onStarScaleChange = { starScale = it }
                  )
             } else {
-                 val filteredSongs = remember(searchQuery, allSongs) {
-                      if (searchQuery.isBlank()) allSongs 
-                      else allSongs.filter { 
-                          it.title.contains(searchQuery, ignoreCase = true) || 
-                          it.artist.contains(searchQuery, ignoreCase = true) 
+                 val filteredPagingFlow = remember(searchQuery, songs) {
+                      if (searchQuery.isBlank()) {
+                          songs
+                      } else {
+                          songs.map { pagingData ->
+                              pagingData.filter { song ->
+                                  song.title.contains(searchQuery, ignoreCase = true) ||
+                                      song.artist.contains(searchQuery, ignoreCase = true)
+                              }
+                          }
                       }
                  }
+                 val paginatedSongs = filteredPagingFlow.collectAsLazyPagingItems()
 
                  val animatedAlbumCornerRadius = 60.dp
                  val albumShape = remember(animatedAlbumCornerRadius) {
@@ -503,8 +514,8 @@ private fun CreatePlaylistContent(
                       )
                       
                       SongPickerList(
-                          filteredSongs = filteredSongs,
-                          isLoading = false,
+                          paginatedSongs = paginatedSongs,
+                          searchQuery = searchQuery,
                           selectedSongIds = selectedSongIds,
                           albumShape = albumShape,
                           modifier = Modifier

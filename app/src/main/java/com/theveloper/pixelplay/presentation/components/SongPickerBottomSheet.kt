@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
@@ -44,19 +43,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.paging.PagingData
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.filter
+import androidx.paging.LoadState
 import coil.size.Size
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SongPickerBottomSheet(
-    allSongs: List<Song>,
-    isLoading: Boolean,
+    songs: Flow<PagingData<Song>>,
     initiallySelectedSongIds: Set<String>,
     onDismiss: () -> Unit,
     onConfirm: (Set<String>) -> Unit
@@ -68,15 +72,19 @@ fun SongPickerBottomSheet(
         }
     }
     var searchQuery by remember { mutableStateOf("") }
-    val filteredSongs = remember(searchQuery, allSongs) {
-        if (searchQuery.isBlank()) allSongs
-        else allSongs.filter {
-            it.title.contains(searchQuery, true) || it.artist.contains(
-                searchQuery,
-                true
-            )
+    val filteredPagingFlow = remember(searchQuery, songs) {
+        if (searchQuery.isBlank()) {
+            songs
+        } else {
+            songs.map { pagingData ->
+                pagingData.filter { song ->
+                    song.title.contains(searchQuery, true) ||
+                        song.artist.contains(searchQuery, true)
+                }
+            }
         }
     }
+    val paginatedSongs = filteredPagingFlow.collectAsLazyPagingItems()
 
     val animatedAlbumCornerRadius = 60.dp
 
@@ -100,8 +108,7 @@ fun SongPickerBottomSheet(
         modifier = Modifier.fillMaxSize()
     ) {
         SongPickerContent(
-            filteredSongs = filteredSongs,
-            isLoading = isLoading,
+            paginatedSongs = paginatedSongs,
             searchQuery = searchQuery,
             onSearchQueryChange = { searchQuery = it },
             selectedSongIds = selectedSongIds,
@@ -113,8 +120,7 @@ fun SongPickerBottomSheet(
 
 @Composable
 fun SongPickerContent(
-    filteredSongs: List<Song>,
-    isLoading: Boolean,
+    paginatedSongs: LazyPagingItems<Song>,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     selectedSongIds: MutableMap<String, Boolean>,
@@ -178,8 +184,8 @@ fun SongPickerContent(
             }
         ) { innerPadding ->
             SongPickerList(
-                filteredSongs = filteredSongs,
-                isLoading = isLoading,
+                paginatedSongs = paginatedSongs,
+                searchQuery = searchQuery,
                 selectedSongIds = selectedSongIds,
                 albumShape = albumShape,
                 modifier = Modifier.padding(innerPadding)
@@ -206,18 +212,31 @@ fun SongPickerContent(
 
 @Composable
 fun SongPickerList(
-    filteredSongs: List<Song>,
-    isLoading: Boolean,
+    paginatedSongs: LazyPagingItems<Song>,
+    searchQuery: String,
     selectedSongIds: MutableMap<String, Boolean>,
     albumShape: androidx.compose.ui.graphics.Shape,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(bottom = 100.dp, top = 20.dp)
 ) {
-    if (isLoading) {
+    val isInitialLoading =
+        paginatedSongs.loadState.refresh is LoadState.Loading && paginatedSongs.itemCount == 0
+    if (isInitialLoading) {
         Box(
             modifier
                 .fillMaxSize(), Alignment.Center
         ) { CircularProgressIndicator() }
+    } else if (paginatedSongs.itemCount == 0 && paginatedSongs.loadState.refresh is LoadState.NotLoading) {
+        Box(
+            modifier
+                .fillMaxSize(), Alignment.Center
+        ) {
+            Text(
+                text = if (searchQuery.isBlank()) "No songs found." else "No songs match \"$searchQuery\"",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     } else {
         LazyColumn(
             modifier = modifier
@@ -225,56 +244,103 @@ fun SongPickerList(
             contentPadding = contentPadding,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(filteredSongs, key = { it.id }) { song ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(CircleShape)
-                        .clickable {
-                            val currentSelection = selectedSongIds[song.id] ?: false
-                            selectedSongIds[song.id] = !currentSelection
-                        }
-                        .background(
-                            color = MaterialTheme.colorScheme.surfaceContainerLowest,
-                            shape = CircleShape
+            items(
+                count = paginatedSongs.itemCount,
+                key = { index ->
+                    paginatedSongs.peek(index)?.id ?: "song_placeholder_$index"
+                }
+            ) { index ->
+                val song = paginatedSongs[index]
+                if (song != null) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(CircleShape)
+                            .clickable {
+                                val currentSelection = selectedSongIds[song.id] ?: false
+                                selectedSongIds[song.id] = !currentSelection
+                            }
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                                shape = CircleShape
+                            )
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = selectedSongIds[song.id] ?: false,
+                            onCheckedChange = { isChecked ->
+                                selectedSongIds[song.id] = isChecked
+                            }
                         )
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        checked = selectedSongIds[song.id] ?: false,
-                        onCheckedChange = { isChecked ->
-                            selectedSongIds[song.id] = isChecked
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceVariant,
+                                    CircleShape
+                                )
+                        ) {
+                            SmartImage(
+                                model = song.albumArtUriString,
+                                contentDescription = song.title,
+                                shape = albumShape,
+                                targetSize = Size(
+                                    168,
+                                    168
+                                ), // 56dp * 3 (para densidad xxhdpi)
+                                modifier = Modifier.fillMaxSize()
+                            )
                         }
-                    )
+                        Spacer(Modifier.width(16.dp))
+                        Column {
+                            Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                song.displayArtist,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                } else {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(CircleShape)
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                                shape = CircleShape
+                            )
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(checked = false, onCheckedChange = null)
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceVariant,
+                                    CircleShape
+                                )
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Column {
+                            Text(" ", maxLines = 1)
+                            Text(" ", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+            if (paginatedSongs.loadState.append is LoadState.Loading) {
+                item {
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
-                            .background(
-                                MaterialTheme.colorScheme.surfaceVariant,
-                                CircleShape
-                            )
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        SmartImage(
-                            model = song.albumArtUriString,
-                            contentDescription = song.title,
-                            shape = albumShape,
-                            targetSize = Size(
-                                168,
-                                168
-                            ), // 56dp * 3 (para densidad xxhdpi)
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-                    Spacer(Modifier.width(16.dp))
-                    Column {
-                        Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(
-                            song.displayArtist,
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
                     }
                 }
             }
