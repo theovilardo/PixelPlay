@@ -21,6 +21,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -47,7 +49,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LoadingIndicator
+// import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults // Removed
+// import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState // Removed
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Scaffold
@@ -880,7 +886,7 @@ fun FullPlayerContent(
 
 
 @androidx.annotation.OptIn(UnstableApi::class)
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun SongMetadataDisplaySection(
     song: Song?,
@@ -919,6 +925,55 @@ private fun SongMetadataDisplaySection(
                     .weight(1f)
                     .align(Alignment.CenterVertically)
             )
+        }
+        
+        val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
+        val isBuffering = stablePlayerState.isBuffering
+
+
+        AnimatedVisibility(
+            visible = isBuffering,
+            enter = scaleIn(
+                initialScale = 0.85f,
+                animationSpec = tween(
+                    durationMillis = 400,
+                    delayMillis = 80,
+                    easing = FastOutSlowInEasing
+                )
+            ) + fadeIn(
+                animationSpec = tween(
+                    durationMillis = 300,
+                    delayMillis = 80
+                )
+            ),
+            exit = scaleOut(
+                targetScale = 0.85f,
+                animationSpec = tween(
+                    durationMillis = 300,
+                    easing = FastOutSlowInEasing
+                )
+            ) + fadeOut(
+                animationSpec = tween(
+                    durationMillis = 200
+                )
+            )
+        ) {
+            Surface(
+                shape = CircleShape,
+                tonalElevation = 6.dp, 
+                color = LocalMaterialTheme.current.onPrimary,
+                modifier = Modifier.padding(end = 8.dp)
+            ) {
+                Box(
+                    modifier = Modifier.padding(10.dp), 
+                    contentAlignment = Alignment.Center
+                ) {
+                    LoadingIndicator(
+                        modifier = Modifier.size(28.dp),
+                        color = LocalMaterialTheme.current.primary
+                    )
+                }
+            }
         }
 
         if (showQueueButton) {

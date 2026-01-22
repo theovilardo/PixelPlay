@@ -219,7 +219,8 @@ data class StablePlayerState(
     val isShuffleEnabled: Boolean = false,
     @Player.RepeatMode val repeatMode: Int = Player.REPEAT_MODE_OFF,
     val lyrics: Lyrics? = null,
-    val isLoadingLyrics: Boolean = false
+    val isLoadingLyrics: Boolean = false,
+    val isBuffering: Boolean = false
 )
 
 data class PlayerUiState(
@@ -489,6 +490,7 @@ class PlayerViewModel @Inject constructor(
 
     private var sleepTimerJob: Job? = null
     private var eotSongMonitorJob: Job? = null
+    private var bufferingDebounceJob: Job? = null
     // lyricsLoadingJob moved to LyricsStateHolder
     private var countedMediaListener: Player.Listener? = null
     private var countedOriginalSongId: String? = null
@@ -783,7 +785,7 @@ class PlayerViewModel @Inject constructor(
 
     private var mediaController: MediaController? = null
     private val sessionToken = SessionToken(context, ComponentName(context, MusicService::class.java))
-    private val mediaControllerListener = object : MediaController.Listener {
+    private val mediaControllerListener = object : MediaController.Listener, Player.Listener {
         override fun onCustomCommand(
             controller: MediaController,
             command: SessionCommand,
@@ -802,6 +804,27 @@ class PlayerViewModel @Inject constructor(
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
             }
             return Futures.immediateFuture(SessionResult(SessionError.ERROR_NOT_SUPPORTED))
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            super.onPlaybackStateChanged(playbackState)
+            
+            // Debounce buffering state to avoid flickering
+            bufferingDebounceJob?.cancel()
+            
+            if (playbackState == Player.STATE_BUFFERING) {
+                bufferingDebounceJob = viewModelScope.launch {
+                    delay(150) // Wait 150ms before showing buffering indicator
+                    _stablePlayerState.update { state ->
+                        state.copy(isBuffering = true)
+                    }
+                }
+            } else {
+                // Immediately hide buffering when not buffering
+                _stablePlayerState.update { state ->
+                    state.copy(isBuffering = false)
+                }
+            }
         }
     }
     private val mediaControllerFuture: ListenableFuture<MediaController> =
@@ -1253,6 +1276,7 @@ class PlayerViewModel @Inject constructor(
         mediaControllerFuture.addListener({
             try {
                 mediaController = mediaControllerFuture.get()
+                mediaController?.addListener(mediaControllerListener)
                 setupMediaControllerListeners()
                 flushPendingRepeatMode()
                 syncShuffleStateWithSession(_stablePlayerState.value.isShuffleEnabled)

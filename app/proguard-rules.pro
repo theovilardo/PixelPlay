@@ -134,6 +134,12 @@
 # Ensure internal server can start
 -keep class com.theveloper.pixelplay.data.telegram.TelegramStreamProxy { *; }
 
+-keep class com.theveloper.pixelplay.data.telegram.** { *; }
+-keep interface com.theveloper.pixelplay.data.telegram.** { *; }
+
+# Keep Kotlin reflection if needed by Ktor/Serialization in Release
+-keep class kotlin.reflect.** { *; }
+
 # =============================================================================
 # TIMBER LOGGING OPTIMIZATION FOR RELEASE BUILDS
 # =============================================================================
