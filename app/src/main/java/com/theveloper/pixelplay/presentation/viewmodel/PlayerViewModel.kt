@@ -2460,6 +2460,20 @@ class PlayerViewModel @Inject constructor(
                             lyrics = result.parsedLyrics
                         )
                     }
+                    
+                    // Update the player's current MediaItem to refresh notification artwork
+                    // This is efficient: only replaces metadata, not the media stream
+                    val controller = playbackStateHolder.mediaController
+                    if (controller != null) {
+                        val currentIndex = controller.currentMediaItemIndex
+                        if (currentIndex >= 0 && currentIndex < controller.mediaItemCount) {
+                            val currentPosition = controller.currentPosition
+                            val newMediaItem = MediaItemBuilder.build(updatedSong)
+                            controller.replaceMediaItem(currentIndex, newMediaItem)
+                            // Restore position since replaceMediaItem may reset it
+                            controller.seekTo(currentIndex, currentPosition)
+                        }
+                    }
                 }
 
                 if (_selectedSongForInfo.value?.id == song.id) {
@@ -2483,7 +2497,9 @@ class PlayerViewModel @Inject constructor(
                 // syncManager.sync() was removed to avoid unnecessary wait time
                 _toastEvents.emit("Metadata updated successfully")
             } else {
-                _toastEvents.emit("Failed to update metadata")
+                val errorMessage = result.getUserFriendlyErrorMessage()
+                Log.e("PlayerViewModel", "METADATA_EDIT_VM: Failed - ${result.error}: $errorMessage")
+                _toastEvents.emit(errorMessage)
             }
         }
     }
