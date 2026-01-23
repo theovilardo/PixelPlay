@@ -191,6 +191,7 @@ fun UnifiedPlayerSheet(
     val navBarStyle by playerViewModel.navBarStyle.collectAsState()
     val carouselStyle by playerViewModel.carouselStyle.collectAsState()
     val fullPlayerLoadingTweaks by playerViewModel.fullPlayerLoadingTweaks.collectAsState()
+    val tapBackgroundClosesPlayer by playerViewModel.tapBackgroundClosesPlayer.collectAsState()
     LaunchedEffect(stablePlayerState.currentSong?.id) {
         if (stablePlayerState.currentSong != null) {
             prewarmFullPlayer = true
@@ -1130,7 +1131,7 @@ fun UnifiedPlayerSheet(
                                     )
                                 }
                                 .clickable(
-                                    enabled = true,
+                                    enabled = tapBackgroundClosesPlayer || currentSheetContentState == PlayerSheetState.COLLAPSED,
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
                                 ) {

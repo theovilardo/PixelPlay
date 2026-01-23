@@ -284,11 +284,22 @@ class MusicRepositoryImpl @Inject constructor(
             val allowedSongIds = allowedSongs.map { it.id }.toSet()
             val allowedCrossRefs = crossRefs.filterBySongs(allowedSongIds)
             val allowedArtistIds = allowedCrossRefs.map { it.artistId }.toMutableSet()
-            // Fallback to primary artist ids in case cross-refs are empty for some reason
             allowedArtistIds.addAll(allowedSongs.map { it.artistId })
 
+            // Dynamically calculate song counts
+            val artistSongCounts = mutableMapOf<Long, MutableSet<Long>>()
+            allowedCrossRefs.forEach { ref ->
+                artistSongCounts.getOrPut(ref.artistId) { mutableSetOf() }.add(ref.songId)
+            }
+            allowedSongs.forEach { song ->
+                artistSongCounts.getOrPut(song.artistId) { mutableSetOf() }.add(song.id)
+            }
+
             artists.filter { allowedArtistIds.contains(it.id) }
-                .map { it.toArtist() }
+                .map { entity ->
+                    val realCount = artistSongCounts[entity.id]?.size ?: 0
+                    entity.toArtist().copy(songCount = realCount)
+                }
         }.conflate().flowOn(Dispatchers.IO)
     }
 
@@ -572,11 +583,25 @@ class MusicRepositoryImpl @Inject constructor(
         val crossRefs = allCrossRefsFlow.first()
 
         val allowedSongIds = songs.map { it.id }.toSet()
-        val allowedArtistIds = crossRefs.filterBySongs(allowedSongIds).map { it.artistId }.toMutableSet()
+        val allowedCrossRefs = crossRefs.filterBySongs(allowedSongIds)
+        val allowedArtistIds = allowedCrossRefs.map { it.artistId }.toMutableSet()
         allowedArtistIds.addAll(songs.map { it.artistId })
+
+        // Dynamically calculate song counts
+        val artistSongCounts = mutableMapOf<Long, MutableSet<Long>>()
+        allowedCrossRefs.forEach { ref ->
+            artistSongCounts.getOrPut(ref.artistId) { mutableSetOf() }.add(ref.songId)
+        }
+        songs.forEach { song ->
+            artistSongCounts.getOrPut(song.artistId) { mutableSetOf() }.add(song.id)
+        }
+
         val artists = musicDao.getAllArtistsListRaw()
         artists.filter { allowedArtistIds.contains(it.id) }
-            .map { it.toArtist() }
+            .map { entity ->
+                val realCount = artistSongCounts[entity.id]?.size ?: 0
+                entity.toArtist().copy(songCount = realCount)
+            }
     }
 
     override suspend fun toggleFavoriteStatus(songId: String): Boolean = withContext(Dispatchers.IO) {

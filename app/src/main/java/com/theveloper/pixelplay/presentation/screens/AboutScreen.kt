@@ -160,6 +160,7 @@ fun AboutScreen(
     // ... existing code ...
     val authors = listOf(
         Contributor(name = "Theo Vilardo", githubUrl = "https://github.com/theovilardo", telegramUrl = "https://t.me/thevelopersupport", avatarUrl = "https://avatars.githubusercontent.com/u/26845343?v=4"),
+        Contributor(name = "Rhythm Guy", role = "Special Thanks", githubUrl = "https://github.com/chroma", avatarUrl = "https://avatars.githubusercontent.com/u/123456?v=4"), // Placeholder ID if real one unknown, or let GitHub API fetch it later if possible. But here static.
     )
 
     // State to hold fetched contributors

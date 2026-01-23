@@ -18,6 +18,8 @@ import com.theveloper.pixelplay.presentation.components.scoped.PrefetchAlbumNeig
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.flow.first
 
+import com.theveloper.pixelplay.data.preferences.AlbumArtQuality
+
 // ====== TIPOS/STATE DEL CARRUSEL (wrapper para mantener compatibilidad) ======
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,7 +40,8 @@ fun AlbumCarouselSection(
     onSongSelected: (Song) -> Unit,
     modifier: Modifier = Modifier,
     carouselStyle: String = CarouselStyle.NO_PEEK,
-    itemSpacing: Dp = 8.dp
+    itemSpacing: Dp = 8.dp,
+    albumArtQuality: AlbumArtQuality = AlbumArtQuality.MEDIUM
 ) {
     if (queue.isEmpty()) return
 
@@ -57,12 +60,18 @@ fun AlbumCarouselSection(
         pageCount = { queue.size }
     )
 
+    // Calculate target size based on quality
+    val targetSize = remember(albumArtQuality) {
+        if (albumArtQuality.maxSize == 0) Size.ORIGINAL
+        else Size(albumArtQuality.maxSize, albumArtQuality.maxSize)
+    }
+
     PrefetchAlbumNeighbors(
         isActive = expansionFraction > 0.08f,
         pagerState = carouselState.pagerState,
         queue = queue,
         radius = 1,
-        targetSize = Size(600, 600)
+        targetSize = targetSize
     )
 
     // Player -> Carousel
@@ -122,7 +131,7 @@ fun AlbumCarouselSection(
                         uri = song.albumArtUriString,
                         title = song.title,
                         modifier = Modifier.fillMaxSize(),
-                        targetSize = Size(600, 600)
+                        targetSize = targetSize
                     )
                 }
             }

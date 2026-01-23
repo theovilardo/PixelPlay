@@ -56,6 +56,7 @@ import com.theveloper.pixelplay.data.preferences.LibraryNavigationMode
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.preferences.FullPlayerLoadingTweaks
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import com.theveloper.pixelplay.data.preferences.AlbumArtQuality
 import com.theveloper.pixelplay.data.repository.LyricsSearchResult
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.service.MusicNotificationProvider
@@ -229,6 +230,16 @@ class PlayerViewModel @Inject constructor(
             initialValue = FullPlayerLoadingTweaks()
         )
 
+    /**
+     * Whether tapping the background of the player sheet toggles its state.
+     * When disabled, users must use gestures or buttons to expand/collapse.
+     */
+    val tapBackgroundClosesPlayer: StateFlow<Boolean> = userPreferencesRepository.tapBackgroundClosesPlayerFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = true
+        )
 
     // Lyrics sync offset - now managed by LyricsStateHolder
     val currentSongLyricsSyncOffset: StateFlow<Int> = lyricsStateHolder.currentSongSyncOffset
@@ -240,6 +251,9 @@ class PlayerViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = LyricsSourcePreference.EMBEDDED_FIRST
         )
+
+    val albumArtQuality: StateFlow<AlbumArtQuality> = userPreferencesRepository.albumArtQualityFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AlbumArtQuality.MEDIUM)
 
     fun setLyricsSyncOffset(songId: String, offsetMs: Int) {
         lyricsStateHolder.setSyncOffset(songId, offsetMs)
@@ -960,6 +974,9 @@ class PlayerViewModel @Inject constructor(
                     syncShuffleStateWithSession(enabled)
                 }
         }
+
+        // Auto-hide undo bar when a new song starts playing
+        setupUndoBarPlaybackObserver()
 
         Trace.endSection() // End PlayerViewModel.init
     }
@@ -2303,6 +2320,29 @@ class PlayerViewModel @Inject constructor(
                 dismissedQueueName = "",
                 dismissedPosition = 0L
             )
+        }
+    }
+
+    /**
+     * Monitors song changes and automatically hides the dismiss undo bar
+     * when the user plays a different song, as the undo option becomes irrelevant.
+     */
+    private fun setupUndoBarPlaybackObserver() {
+        viewModelScope.launch {
+            stablePlayerState
+                .map { it.currentSong?.id }
+                .distinctUntilChanged()
+                .collect { newSongId ->
+                    val uiState = _playerUiState.value
+                    // If undo bar is showing and a different song is now playing,
+                    // hide the undo bar as it's no longer relevant
+                    if (uiState.showDismissUndoBar &&
+                        newSongId != null &&
+                        newSongId != uiState.dismissedSong?.id
+                    ) {
+                        hideDismissUndoBar()
+                    }
+                }
         }
     }
 

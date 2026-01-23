@@ -72,6 +72,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
@@ -93,6 +94,7 @@ import com.theveloper.pixelplay.presentation.viewmodel.LyricsRefreshProgress
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.SettingsViewModel
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsCategoryScreen(
@@ -483,6 +485,14 @@ fun SettingsCategoryScreen(
                                     }
                                 },
                                 leadingIcon = { Icon(painterResource(R.drawable.rounded_all_inclusive_24), null, tint = MaterialTheme.colorScheme.secondary) }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            SwitchSettingItem(
+                                title = "Tap background closes player",
+                                subtitle = "Tap the blurred background to close the player sheet.",
+                                checked = uiState.tapBackgroundClosesPlayer,
+                                onCheckedChange = { settingsViewModel.setTapBackgroundClosesPlayer(it) },
+                                leadingIcon = { Icon(painterResource(R.drawable.rounded_touch_app_24), null, tint = MaterialTheme.colorScheme.secondary) }
                             )
                         }
                         SettingsCategory.AI_INTEGRATION -> {

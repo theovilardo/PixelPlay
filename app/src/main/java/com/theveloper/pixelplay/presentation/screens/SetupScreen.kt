@@ -165,10 +165,10 @@ fun SetupScreen(
         )
         // Add media permissions page for all versions
         list.add(SetupPage.MediaPermission)
-        // Add all files access page for Android 11+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            list.add(SetupPage.AllFilesPermission)
-        }
+        // All Files Access page removed as requested
+        // if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        //     list.add(SetupPage.AllFilesPermission)
+        // }
         // Add directory selection page after storage permissions
         list.add(SetupPage.DirectorySelection)
         // Add notifications permission page for Android 13+
