@@ -1488,9 +1488,30 @@ class PlayerViewModel @Inject constructor(
     fun playSongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None", playlistId: String? = null) {
         viewModelScope.launch {
             transitionSchedulerJob?.cancel()
+            
+            // Validate songs - filter out any with missing files (efficient: uses contentUri check)
+            val validSongs = songsToPlay.filter { song ->
+                try {
+                    // Use ContentResolver to check if URI is still valid (more efficient than File check)
+                    val uri = song.contentUriString.toUri()
+                    context.contentResolver.openInputStream(uri)?.use { true } ?: false
+                } catch (e: Exception) {
+                    Timber.w("Song file missing or inaccessible: ${song.title}")
+                    false
+                }
+            }
+            
+            if (validSongs.isEmpty()) {
+                _toastEvents.emit(context.getString(R.string.no_valid_songs))
+                return@launch
+            }
+            
+            // Adjust startSong if it was filtered out
+            val validStartSong = if (validSongs.contains(startSong)) startSong else validSongs.first()
+            
             // Store the original order so we can "unshuffle" later if the user turns shuffle off
-            queueStateHolder.setOriginalQueueOrder(songsToPlay)
-            queueStateHolder.saveOriginalQueueState(songsToPlay, queueName)
+            queueStateHolder.setOriginalQueueOrder(validSongs)
+            queueStateHolder.saveOriginalQueueState(validSongs, queueName)
 
             // Check if the user wants shuffle to be persistent across different albums
             val isPersistent = userPreferencesRepository.persistentShuffleEnabledFlow.first()
@@ -1505,14 +1526,14 @@ class PlayerViewModel @Inject constructor(
             // If shuffle is persistent and currently ON, we shuffle the new songs immediately
             val finalSongsToPlay = if (isPersistent && isShuffleOn) {
                 // Shuffle the list but make sure the song you clicked stays at its current index or starts first
-                QueueUtils.buildAnchoredShuffleQueue(songsToPlay, songsToPlay.indexOf(startSong).coerceAtLeast(0))
+                QueueUtils.buildAnchoredShuffleQueue(validSongs, validSongs.indexOf(validStartSong).coerceAtLeast(0))
             } else {
                 // Otherwise, just use the normal sequential order
-                songsToPlay
+                validSongs
             }
 
             // Send the final list (shuffled or not) to the player engine
-            internalPlaySongs(finalSongsToPlay, startSong, queueName, playlistId)
+            internalPlaySongs(finalSongsToPlay, validStartSong, queueName, playlistId)
         }
     }
 
