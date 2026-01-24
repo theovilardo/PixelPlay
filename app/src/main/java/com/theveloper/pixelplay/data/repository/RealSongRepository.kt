@@ -1,0 +1,198 @@
+package com.theveloper.pixelplay.data.repository
+
+import android.content.ContentUris
+import android.content.Context
+import android.provider.MediaStore
+import android.util.Log
+import com.theveloper.pixelplay.data.database.FavoritesDao
+import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.data.observer.MediaStoreObserver
+import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import com.theveloper.pixelplay.utils.DirectoryRuleResolver
+import com.theveloper.pixelplay.utils.LogUtils
+import com.theveloper.pixelplay.utils.normalizeMetadataText
+import com.theveloper.pixelplay.utils.normalizeMetadataTextOrEmpty
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.withContext
+import java.io.File
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class RealSongRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val mediaStoreObserver: MediaStoreObserver,
+    private val favoritesDao: FavoritesDao,
+    private val userPreferencesRepository: UserPreferencesRepository
+) : SongRepository {
+
+    init {
+        mediaStoreObserver.register()
+    }
+
+    private fun getBaseSelection(): String {
+        return "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.TITLE} != '' AND ${MediaStore.Audio.Media.DURATION} >= 30000"
+    }
+
+    private suspend fun getFavoriteIds(): Set<Long> {
+        return favoritesDao.getFavoriteSongIdsOnce().toSet()
+    }
+
+    private fun normalizePath(path: String): String =
+        runCatching { File(path).canonicalPath }.getOrElse { File(path).absolutePath }
+
+    private fun getExcludedPaths(): Set<String> {
+        // This should come from a repository/store, not blocking flow preferably, 
+        // but for query implementation we'll need to filter the cursor results.
+        // For now, we will assume strict filtering logic inside mapCursorToSongs
+        return emptySet() 
+    }
+
+    override fun getSongs(): Flow<List<Song>> = combine(
+        mediaStoreObserver.mediaStoreChanges.onStart { emit(Unit) },
+        favoritesDao.getFavoriteSongIds(),
+        userPreferencesRepository.allowedDirectoriesFlow,
+        userPreferencesRepository.blockedDirectoriesFlow
+    ) { _, favoriteIds, allowedDirs, blockedDirs ->
+        // Triggered by mediaStore change or favorites change or directory config change
+        fetchSongsFromMediaStore(favoriteIds.toSet(), allowedDirs.toList(), blockedDirs.toList())
+    }.flowOn(Dispatchers.IO)
+
+    private suspend fun fetchSongsFromMediaStore(
+        favoriteIds: Set<Long>,
+        allowedDirs: List<String>,
+        blockedDirs: List<String>
+    ): List<Song> = withContext(Dispatchers.IO) {
+        val songs = mutableListOf<Song>()
+        val projection = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.TITLE,
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.ARTIST_ID,
+            MediaStore.Audio.Media.ALBUM,
+            MediaStore.Audio.Media.ALBUM_ID,
+            MediaStore.Audio.Media.DATA,
+            MediaStore.Audio.Media.DURATION,
+            MediaStore.Audio.Media.TRACK,
+            MediaStore.Audio.Media.YEAR,
+            MediaStore.Audio.Media.DATE_ADDED,
+            MediaStore.Audio.Media.ALBUM_ARTIST, // Valid on API 30+, fallback needed if minSdk < 30
+            // Genre is difficult in MediaStore.Audio.Media, usually requires separate query.
+            // keeping it simple for now, maybe null or fetch separately.
+        )
+        
+        // Handling API version differences for columns if necessary
+        // Assuming minSdk is high enough or columns exist (ALBUM_ARTIST is API 30+, need check if app supports lower)
+        
+        val selection = getBaseSelection()
+
+        try {
+            context.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                selection,
+                null,
+                "${MediaStore.Audio.Media.TITLE} ASC"
+            )?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                val artistIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST_ID)
+                val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+                val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+                val pathCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+                val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+                val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
+                val yearCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
+                val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+                val albumArtistCol = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ARTIST) // Can be -1
+
+                val resolver = DirectoryRuleResolver(
+                    allowedDirs.map(::normalizePath).toSet(),
+                    blockedDirs.map(::normalizePath).toSet() 
+                )
+                val isFilterActive = blockedDirs.isNotEmpty()
+
+                while (cursor.moveToNext()) {
+                    val path = cursor.getString(pathCol)
+                    
+                    // Directory Filtering
+                    if (isFilterActive) {
+                        val parentPath = File(path).parent ?: ""
+                        if (resolver.isBlocked(normalizePath(parentPath))) {
+                            continue
+                        }
+                    }
+
+                    val id = cursor.getLong(idCol)
+                    val albumId = cursor.getLong(albumIdCol)
+                    
+                    val song = Song(
+                        id = id.toString(),
+                        title = cursor.getString(titleCol).normalizeMetadataTextOrEmpty(),
+                        artist = cursor.getString(artistCol).normalizeMetadataTextOrEmpty(),
+                        artistId = cursor.getLong(artistIdCol),
+                        artists = emptyList(), // TODO: Secondary query for Multi-Artist or split string
+                        album = cursor.getString(albumCol).normalizeMetadataTextOrEmpty(),
+                        albumId = albumId,
+                        albumArtist = if (albumArtistCol != -1) cursor.getString(albumArtistCol).normalizeMetadataText() else null,
+                        path = path,
+                        contentUriString = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id).toString(),
+                        albumArtUriString = ContentUris.withAppendedId(
+                            android.net.Uri.parse("content://media/external/audio/albumart"),
+                            albumId
+                        ).toString(),
+                        duration = cursor.getLong(durationCol),
+                        genre = null, // MediaStore genre is complex
+                        lyrics = null,
+                        isFavorite = favoriteIds.contains(id),
+                        trackNumber = cursor.getInt(trackCol),
+                        year = cursor.getInt(yearCol),
+                        dateAdded = cursor.getLong(dateAddedCol),
+                        mimeType = null, 
+                        bitrate = null,
+                        sampleRate = null
+                    )
+                    songs.add(song)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("RealSongRepository", "Error querying MediaStore", e)
+        }
+        songs
+    }
+
+    override fun getSongsByAlbum(albumId: Long): Flow<List<Song>> {
+         // Reusing getSongs() and filtering might be inefficient for one album, 
+         // but consistent with the reactive source of truth.
+         // Optimization: Create specific query flow if needed.
+         return getSongs().flowOn(Dispatchers.IO).combine(kotlinx.coroutines.flow.flowOf(albumId)) { songs, id ->
+             songs.filter { it.albumId == id }
+         }
+    }
+
+    override fun getSongsByArtist(artistId: Long): Flow<List<Song>> {
+        return getSongs().flowOn(Dispatchers.IO).combine(kotlinx.coroutines.flow.flowOf(artistId)) { songs, id ->
+            songs.filter { it.artistId == id }
+        }
+    }
+
+    override suspend fun searchSongs(query: String): List<Song> {
+        val allSongs = getSongs().first() // Snapshot
+        return allSongs.filter { 
+            it.title.contains(query, true) || it.artist.contains(query, true) 
+        }
+    }
+
+    override fun getSongById(songId: Long): Flow<Song?> {
+        return getSongs().flowOn(Dispatchers.IO).combine(kotlinx.coroutines.flow.flowOf(songId)) { songs, id ->
+            songs.find { it.id == id.toString() }
+        }
+    }
+}
