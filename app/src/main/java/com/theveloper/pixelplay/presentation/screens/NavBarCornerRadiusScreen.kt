@@ -66,6 +66,7 @@ import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.viewmodel.SettingsViewModel
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+import com.theveloper.pixelplay.data.preferences.NavBarStyle
 
 const val DEFAULT_NAV_BAR_CORNER_RADIUS = 28f
 
@@ -75,12 +76,14 @@ fun NavBarCornerRadiusScreen(
     navController: NavController, settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
     val uiState by settingsViewModel.uiState.collectAsState()
+    val isFullWidth = uiState.navBarStyle == NavBarStyle.FULL_WIDTH
     
     NavBarCornerRadiusContent(
         initialRadius = uiState.navBarCornerRadius.toFloat(),
         onRadiusChange = { settingsViewModel.setNavBarCornerRadius(it) },
         onDone = { navController.popBackStack() },
-        onBack = { navController.popBackStack() }
+        onBack = { navController.popBackStack() },
+        isFullWidth = isFullWidth
     )
 }
 
@@ -90,7 +93,8 @@ fun NavBarCornerRadiusContent(
     initialRadius: Float,
     onRadiusChange: (Int) -> Unit,
     onDone: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    isFullWidth: Boolean
 ) {
     var sliderValue by remember { mutableFloatStateOf(initialRadius) }
     var hasBeenAdjusted by remember { mutableStateOf(sliderValue != DEFAULT_NAV_BAR_CORNER_RADIUS) }
@@ -157,7 +161,7 @@ fun NavBarCornerRadiusContent(
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
                 .padding(top = paddingValues.calculateTopPadding())
-                .padding(bottom = paddingValues.calculateBottomPadding())
+                .padding(bottom = if (isFullWidth) 0.dp else paddingValues.calculateBottomPadding())
         ) {
             
             // Content
@@ -300,22 +304,36 @@ fun NavBarCornerRadiusContent(
                 }
 
                 // Placeholder
+                val bottomPadding = paddingValues.calculateBottomPadding()
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(80.dp)
-                        .padding(horizontal = paddingValues.calculateBottomPadding()),
+                        .height(if (isFullWidth) 80.dp + bottomPadding else 80.dp)
+                        .padding(horizontal = if (isFullWidth) 0.dp else bottomPadding), // Full Width: No horizontal padding
                     color = MaterialTheme.colorScheme.onBackground,
-                    shape = AbsoluteSmoothCornerShape(
-                        cornerRadiusTL = 10.dp,
-                        smoothnessAsPercentBL = 60,
-                        cornerRadiusTR = 10.dp,
-                        smoothnessAsPercentBR = 60,
-                        cornerRadiusBR = sliderValue.dp,
-                        smoothnessAsPercentTL = 60,
-                        cornerRadiusBL = sliderValue.dp,
-                        smoothnessAsPercentTR = 60
-                    )
+                    shape = if (isFullWidth) {
+                        AbsoluteSmoothCornerShape(
+                            cornerRadiusTL = sliderValue.dp, // Customize TOP
+                            smoothnessAsPercentTL = 60,
+                            cornerRadiusTR = sliderValue.dp, // Customize TOP
+                            smoothnessAsPercentTR = 60,
+                            cornerRadiusBL = 0.dp, // Fixed BOTTOM
+                            smoothnessAsPercentBL = 60,
+                            cornerRadiusBR = 0.dp, // Fixed BOTTOM
+                            smoothnessAsPercentBR = 60
+                        )
+                    } else {
+                        AbsoluteSmoothCornerShape(
+                            cornerRadiusTL = 10.dp,
+                            smoothnessAsPercentBL = 60,
+                            cornerRadiusTR = 10.dp,
+                            smoothnessAsPercentBR = 60,
+                            cornerRadiusBR = sliderValue.dp,
+                            smoothnessAsPercentTL = 60,
+                            cornerRadiusBL = sliderValue.dp,
+                            smoothnessAsPercentTR = 60
+                        )
+                    }
                 ) {
 
                 }

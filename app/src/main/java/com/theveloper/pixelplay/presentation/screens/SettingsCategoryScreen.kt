@@ -359,7 +359,7 @@ fun SettingsCategoryScreen(
                                 onSelectionChanged = { settingsViewModel.setNavBarStyle(it) },
                                 leadingIcon = { Icon(Icons.Outlined.Style, null, tint = MaterialTheme.colorScheme.secondary) }
                             )
-                            if (uiState.navBarStyle == NavBarStyle.DEFAULT) {
+                            // if (uiState.navBarStyle == NavBarStyle.DEFAULT) { // Allow for both modes now
                                 Spacer(Modifier.height(4.dp))
                                 SettingsItem(
                                     title = "NavBar Corner Radius",
@@ -368,7 +368,7 @@ fun SettingsCategoryScreen(
                                     trailingIcon = { Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                                     onClick = { navController.navigate("nav_bar_corner_radius") }
                                 )
-                            }
+                            //}
                             Spacer(Modifier.height(4.dp))
                             ThemeSelectorItem(
                                 label = "Carousel Style",

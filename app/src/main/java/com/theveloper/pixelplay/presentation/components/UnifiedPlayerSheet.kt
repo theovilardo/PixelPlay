@@ -1275,14 +1275,11 @@ fun UnifiedPlayerSheet(
                                             velocity
                                         )
                                     },
-//                                queueSheetState = queueSheetState,
-//                                isQueueSheetVisible = false,
                                     onPlayPause = playerViewModel::playPause,
                                     onSeek = playerViewModel::seekTo,
                                     onNext = playerViewModel::nextSong,
                                     onPrevious = playerViewModel::previousSong,
                                     onCollapse = {},
-//                                onQueueSheetVisibilityChange = {},
                                     onShowCastClicked = {},
                                     onShuffleToggle = playerViewModel::toggleShuffle,
                                     onRepeatToggle = playerViewModel::cycleRepeatMode,
@@ -1302,8 +1299,6 @@ fun UnifiedPlayerSheet(
                 BackHandler(enabled = isQueueVisible && !internalIsKeyboardVisible) {
                     animateQueueSheet(false)
                 }
-
-
 
 
                 if (!internalIsKeyboardVisible || selectedSongForInfo != null) {
@@ -1509,10 +1504,6 @@ fun UnifiedPlayerSheet(
                 )
             }
         }
-
-//        if (isCastConnecting) {
-//            CastConnectingDialog()
-//        }
 
         pendingSaveQueueOverlay?.let { overlay ->
             SaveQueueAsPlaylistSheet(
