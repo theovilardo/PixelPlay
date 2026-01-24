@@ -92,6 +92,8 @@ class RealSongRepository @Inject constructor(
         
         val selection = getBaseSelection()
 
+        val songIdToGenreMap = getSongIdToGenreMap(context.contentResolver)
+
         try {
             context.contentResolver.query(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
@@ -149,7 +151,7 @@ class RealSongRepository @Inject constructor(
                             albumId
                         ).toString(),
                         duration = cursor.getLong(durationCol),
-                        genre = null, // MediaStore genre is complex
+                        genre = songIdToGenreMap[id],
                         lyrics = null,
                         isFavorite = favoriteIds.contains(id),
                         trackNumber = cursor.getInt(trackCol),
@@ -166,6 +168,51 @@ class RealSongRepository @Inject constructor(
             Log.e("RealSongRepository", "Error querying MediaStore", e)
         }
         songs
+    }
+
+    private fun getSongIdToGenreMap(contentResolver: android.content.ContentResolver): Map<Long, String> {
+        val genreMap = mutableMapOf<Long, String>()
+        try {
+            val genresUri = MediaStore.Audio.Genres.EXTERNAL_CONTENT_URI
+            val genresProjection = arrayOf(
+                MediaStore.Audio.Genres._ID,
+                MediaStore.Audio.Genres.NAME
+            )
+            
+            contentResolver.query(genresUri, genresProjection, null, null, null)?.use { genreCursor ->
+                val genreIdCol = genreCursor.getColumnIndexOrThrow(MediaStore.Audio.Genres._ID)
+                val genreNameCol = genreCursor.getColumnIndexOrThrow(MediaStore.Audio.Genres.NAME)
+                
+                while (genreCursor.moveToNext()) {
+                    val genreId = genreCursor.getLong(genreIdCol)
+                    val genreName = genreCursor.getString(genreNameCol).normalizeMetadataTextOrEmpty()
+                    
+                    if (genreName.isNotBlank() && genreName != "<unknown>") {
+                        val membersUri = MediaStore.Audio.Genres.Members.getContentUri("external", genreId)
+                        val membersProjection = arrayOf(MediaStore.Audio.Genres.Members.AUDIO_ID)
+                        
+                        try {
+                            contentResolver.query(membersUri, membersProjection, null, null, null)?.use { membersCursor ->
+                                val audioIdCol = membersCursor.getColumnIndex(MediaStore.Audio.Genres.Members.AUDIO_ID)
+                                if (audioIdCol != -1) {
+                                    while (membersCursor.moveToNext()) {
+                                        val songId = membersCursor.getLong(audioIdCol)
+                                        // If a song has multiple genres, this simple map keeps the last one found.
+                                        // Could be improved to join them if needed.
+                                        genreMap[songId] = genreName 
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                             Log.w("RealSongRepository", "Error querying members for genreId=$genreId", e)
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("RealSongRepository", "Error querying Genres", e)
+        }
+        return genreMap
     }
 
     override fun getSongsByAlbum(albumId: Long): Flow<List<Song>> {

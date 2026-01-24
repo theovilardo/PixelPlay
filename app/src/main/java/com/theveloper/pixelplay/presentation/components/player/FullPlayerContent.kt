@@ -1405,7 +1405,7 @@ private fun ControlsPlaceholder(color: Color, onColor: Color) {
             ) {
                  // 5 buttons: Prev, Play/Pause, Next + 2 smaller extras
                  // Size order: 42, 42, 64, 42, 42
-                 val sizes = listOf(42.dp, 42.dp, 64.dp, 42.dp, 42.dp)
+                 val sizes = listOf(74.dp, 74.dp, 74.dp)
                  sizes.forEach { size ->
                      PlaceholderBox(
                          modifier = Modifier.size(size),

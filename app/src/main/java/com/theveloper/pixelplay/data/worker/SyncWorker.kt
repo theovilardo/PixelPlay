@@ -44,6 +44,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import timber.log.Timber
 
 enum class SyncMode {
     INCREMENTAL,
@@ -73,10 +74,8 @@ constructor(
                     val syncMode = SyncMode.valueOf(syncModeName)
                     val forceMetadata = inputData.getBoolean(INPUT_FORCE_METADATA, false)
 
-                    Log.i(
-                            TAG,
-                            "Starting MediaStore synchronization (Mode: $syncMode, ForceMetadata: $forceMetadata)..."
-                    )
+                    Timber.tag(TAG)
+                        .i("Starting MediaStore synchronization (Mode: $syncMode, ForceMetadata: $forceMetadata)...")
                     val startTime = System.currentTimeMillis()
 
                     val artistDelimiters = userPreferencesRepository.artistDelimitersFlow.first()
@@ -86,10 +85,8 @@ constructor(
                             userPreferencesRepository.artistSettingsRescanRequiredFlow.first()
                     var lastSyncTimestamp = userPreferencesRepository.getLastSyncTimestamp()
 
-                    Log.d(
-                            TAG,
-                            "Artist parsing delimiters: $artistDelimiters, groupByAlbumArtist: $groupByAlbumArtist, rescanRequired: $rescanRequired"
-                    )
+                    Timber.tag(TAG)
+                        .d("Artist parsing delimiters: $artistDelimiters, groupByAlbumArtist: $groupByAlbumArtist, rescanRequired: $rescanRequired")
 
                     // --- MEDIA SCAN PHASE ---
                     // For INCREMENTAL or FULL sync, trigger a media scan to detect new files
@@ -109,10 +106,8 @@ constructor(
                         val deletedIds = localSongIds - mediaStoreIds
 
                         if (deletedIds.isNotEmpty()) {
-                            Log.i(
-                                    TAG,
-                                    "Found ${deletedIds.size} deleted songs. Removing from database..."
-                            )
+                            Timber.tag(TAG)
+                                .i("Found ${deletedIds.size} deleted songs. Removing from database...")
                             // Chunk deletions to avoid SQLite variable limit (default 999)
                             val batchSize = 500
                             deletedIds.chunked(batchSize).forEach { chunk ->
@@ -120,7 +115,7 @@ constructor(
                                 musicDao.deleteCrossRefsBySongIds(chunk.toList())
                             }
                         } else {
-                            Log.d(TAG, "No deleted songs found.")
+                            Timber.tag(TAG).d("No deleted songs found.")
                         }
                     }
 
@@ -142,7 +137,8 @@ constructor(
                                 0L
                             }
 
-                    Log.i(TAG, "Fetching music from MediaStore (since: $fetchTimestamp seconds)...")
+                    Timber.tag(TAG)
+                        .i("Fetching music from MediaStore (since: $fetchTimestamp seconds)...")
 
                     // Update every 50 songs or ~5% of library
                     val progressBatchSize = 50
@@ -162,17 +158,16 @@ constructor(
                                 )
                             }
 
-                    Log.i(
-                            TAG,
-                            "Fetched ${mediaStoreSongs.size} new/modified songs from MediaStore."
-                    )
+                    Timber.tag(TAG)
+                        .i("Fetched ${mediaStoreSongs.size} new/modified songs from MediaStore.")
 
                     // --- PROCESSING PHASE ---
                     if (mediaStoreSongs.isNotEmpty()) {
 
                         // If rebuilding, clear everything first
                         if (syncMode == SyncMode.REBUILD) {
-                            Log.i(TAG, "Rebuild mode: Clearing all music data before insert.")
+                            Timber.tag(TAG)
+                                .i("Rebuild mode: Clearing all music data before insert.")
                             musicDao.clearAllMusicDataWithCrossRefs()
                         }
 
@@ -196,10 +191,8 @@ constructor(
 
                         val songsToProcess = mediaStoreSongs
 
-                        Log.i(
-                                TAG,
-                                "Processing ${songsToProcess.size} songs for upsert. Hash: ${songsToProcess.hashCode()}"
-                        )
+                        Timber.tag(TAG)
+                            .i("Processing ${songsToProcess.size} songs for upsert. Hash: ${songsToProcess.hashCode()}")
 
                         val songsToInsert =
                                 songsToProcess.map { mediaStoreSong ->
@@ -305,10 +298,8 @@ constructor(
                         userPreferencesRepository.clearArtistSettingsRescanRequired()
 
                         val endTime = System.currentTimeMillis()
-                        Log.i(
-                                TAG,
-                                "Synchronization finished successfully in ${endTime - startTime}ms."
-                        )
+                        Timber.tag(TAG)
+                            .i("Synchronization finished successfully in ${endTime - startTime}ms.")
                         userPreferencesRepository.setLastSyncTimestamp(System.currentTimeMillis())
 
                         // Count total songs for the output
@@ -317,7 +308,7 @@ constructor(
                         // --- LRC SCANNING PHASE ---
                         val autoScanLrc = userPreferencesRepository.autoScanLrcFilesFlow.first()
                         if (autoScanLrc) {
-                            Log.i(TAG, "Auto-scan LRC files enabled. Starting scan phase...")
+                            Timber.tag(TAG).i("Auto-scan LRC files enabled. Starting scan phase...")
 
                             val allSongsEntities = musicDao.getAllSongsList()
                             val allSongs =
