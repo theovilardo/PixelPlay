@@ -181,7 +181,7 @@ object AppModule {
         favoritesDao: FavoritesDao,
         userPreferencesRepository: UserPreferencesRepository
     ): com.theveloper.pixelplay.data.repository.SongRepository {
-        return com.theveloper.pixelplay.data.repository.RealSongRepository(
+        return com.theveloper.pixelplay.data.repository.MediaStoreSongRepository(
             context = context,
             mediaStoreObserver = mediaStoreObserver,
             favoritesDao = favoritesDao,

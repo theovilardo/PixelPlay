@@ -25,7 +25,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class RealSongRepository @Inject constructor(
+class MediaStoreSongRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val mediaStoreObserver: MediaStoreObserver,
     private val favoritesDao: FavoritesDao,
@@ -165,7 +165,7 @@ class RealSongRepository @Inject constructor(
                 }
             }
         } catch (e: Exception) {
-            Log.e("RealSongRepository", "Error querying MediaStore", e)
+            Log.e("MediaStoreSongRepository", "Error querying MediaStore", e)
         }
         songs
     }
@@ -204,13 +204,13 @@ class RealSongRepository @Inject constructor(
                                 }
                             }
                         } catch (e: Exception) {
-                             Log.w("RealSongRepository", "Error querying members for genreId=$genreId", e)
+                             Log.w("MediaStoreSongRepository", "Error querying members for genreId=$genreId", e)
                         }
                     }
                 }
             }
         } catch (e: Exception) {
-            Log.e("RealSongRepository", "Error querying Genres", e)
+            Log.e("MediaStoreSongRepository", "Error querying Genres", e)
         }
         return genreMap
     }
