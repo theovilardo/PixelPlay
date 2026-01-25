@@ -191,6 +191,7 @@ fun UnifiedPlayerSheet(
     val navBarStyle by playerViewModel.navBarStyle.collectAsState()
     val carouselStyle by playerViewModel.carouselStyle.collectAsState()
     val fullPlayerLoadingTweaks by playerViewModel.fullPlayerLoadingTweaks.collectAsState()
+    val tapBackgroundClosesPlayer by playerViewModel.tapBackgroundClosesPlayer.collectAsState()
     LaunchedEffect(stablePlayerState.currentSong?.id) {
         if (stablePlayerState.currentSong != null) {
             prewarmFullPlayer = true
@@ -1130,7 +1131,7 @@ fun UnifiedPlayerSheet(
                                     )
                                 }
                                 .clickable(
-                                    enabled = true,
+                                    enabled = tapBackgroundClosesPlayer || currentSheetContentState == PlayerSheetState.COLLAPSED,
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
                                 ) {
@@ -1274,14 +1275,11 @@ fun UnifiedPlayerSheet(
                                             velocity
                                         )
                                     },
-//                                queueSheetState = queueSheetState,
-//                                isQueueSheetVisible = false,
                                     onPlayPause = playerViewModel::playPause,
                                     onSeek = playerViewModel::seekTo,
                                     onNext = playerViewModel::nextSong,
                                     onPrevious = playerViewModel::previousSong,
                                     onCollapse = {},
-//                                onQueueSheetVisibilityChange = {},
                                     onShowCastClicked = {},
                                     onShuffleToggle = playerViewModel::toggleShuffle,
                                     onRepeatToggle = playerViewModel::cycleRepeatMode,
@@ -1301,8 +1299,6 @@ fun UnifiedPlayerSheet(
                 BackHandler(enabled = isQueueVisible && !internalIsKeyboardVisible) {
                     animateQueueSheet(false)
                 }
-
-
 
 
                 if (!internalIsKeyboardVisible || selectedSongForInfo != null) {
@@ -1508,10 +1504,6 @@ fun UnifiedPlayerSheet(
                 )
             }
         }
-
-//        if (isCastConnecting) {
-//            CastConnectingDialog()
-//        }
 
         pendingSaveQueueOverlay?.let { overlay ->
             SaveQueueAsPlaylistSheet(

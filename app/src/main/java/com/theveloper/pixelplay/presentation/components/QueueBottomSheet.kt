@@ -628,7 +628,9 @@ fun QueueBottomSheet(
                                     ,
                                     onClick = { onPlaySong(song) },
                                     song = song,
-                                    isCurrentSong = song.id == currentSongId,
+                                    // Use index comparison to correctly highlight only the current song
+                                    // even when the same song appears multiple times in the queue
+                                    isCurrentSong = index == currentSongDisplayIndex,
                                     isPlaying = isPlaying,
                                     isDragging = isDragging,
                                     onRemoveClick = { onRemoveSong(song.id) },

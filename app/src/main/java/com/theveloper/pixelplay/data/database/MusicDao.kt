@@ -309,6 +309,12 @@ interface MusicDao {
     @Query("UPDATE artists SET image_url = :imageUrl WHERE id = :artistId")
     suspend fun updateArtistImageUrl(artistId: Long, imageUrl: String)
 
+    @Query("SELECT id FROM artists WHERE name = :name LIMIT 1")
+    suspend fun getArtistIdByName(name: String): Long?
+
+    @Query("SELECT MAX(id) FROM artists")
+    suspend fun getMaxArtistId(): Long?
+
     // --- Genre Queries ---
     // Example: Get all songs for a specific genre
     @Query("""

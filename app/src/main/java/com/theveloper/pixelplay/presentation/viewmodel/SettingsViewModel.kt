@@ -8,6 +8,7 @@ import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.LibraryNavigationMode
 import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import com.theveloper.pixelplay.data.preferences.AlbumArtQuality
 import com.theveloper.pixelplay.data.preferences.FullPlayerLoadingTweaks
 import com.theveloper.pixelplay.data.repository.LyricsRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
@@ -51,7 +52,10 @@ data class SettingsUiState(
     val isLoadingModels: Boolean = false,
     val modelsFetchError: String? = null,
     val appRebrandDialogShown: Boolean = false,
-    val fullPlayerLoadingTweaks: FullPlayerLoadingTweaks = FullPlayerLoadingTweaks()
+    val fullPlayerLoadingTweaks: FullPlayerLoadingTweaks = FullPlayerLoadingTweaks(),
+    // Developer Options
+    val albumArtQuality: AlbumArtQuality = AlbumArtQuality.MEDIUM,
+    val tapBackgroundClosesPlayer: Boolean = true
 )
 
 data class FailedSongInfo(
@@ -246,6 +250,19 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update { it.copy(isLoadingDirectories = loading) }
             }
         }
+
+        // Beta Features Collectors
+        viewModelScope.launch {
+            userPreferencesRepository.albumArtQualityFlow.collect { quality ->
+                _uiState.update { it.copy(albumArtQuality = quality) }
+            }
+        }
+
+        viewModelScope.launch {
+            userPreferencesRepository.tapBackgroundClosesPlayerFlow.collect { enabled ->
+                _uiState.update { it.copy(tapBackgroundClosesPlayer = enabled) }
+            }
+        }
     }
 
     fun setAppRebrandDialogShown(wasShown: Boolean) {
@@ -255,8 +272,11 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun toggleDirectoryAllowed(file: File) {
-        fileExplorerStateHolder.toggleDirectoryAllowed(file)
-        syncManager.sync()
+        viewModelScope.launch {
+            fileExplorerStateHolder.toggleDirectoryAllowed(file)
+            // Now that preferences are securely saved, we can sync/refresh
+            syncManager.sync()
+        }
     }
 
     fun loadDirectory(file: File) {
@@ -543,6 +563,26 @@ class SettingsViewModel @Inject constructor(
     fun resetSetupFlow() {
         viewModelScope.launch {
             userPreferencesRepository.setInitialSetupDone(false)
+        }
+    }
+
+    // ===== Developer Options =====
+
+    val albumArtQuality: StateFlow<AlbumArtQuality> = userPreferencesRepository.albumArtQualityFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AlbumArtQuality.MEDIUM)
+
+    val tapBackgroundClosesPlayer: StateFlow<Boolean> = userPreferencesRepository.tapBackgroundClosesPlayerFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    fun setAlbumArtQuality(quality: AlbumArtQuality) {
+        viewModelScope.launch {
+            userPreferencesRepository.setAlbumArtQuality(quality)
+        }
+    }
+
+    fun setTapBackgroundClosesPlayer(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setTapBackgroundClosesPlayer(enabled)
         }
     }
 }

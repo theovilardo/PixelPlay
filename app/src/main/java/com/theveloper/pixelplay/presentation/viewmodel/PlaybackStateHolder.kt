@@ -264,11 +264,19 @@ class PlaybackStateHolder @Inject constructor(
                     val targetIndex = shuffledQueue.indexOfFirst { it.id == currentMediaId }
                         .takeIf { it != -1 } ?: currentIndex
 
+                    // Prepare player for seamless transition - maintains playback state
+                    val wasPlaying = player.isPlaying
+                    
                     dualPlayerEngine.masterPlayer.setMediaItems(
                          shuffledQueue.map { MediaItemBuilder.build(it) },
                          targetIndex,
                          currentPosition
                     )
+                    
+                    // Resume if was playing - player should continue seamlessly
+                    if (wasPlaying && !player.isPlaying) {
+                        player.play()
+                    }
                     
                     updateQueueCallback(shuffledQueue)
                     _stablePlayerState.update { it.copy(isShuffleEnabled = true) }
@@ -303,11 +311,19 @@ class PlaybackStateHolder @Inject constructor(
                         return@launch
                     }
 
+                    // Preserve playback state during queue rebuild
+                    val wasPlaying = player.isPlaying
+
                      dualPlayerEngine.masterPlayer.setMediaItems(
                          originalQueue.map { MediaItemBuilder.build(it) },
                          originalIndex,
                          currentPosition
                     )
+                    
+                    // Resume if was playing
+                    if (wasPlaying && !player.isPlaying) {
+                        player.play()
+                    }
 
                     updateQueueCallback(originalQueue)
                     _stablePlayerState.update { it.copy(isShuffleEnabled = false) }

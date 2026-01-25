@@ -44,6 +44,21 @@ object AppThemeMode {
     const val DARK = "dark"
 }
 
+/**
+ * Album art quality settings for developer options.
+ * Controls maximum resolution for album artwork in player view.
+ * Thumbnails in lists always use low resolution for performance.
+ * 
+ * @property maxSize Maximum size in pixels (0 = original size)
+ * @property label Human-readable label for UI
+ */
+enum class AlbumArtQuality(val maxSize: Int, val label: String) {
+    LOW(256, "Low (256px) - Better performance"),
+    MEDIUM(512, "Medium (512px) - Balanced"),
+    HIGH(800, "High (800px) - Best quality"),
+    ORIGINAL(0, "Original - Maximum quality")
+}
+
 @Singleton
 class UserPreferencesRepository
 @Inject
@@ -150,6 +165,10 @@ constructor(
         // Lyrics Source Preference
         val LYRICS_SOURCE_PREFERENCE = stringPreferencesKey("lyrics_source_preference")
         val AUTO_SCAN_LRC_FILES = booleanPreferencesKey("auto_scan_lrc_files")
+        
+        // Developer Options
+        val ALBUM_ART_QUALITY = stringPreferencesKey("album_art_quality")
+        val TAP_BACKGROUND_CLOSES_PLAYER = booleanPreferencesKey("tap_background_closes_player")
     }
 
     val appRebrandDialogShownFlow: Flow<Boolean> =
@@ -562,7 +581,7 @@ constructor(
 
     val showQueueHistoryFlow: Flow<Boolean> =
             dataStore.data.map { preferences ->
-                preferences[PreferencesKeys.SHOW_QUEUE_HISTORY] ?: true
+                preferences[PreferencesKeys.SHOW_QUEUE_HISTORY] ?: false  // Default to false for performance
             }
 
     suspend fun setShowQueueHistory(show: Boolean) {
@@ -1390,6 +1409,44 @@ constructor(
     suspend fun setPinnedPresets(presetNames: List<String>) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.PINNED_PRESETS] = json.encodeToString(presetNames)
+        }
+    }
+
+    // ===== Developer Options =====
+    
+    /**
+     * Album art quality for player view.
+     * Controls the maximum resolution for album artwork displayed in the full player.
+     * Thumbnails in lists always use low resolution (256px) for optimal performance.
+     */
+    val albumArtQualityFlow: Flow<AlbumArtQuality> =
+        dataStore.data.map { preferences ->
+            preferences[PreferencesKeys.ALBUM_ART_QUALITY]
+                ?.let { 
+                    try { AlbumArtQuality.valueOf(it) } 
+                    catch (e: Exception) { AlbumArtQuality.ORIGINAL }
+                }
+                ?: AlbumArtQuality.ORIGINAL
+        }
+
+    suspend fun setAlbumArtQuality(quality: AlbumArtQuality) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.ALBUM_ART_QUALITY] = quality.name
+        }
+    }
+
+    /**
+     * Whether tapping the background area of the player sheet closes it.
+     * Default is true for intuitive dismissal, but power users may prefer to disable this.
+     */
+    val tapBackgroundClosesPlayerFlow: Flow<Boolean> =
+        dataStore.data.map { preferences ->
+            preferences[PreferencesKeys.TAP_BACKGROUND_CLOSES_PLAYER] ?: true
+        }
+
+    suspend fun setTapBackgroundClosesPlayer(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.TAP_BACKGROUND_CLOSES_PLAYER] = enabled
         }
     }
 }

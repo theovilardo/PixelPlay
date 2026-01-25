@@ -209,29 +209,54 @@ class FileExplorerStateHolder(
         }
     }
 
-    fun toggleDirectoryAllowed(file: File) {
-        scope.launch {
-            val currentAllowed = _allowedDirectories.value.toMutableSet()
-            val currentBlocked = _blockedDirectories.value.toMutableSet()
-            val path = normalizePath(file)
+    suspend fun toggleDirectoryAllowed(file: File) {
+        val currentAllowed = _allowedDirectories.value.toMutableSet()
+        val currentBlocked = _blockedDirectories.value.toMutableSet()
+        val path = normalizePath(file)
 
+        // Check if explicitly blocked in the set (ignoring resolver logic for a moment)
+        val isExplicitlyBlocked = currentBlocked.contains(path)
+
+        if (isExplicitlyBlocked) {
+            // Unblock operation
+            currentBlocked.remove(path)
+            
+            // Clean up: Remove any explicit "Allow" rules that are children of this path
+            // (since we are unblocking the parent, children are now implicitly allowed)
+            currentAllowed.removeAll { it.startsWith("$path/") }
+            
+            // Crucial: Only add to "Allowed" if it is STILL blocked by a parent.
+            // If it's not blocked by any parent, we don't need to add it to allowed (Global Allow).
             val resolver = DirectoryRuleResolver(currentAllowed, currentBlocked)
-            val isCurrentlyBlocked = resolver.isBlocked(path)
-
-            if (isCurrentlyBlocked) {
-                currentBlocked.remove(path)
-                currentAllowed.removeAll { it.startsWith("$path/") }
-                currentAllowed.add(path)
-                userPreferencesRepository.updateDirectorySelections(currentAllowed, currentBlocked)
-                return@launch
+            if (resolver.isBlocked(path)) {
+               currentAllowed.add(path)
             }
 
-            currentBlocked.removeAll { it.startsWith("$path/") }
-            currentAllowed.removeAll { it == path || it.startsWith("$path/") }
-            currentBlocked.add(path)
-
+            // Optimistic Update directly to flows to prevent race conditions on rapid toggles
+            _allowedDirectories.value = currentAllowed
+            _blockedDirectories.value = currentBlocked
+            
             userPreferencesRepository.updateDirectorySelections(currentAllowed, currentBlocked)
+            return
         }
+
+        // Block Operation
+        // Remove any explicit "Block" rules that are children (they are redundant now)
+        currentBlocked.removeAll { it.startsWith("$path/") }
+        // Remove any explicit "Allow" rules that are inside (they are overridden unless we want nested allow?)
+        // Wait, usually we want to Keep nested allows if we support "Block Music, Allow Music/Favorites".
+        // DirectoryRuleResolver supports nesting. 
+        // But the previous code removed them: `currentAllowed.removeAll { ... }`
+        // Let's stick to previous behavior of clearing conflicting rules to avoid confusion.
+        currentAllowed.removeAll { it == path || it.startsWith("$path/") }
+        
+        currentBlocked.add(path)
+
+        // Optimistic Update
+        _allowedDirectories.value = currentAllowed
+        _blockedDirectories.value = currentBlocked
+
+        userPreferencesRepository.updateDirectorySelections(currentAllowed, currentBlocked)
     }
 
     private suspend fun loadDirectoryInternal(file: File, updatePath: Boolean, forceRefresh: Boolean) {
@@ -338,8 +363,8 @@ class FileExplorerStateHolder(
 
     fun rootDirectory(): File = visibleRoot
 
-    private fun normalizePath(file: File): String = runCatching { file.canonicalPath }.getOrDefault(file.absolutePath)
-    private fun normalizePath(path: String): String = runCatching { File(path).canonicalPath }.getOrDefault(path)
+    private fun normalizePath(file: File): String = file.absolutePath
+    private fun normalizePath(path: String): String = File(path).absolutePath
 
     // Used for logic when breaking down parents (Nav Mode logic)
     private fun getChildrenWithAudio(directory: File): List<RawDirectoryEntry> {

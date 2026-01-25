@@ -3,6 +3,8 @@ package com.theveloper.pixelplay.presentation.viewmodel
 import android.content.Context
 import android.util.Log
 import com.theveloper.pixelplay.data.media.CoverArtUpdate
+import com.theveloper.pixelplay.data.media.ImageCacheManager
+import com.theveloper.pixelplay.data.media.MetadataEditError
 import com.theveloper.pixelplay.data.media.SongMetadataEditor
 import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.data.model.Song
@@ -18,6 +20,8 @@ import javax.inject.Inject
 class MetadataEditStateHolder @Inject constructor(
     private val songMetadataEditor: SongMetadataEditor,
     private val musicRepository: MusicRepository,
+    private val imageCacheManager: ImageCacheManager,
+    private val themeStateHolder: ThemeStateHolder,
     @ApplicationContext private val context: Context
 ) {
 
@@ -25,8 +29,27 @@ class MetadataEditStateHolder @Inject constructor(
         val success: Boolean,
         val updatedSong: Song? = null,
         val updatedAlbumArtUri: String? = null,
-        val parsedLyrics: Lyrics? = null
-    )
+        val parsedLyrics: Lyrics? = null,
+        val error: MetadataEditError? = null,
+        val errorMessage: String? = null
+    ) {
+        /**
+         * Returns a user-friendly error message based on the error type
+         */
+        fun getUserFriendlyErrorMessage(): String {
+            return when (error) {
+                MetadataEditError.FILE_NOT_FOUND -> "The song file could not be found. It may have been moved or deleted."
+                MetadataEditError.NO_WRITE_PERMISSION -> "Cannot edit this file. You may need to grant additional permissions or the file is on read-only storage."
+                MetadataEditError.INVALID_INPUT -> errorMessage ?: "Invalid input provided."
+                MetadataEditError.UNSUPPORTED_FORMAT -> "This file format is not supported for editing."
+                MetadataEditError.TAGLIB_ERROR -> "Failed to write metadata to the file. The file may be corrupted."
+                MetadataEditError.TIMEOUT -> "The operation took too long and was cancelled."
+                MetadataEditError.FILE_CORRUPTED -> "The file appears to be corrupted or in an unsupported format."
+                MetadataEditError.IO_ERROR -> "An error occurred while accessing the file. Please try again."
+                MetadataEditError.UNKNOWN, null -> errorMessage ?: "An unknown error occurred while editing metadata."
+            }
+        }
+    }
 
     suspend fun saveMetadata(
         song: Song,
@@ -77,7 +100,7 @@ class MetadataEditStateHolder @Inject constructor(
             songId = song.id.toLong(),
         )
 
-        Log.d("MetadataEditStateHolder", "Editor result: success=${result.success}")
+        Log.d("MetadataEditStateHolder", "Editor result: success=${result.success}, error=${result.error}")
 
         if (result.success) {
             val refreshedAlbumArtUri = result.updatedAlbumArtUri ?: song.albumArtUriString
@@ -109,6 +132,15 @@ class MetadataEditStateHolder @Inject constructor(
                 updatedSong
             }
 
+            // Force cache invalidation if album art might have changed
+            if (refreshedAlbumArtUri != null) {
+                // Invalidate Coil/Glide caches
+                imageCacheManager.invalidateCoverArtCaches(refreshedAlbumArtUri)
+                
+                // Force regenerate palette
+                themeStateHolder.forceRegenerateColorScheme(refreshedAlbumArtUri)
+            }
+
             MetadataEditResult(
                 success = true,
                 updatedSong = freshSong,
@@ -116,7 +148,12 @@ class MetadataEditStateHolder @Inject constructor(
                 parsedLyrics = parsedLyrics
             )
         } else {
-            MetadataEditResult(success = false)
+            Log.w("MetadataEditStateHolder", "Metadata edit failed: ${result.error} - ${result.errorMessage}")
+            MetadataEditResult(
+                success = false,
+                error = result.error,
+                errorMessage = result.errorMessage
+            )
         }
     }
 

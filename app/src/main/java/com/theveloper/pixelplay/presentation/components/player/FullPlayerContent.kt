@@ -101,6 +101,7 @@ import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.data.preferences.AlbumArtQuality
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.FullPlayerLoadingTweaks
 import com.theveloper.pixelplay.presentation.components.AlbumCarouselSection
@@ -126,6 +127,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
 import kotlin.math.roundToLong
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @SuppressLint("StateFlowValueCalledInComposition")
@@ -178,6 +181,7 @@ fun FullPlayerContent(
     val lyricsSearchUiState by playerViewModel.lyricsSearchUiState.collectAsState()
     val currentSongArtists by playerViewModel.currentSongArtists.collectAsState()
     val lyricsSyncOffset by playerViewModel.currentSongLyricsSyncOffset.collectAsState()
+    val albumArtQuality by playerViewModel.albumArtQuality.collectAsState()
 
     var showFetchLyricsDialog by remember { mutableStateOf(false) }
     var totalDrag by remember { mutableStateOf(0f) }
@@ -328,7 +332,8 @@ fun FullPlayerContent(
                         }
                     },
                     carouselStyle = carouselStyle,
-                    modifier = Modifier.height(carouselHeight)
+                    modifier = Modifier.height(carouselHeight),
+                    albumArtQuality = albumArtQuality
                 )
             }
         }
@@ -1400,7 +1405,7 @@ private fun ControlsPlaceholder(color: Color, onColor: Color) {
             ) {
                  // 5 buttons: Prev, Play/Pause, Next + 2 smaller extras
                  // Size order: 42, 42, 64, 42, 42
-                 val sizes = listOf(42.dp, 42.dp, 64.dp, 42.dp, 42.dp)
+                 val sizes = listOf(74.dp, 74.dp, 74.dp)
                  sizes.forEach { size ->
                      PlaceholderBox(
                          modifier = Modifier.size(size),

@@ -146,114 +146,94 @@ class LibraryStateHolder @Inject constructor(
     }
 
     // --- Data Loading ---
-
-    fun loadSongsFromRepository() {
-        Log.d("LibraryStateHolder", "loadSongsFromRepository called.")
-        scope?.launch {
-            val functionStartTime = System.currentTimeMillis()
+    
+    // We observe the repository flows permanently in initialize(), or we start collecting here?
+    // Better to start collecting in initialize() or have these functions just be "ensure active".
+    // Actually, explicit "load" functions are legacy imperative style.
+    // We should launch collectors in initialize() that update the state.
+    
+    private var songsJob: Job? = null
+    private var albumsJob: Job? = null
+    private var artistsJob: Job? = null
+    private var foldersJob: Job? = null
+    
+    fun startObservingLibraryData() {
+        if (songsJob?.isActive == true) return
+        
+        Log.d("LibraryStateHolder", "startObservingLibraryData called.")
+        
+        songsJob = scope?.launch {
             _isLoadingLibrary.value = true
-
-            try {
-                // Use new suspend function from repo if available, assuming identical logic to ViewModel
-                // Since original code used repo.getAllSongs() which returns Flow<List<Song>>, we collect state
-                val allSongsList = withContext(Dispatchers.IO) {
-                   musicRepository.getAllSongsOnce()
-                }
-
-                _allSongs.value = allSongsList.toImmutableList()
-                sortSongs(_currentSongSortOption.value, persist = false)
-
-                Log.d("LibraryStateHolder", "loadSongsFromRepository load finished. Time: ${System.currentTimeMillis() - functionStartTime} ms. Count: ${allSongsList.size}")
-
-            } catch (e: Exception) {
-                Log.e("LibraryStateHolder", "Error loading songs", e)
-            } finally {
-                _isLoadingLibrary.value = false
+            musicRepository.getAudioFiles().collect { songs ->
+                 // When the repository emits a new list (triggered by directory changes),
+                 // we update our state and re-apply current sorting.
+                 _allSongs.value = songs.toImmutableList()
+                 // Apply sort to the new data
+                 sortSongs(_currentSongSortOption.value, persist = false)
+                 _isLoadingLibrary.value = false
             }
         }
+        
+        albumsJob = scope?.launch {
+            _isLoadingCategories.value = true
+            musicRepository.getAlbums().collect { albums ->
+                _albums.value = albums.toImmutableList()
+                sortAlbums(_currentAlbumSortOption.value, persist = false)
+                _isLoadingCategories.value = false
+            }
+        }
+        
+        artistsJob = scope?.launch {
+            _isLoadingCategories.value = true
+            musicRepository.getArtists().collect { artists ->
+                _artists.value = artists.toImmutableList()
+                sortArtists(_currentArtistSortOption.value, persist = false)
+                _isLoadingCategories.value = false
+            }
+        }
+        
+        foldersJob = scope?.launch {
+            musicRepository.getMusicFolders().collect { folders ->
+                 _musicFolders.value = folders.toImmutableList()
+                 sortFolders(_currentFolderSortOption.value)
+            }
+        }
+    }
+
+    // Deprecated imperative loaders - redirected to observer start
+    fun loadSongsFromRepository() {
+         startObservingLibraryData()
     }
 
     fun loadAlbumsFromRepository() {
-        Log.d("LibraryStateHolder", "loadAlbumsFromRepository called.")
-        scope?.launch {
-            val startTime = System.currentTimeMillis()
-            _isLoadingCategories.value = true
-            Trace.beginSection("LibraryStateHolder.loadAlbums")
-
-            try {
-                val allAlbumsList = musicRepository.getAllAlbumsOnce()
-                _albums.value = allAlbumsList.toImmutableList()
-                sortAlbums(_currentAlbumSortOption.value, persist = false)
-                Log.d("LibraryStateHolder", "loadAlbums finished. Time: ${System.currentTimeMillis() - startTime} ms. Count: ${allAlbumsList.size}")
-            } catch (e: Exception) {
-                Log.e("LibraryStateHolder", "Error loading albums", e)
-            } finally {
-                _isLoadingCategories.value = false
-                Trace.endSection()
-            }
-        }
+         startObservingLibraryData()
     }
 
     fun loadArtistsFromRepository() {
-        Log.d("LibraryStateHolder", "loadArtistsFromRepository called.")
-        scope?.launch {
-            val startTime = System.currentTimeMillis()
-            _isLoadingCategories.value = true
-
-            try {
-                val allArtistsList = musicRepository.getAllArtistsOnce()
-                _artists.value = allArtistsList.toImmutableList()
-                Log.d("LibraryStateHolder", "loadArtists finished. Time: ${System.currentTimeMillis() - startTime} ms. Count: ${allArtistsList.size}")
-            } catch (e: Exception) {
-                Log.e("LibraryStateHolder", "Error loading artists", e)
-            } finally {
-                _isLoadingCategories.value = false
-            }
-        }
+         startObservingLibraryData()
     }
-
+    
     fun loadFoldersFromRepository() {
-        Log.d("LibraryStateHolder", "loadFoldersFromRepository called.")
-        scope?.launch {
-            val startTime = System.currentTimeMillis()
-            _isLoadingCategories.value = true
-
-            try {
-                val allFoldersList = musicRepository.getMusicFolders().first()
-                _musicFolders.value = allFoldersList.toImmutableList()
-                Log.d("LibraryStateHolder", "loadFolders finished. Time: ${System.currentTimeMillis() - startTime} ms. Count: ${allFoldersList.size}")
-            } catch (e: Exception) {
-                Log.e("LibraryStateHolder", "Error loading folders", e)
-            } finally {
-                _isLoadingCategories.value = false
-            }
-        }
+        startObservingLibraryData()
     }
     
     // --- Lazy Loading Checks ---
 
+    // --- Lazy Loading Checks ---
+    // We replace conditional "check if empty" with "ensure observing".
+    // If we are already observing, startObservingLibraryData returns early.
+    // If we are not (e.g. process death recovery?), it restarts.
+    
     fun loadSongsIfNeeded() {
-        val songsEmpty = _allSongs.value.isEmpty()
-        val notLoading = !_isLoadingLibrary.value
-        if (songsEmpty && notLoading) {
-             loadSongsFromRepository()
-        }
+         startObservingLibraryData()
     }
 
     fun loadAlbumsIfNeeded() {
-        val albumsEmpty = _albums.value.isEmpty()
-        val notLoading = !_isLoadingCategories.value
-        if (albumsEmpty && notLoading) {
-            loadAlbumsFromRepository()
-        }
+        startObservingLibraryData()
     }
 
     fun loadArtistsIfNeeded() {
-        val artistsEmpty = _artists.value.isEmpty()
-        val notLoading = !_isLoadingCategories.value
-        if (artistsEmpty && notLoading) {
-            loadArtistsFromRepository()
-        }
+        startObservingLibraryData()
     }
 
     // --- Sorting ---

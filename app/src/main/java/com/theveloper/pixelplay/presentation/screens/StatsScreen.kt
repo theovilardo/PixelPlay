@@ -1109,25 +1109,41 @@ private fun CategoryVerticalBarChart(
     val highlightDuration = entries.maxOf { it.durationMs }
     val highlightIndex = entries.indexOfFirst { it.durationMs == highlightDuration }.coerceAtLeast(0)
 
+    // Enable horizontal scroll when there are many entries to prevent text truncation
+    val needsHorizontalScroll = entries.size > 4
+    val scrollState = rememberScrollState()
+    val minBarWidth = 60.dp
+
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
+                .then(
+                    if (needsHorizontalScroll) {
+                        Modifier.horizontalScroll(scrollState)
+                    } else {
+                        Modifier.fillMaxWidth()
+                    }
+                )
                 .height(220.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = if (needsHorizontalScroll) {
+                Arrangement.spacedBy(16.dp)
+            } else {
+                Arrangement.spacedBy(16.dp)
+            },
             verticalAlignment = Alignment.Bottom
         ) {
             entries.forEachIndexed { index, entry ->
                 val progress = (entry.durationMs.toFloat() / maxDuration.toFloat()).coerceIn(0f, 1f)
                 val isHighlight = entry.durationMs == highlightDuration
                 Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .widthIn(min = 56.dp)
-                        .padding(horizontal = 2.dp),
+                    modifier = if (needsHorizontalScroll) {
+                        Modifier.width(minBarWidth)
+                    } else {
+                        Modifier.weight(1f).widthIn(min = 56.dp)
+                    }.padding(horizontal = 2.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {

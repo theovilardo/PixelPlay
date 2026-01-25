@@ -56,6 +56,7 @@ import com.theveloper.pixelplay.data.preferences.LibraryNavigationMode
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.preferences.FullPlayerLoadingTweaks
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import com.theveloper.pixelplay.data.preferences.AlbumArtQuality
 import com.theveloper.pixelplay.data.repository.LyricsSearchResult
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.service.MusicNotificationProvider
@@ -229,6 +230,16 @@ class PlayerViewModel @Inject constructor(
             initialValue = FullPlayerLoadingTweaks()
         )
 
+    /**
+     * Whether tapping the background of the player sheet toggles its state.
+     * When disabled, users must use gestures or buttons to expand/collapse.
+     */
+    val tapBackgroundClosesPlayer: StateFlow<Boolean> = userPreferencesRepository.tapBackgroundClosesPlayerFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = true
+        )
 
     // Lyrics sync offset - now managed by LyricsStateHolder
     val currentSongLyricsSyncOffset: StateFlow<Int> = lyricsStateHolder.currentSongSyncOffset
@@ -240,6 +251,9 @@ class PlayerViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = LyricsSourcePreference.EMBEDDED_FIRST
         )
+
+    val albumArtQuality: StateFlow<AlbumArtQuality> = userPreferencesRepository.albumArtQualityFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AlbumArtQuality.MEDIUM)
 
     fun setLyricsSyncOffset(songId: String, offsetMs: Int) {
         lyricsStateHolder.setSyncOffset(songId, offsetMs)
@@ -961,6 +975,9 @@ class PlayerViewModel @Inject constructor(
                 }
         }
 
+        // Auto-hide undo bar when a new song starts playing
+        setupUndoBarPlaybackObserver()
+
         Trace.endSection() // End PlayerViewModel.init
     }
 
@@ -1488,9 +1505,30 @@ class PlayerViewModel @Inject constructor(
     fun playSongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None", playlistId: String? = null) {
         viewModelScope.launch {
             transitionSchedulerJob?.cancel()
+            
+            // Validate songs - filter out any with missing files (efficient: uses contentUri check)
+            val validSongs = songsToPlay.filter { song ->
+                try {
+                    // Use ContentResolver to check if URI is still valid (more efficient than File check)
+                    val uri = song.contentUriString.toUri()
+                    context.contentResolver.openInputStream(uri)?.use { true } ?: false
+                } catch (e: Exception) {
+                    Timber.w("Song file missing or inaccessible: ${song.title}")
+                    false
+                }
+            }
+            
+            if (validSongs.isEmpty()) {
+                _toastEvents.emit(context.getString(R.string.no_valid_songs))
+                return@launch
+            }
+            
+            // Adjust startSong if it was filtered out
+            val validStartSong = if (validSongs.contains(startSong)) startSong else validSongs.first()
+            
             // Store the original order so we can "unshuffle" later if the user turns shuffle off
-            queueStateHolder.setOriginalQueueOrder(songsToPlay)
-            queueStateHolder.saveOriginalQueueState(songsToPlay, queueName)
+            queueStateHolder.setOriginalQueueOrder(validSongs)
+            queueStateHolder.saveOriginalQueueState(validSongs, queueName)
 
             // Check if the user wants shuffle to be persistent across different albums
             val isPersistent = userPreferencesRepository.persistentShuffleEnabledFlow.first()
@@ -1505,14 +1543,14 @@ class PlayerViewModel @Inject constructor(
             // If shuffle is persistent and currently ON, we shuffle the new songs immediately
             val finalSongsToPlay = if (isPersistent && isShuffleOn) {
                 // Shuffle the list but make sure the song you clicked stays at its current index or starts first
-                QueueUtils.buildAnchoredShuffleQueue(songsToPlay, songsToPlay.indexOf(startSong).coerceAtLeast(0))
+                QueueUtils.buildAnchoredShuffleQueue(validSongs, validSongs.indexOf(validStartSong).coerceAtLeast(0))
             } else {
                 // Otherwise, just use the normal sequential order
-                songsToPlay
+                validSongs
             }
 
             // Send the final list (shuffled or not) to the player engine
-            internalPlaySongs(finalSongsToPlay, startSong, queueName, playlistId)
+            internalPlaySongs(finalSongsToPlay, validStartSong, queueName, playlistId)
         }
     }
 
@@ -2285,6 +2323,29 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Monitors song changes and automatically hides the dismiss undo bar
+     * when the user plays a different song, as the undo option becomes irrelevant.
+     */
+    private fun setupUndoBarPlaybackObserver() {
+        viewModelScope.launch {
+            stablePlayerState
+                .map { it.currentSong?.id }
+                .distinctUntilChanged()
+                .collect { newSongId ->
+                    val uiState = _playerUiState.value
+                    // If undo bar is showing and a different song is now playing,
+                    // hide the undo bar as it's no longer relevant
+                    if (uiState.showDismissUndoBar &&
+                        newSongId != null &&
+                        newSongId != uiState.dismissedSong?.id
+                    ) {
+                        hideDismissUndoBar()
+                    }
+                }
+        }
+    }
+
     fun undoDismissPlaylist() {
         viewModelScope.launch {
             val songToRestore = _playerUiState.value.dismissedSong
@@ -2460,6 +2521,20 @@ class PlayerViewModel @Inject constructor(
                             lyrics = result.parsedLyrics
                         )
                     }
+                    
+                    // Update the player's current MediaItem to refresh notification artwork
+                    // This is efficient: only replaces metadata, not the media stream
+                    val controller = playbackStateHolder.mediaController
+                    if (controller != null) {
+                        val currentIndex = controller.currentMediaItemIndex
+                        if (currentIndex >= 0 && currentIndex < controller.mediaItemCount) {
+                            val currentPosition = controller.currentPosition
+                            val newMediaItem = MediaItemBuilder.build(updatedSong)
+                            controller.replaceMediaItem(currentIndex, newMediaItem)
+                            // Restore position since replaceMediaItem may reset it
+                            controller.seekTo(currentIndex, currentPosition)
+                        }
+                    }
                 }
 
                 if (_selectedSongForInfo.value?.id == song.id) {
@@ -2483,7 +2558,9 @@ class PlayerViewModel @Inject constructor(
                 // syncManager.sync() was removed to avoid unnecessary wait time
                 _toastEvents.emit("Metadata updated successfully")
             } else {
-                _toastEvents.emit("Failed to update metadata")
+                val errorMessage = result.getUserFriendlyErrorMessage()
+                Log.e("PlayerViewModel", "METADATA_EDIT_VM: Failed - ${result.error}: $errorMessage")
+                _toastEvents.emit(errorMessage)
             }
         }
     }

@@ -9,6 +9,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.worker.SyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -46,11 +47,20 @@ data class SetupUiState(
 class SetupViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val syncManager: SyncManager,
+    private val musicRepository: MusicRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SetupUiState())
     val uiState = _uiState.asStateFlow()
+    
+    /**
+     * Expose sync progress for UI to show during initial setup
+     */
+    /**
+     * Expose sync progress for UI to show during initial setup
+     */
+    val isSyncing = syncManager.isSyncing
 
     private val fileExplorerStateHolder = FileExplorerStateHolder(userPreferencesRepository, viewModelScope, context)
 
@@ -149,8 +159,10 @@ class SetupViewModel @Inject constructor(
     }
 
     fun toggleDirectoryAllowed(file: File) {
-        fileExplorerStateHolder.toggleDirectoryAllowed(file)
-        syncManager.sync()
+        viewModelScope.launch {
+            fileExplorerStateHolder.toggleDirectoryAllowed(file)
+            syncManager.forceRefresh()
+        }
     }
 
     fun loadDirectory(file: File) {
@@ -199,6 +211,16 @@ class SetupViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.setInitialSetupDone(true)
             // Use fullSync which bypasses MIN_SYNC_INTERVAL check and uses FULL mode
+            syncManager.fullSync()
+        }
+    }
+    
+    /**
+     * Retry the initial sync if it failed.
+     * Can be called from UI when user wants to retry after a failure.
+     */
+    fun retrySync() {
+        viewModelScope.launch {
             syncManager.fullSync()
         }
     }

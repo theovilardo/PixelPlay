@@ -60,8 +60,9 @@ private data class LyricsData(
 class LyricsRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val lrcLibApiService: LrcLibApiService,
-    private val musicDao: MusicDao
+    private val lyricsDao: com.theveloper.pixelplay.data.database.LyricsDao
 ) : LyricsRepository {
+
 
     companion object {
         private const val TAG = "LyricsRepository"
@@ -299,7 +300,15 @@ class LyricsRepositoryImpl @Inject constructor(
                         Log.d(TAG, "LRCLIB lyrics found - Synced: ${!bestMatch.syncedLyrics.isNullOrBlank()}, Plain: ${!bestMatch.plainLyrics.isNullOrBlank()}")
                         
                         // Save to database
-                        musicDao.updateLyrics(song.id.toLong(), rawLyrics)
+                        // Save to database
+                        lyricsDao.insert(
+                            com.theveloper.pixelplay.data.database.LyricsEntity(
+                                songId = song.id.toLong(),
+                                content = rawLyrics,
+                                isSynced = !bestMatch.syncedLyrics.isNullOrBlank(),
+                                source = "remote"
+                            )
+                        )
                         
                         return@withContext parsedLyrics
                     }
@@ -430,10 +439,12 @@ class LyricsRepositoryImpl @Inject constructor(
      * Load embedded lyrics from audio file metadata
      */
     private suspend fun loadLyricsFromStorage(song: Song): Lyrics? = withContext(Dispatchers.IO) {
-        // First check database for user-imported lyrics
-        if (!song.lyrics.isNullOrBlank()) {
-            val parsedLyrics = LyricsUtils.parseLyrics(song.lyrics)
+        // First check database for persisted lyrics (was user-imported or cached)
+        val persisted = lyricsDao.getLyrics(song.id.toLong())
+        if (persisted != null && !persisted.content.isBlank()) {
+            val parsedLyrics = LyricsUtils.parseLyrics(persisted.content)
             if (parsedLyrics.isValid()) {
+                // If we found it in DB, we treat it as "embedded" or "locally cached" for this flow
                 return@withContext parsedLyrics.copy(areFromRemote = false)
             }
         }
@@ -488,7 +499,16 @@ class LyricsRepositoryImpl @Inject constructor(
                     val best = results.first()
                     val rawLyricsToSave = best.rawLyrics
 
-                    musicDao.updateLyrics(song.id.toLong(), rawLyricsToSave)
+
+
+                    lyricsDao.insert(
+                         com.theveloper.pixelplay.data.database.LyricsEntity(
+                             songId = song.id.toLong(),
+                             content = rawLyricsToSave,
+                             isSynced = !best.lyrics.synced.isNullOrEmpty(),
+                             source = "remote"
+                         )
+                    )
 
                     val cacheKey = generateCacheKey(song.id)
                     synchronized(lyricsCache) {
@@ -516,7 +536,14 @@ class LyricsRepositoryImpl @Inject constructor(
                     return@withContext Result.failure(LyricsException("Parsed lyrics are empty"))
                 }
 
-                musicDao.updateLyrics(song.id.toLong(), rawLyricsToSave)
+                lyricsDao.insert(
+                     com.theveloper.pixelplay.data.database.LyricsEntity(
+                         songId = song.id.toLong(),
+                         content = rawLyricsToSave,
+                         isSynced = !parsedLyrics.synced.isNullOrEmpty(),
+                         source = "remote"
+                     )
+                )
 
                 val cacheKey = generateCacheKey(song.id)
                 synchronized(lyricsCache) {
@@ -662,7 +689,14 @@ class LyricsRepositoryImpl @Inject constructor(
             return@withContext
         }
 
-        musicDao.updateLyrics(songId, lyricsContent)
+        lyricsDao.insert(
+             com.theveloper.pixelplay.data.database.LyricsEntity(
+                 songId = songId,
+                 content = lyricsContent,
+                 isSynced = parsedLyrics.synced?.isNotEmpty() == true,
+                 source = "manual"
+             )
+        )
 
         val cacheKey = generateCacheKey(songId.toString())
         synchronized(lyricsCache) {
@@ -677,7 +711,7 @@ class LyricsRepositoryImpl @Inject constructor(
         synchronized(lyricsCache) {
             lyricsCache.remove(cacheKey)
         }
-        musicDao.resetLyrics(songId)
+        lyricsDao.deleteLyrics(songId)
         
         // Also remove JSON cache
         try {
@@ -693,7 +727,7 @@ class LyricsRepositoryImpl @Inject constructor(
         synchronized(lyricsCache) {
             lyricsCache.clear()
         }
-        musicDao.resetAllLyrics()
+        lyricsDao.deleteAll()
         
         // Also clear JSON cache directory
         try {
@@ -762,7 +796,14 @@ class LyricsRepositoryImpl @Inject constructor(
                                     val content = foundFile.readText()
                                     // Verify validity
                                     if (LyricsUtils.parseLyrics(content).isValid()) {
-                                        musicDao.updateLyrics(song.id.toLong(), content)
+                                        lyricsDao.insert(
+                                             com.theveloper.pixelplay.data.database.LyricsEntity(
+                                                 songId = song.id.toLong(),
+                                                 content = content,
+                                                 isSynced = LyricsUtils.parseLyrics(content).synced?.isNotEmpty() == true,
+                                                 source = "local_file"
+                                             )
+                                        )
                                         updatedCount.incrementAndGet()
                                         LogUtils.d(this@LyricsRepositoryImpl, "Auto-assigned lyrics from ${foundFile.name}")
                                     }
