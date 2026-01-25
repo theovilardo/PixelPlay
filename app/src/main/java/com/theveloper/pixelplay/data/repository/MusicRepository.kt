@@ -53,7 +53,12 @@ interface MusicRepository {
      */
     fun getArtists(): Flow<List<Artist>> // Existing Flow for reactive updates
 
-    // New suspend functions for one-shot data loading as per performance report
+    /**
+     * Obtiene la lista completa de canciones una sola vez.
+     * @return Lista de objetos Song.
+     */
+    suspend fun getAllSongsOnce(): List<Song>
+
     /**
      * Obtiene la lista completa de álbumes una sola vez.
      * @return Lista de objetos Album.

@@ -844,7 +844,7 @@ class MainActivity : ComponentActivity() {
         playerViewModel.onMainActivityStart()
 
         if (intent.getBooleanExtra("is_benchmark", false)) {
-            playerViewModel.loadDummyDataForBenchmark()
+            // Benchmark mode no longer loads dummy data - uses real library data instead
         }
 
         val sessionToken = SessionToken(this, ComponentName(this, MusicService::class.java))

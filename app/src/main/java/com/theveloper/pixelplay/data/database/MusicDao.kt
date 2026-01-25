@@ -447,6 +447,9 @@ interface MusicDao {
     @Query("SELECT * FROM song_artist_cross_ref")
     fun getAllSongArtistCrossRefs(): Flow<List<SongArtistCrossRef>>
 
+    @Query("SELECT * FROM song_artist_cross_ref")
+    suspend fun getAllSongArtistCrossRefsList(): List<SongArtistCrossRef>
+
     @Query("DELETE FROM song_artist_cross_ref")
     suspend fun clearAllSongArtistCrossRefs()
 

@@ -51,12 +51,52 @@ class MediaFileHttpServerService : Service() {
         START_EXCEPTION
     }
 
+    override fun onCreate() {
+        super.onCreate()
+        startForegroundService()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_START_SERVER -> startServer()
-            ACTION_STOP_SERVER -> stopSelf()
+        if (intent?.action == ACTION_START_SERVER) {
+            // Ensure we are in foreground immediately if started this way
+            startForegroundService()
+            startServer()
+        } else if (intent?.action == ACTION_STOP_SERVER) {
+            stopSelf()
         }
         return START_NOT_STICKY
+    }
+
+    private fun startForegroundService() {
+        val channelId = "pixelplay_cast_server"
+        val channelName = "Cast Media Server"
+        
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val channel = android.app.NotificationChannel(
+                channelId,
+                channelName,
+                android.app.NotificationManager.IMPORTANCE_LOW
+            )
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            manager.createNotificationChannel(channel)
+        }
+
+        val notification = androidx.core.app.NotificationCompat.Builder(this, channelId)
+            .setContentTitle("Casting to device")
+            .setContentText("Serving media to Cast device")
+            .setSmallIcon(android.R.drawable.ic_menu_upload) // Placeholder, ideally use app icon
+            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_LOW)
+            .build()
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            startForeground(
+                1002, 
+                notification, 
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            )
+        } else {
+            startForeground(1002, notification)
+        }
     }
 
     private fun startServer() {
