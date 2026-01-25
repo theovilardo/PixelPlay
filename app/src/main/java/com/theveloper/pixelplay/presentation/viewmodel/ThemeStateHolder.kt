@@ -63,12 +63,15 @@ class ThemeStateHolder @Inject constructor(
         }
     }
 
+    private var currentAlbumArtUri: String? = null
+
     suspend fun extractAndGenerateColorScheme(albumArtUriAsUri: Uri?, currentSongUriString: String?, isPreload: Boolean = false) {
         Trace.beginSection("ThemeStateHolder.extractAndGenerateColorScheme")
         try {
             if (albumArtUriAsUri == null) {
                 if (!isPreload && currentSongUriString == null) {
                     _currentAlbumArtColorSchemePair.value = null
+                    currentAlbumArtUri = null
                 }
                 return
             }
@@ -79,10 +82,12 @@ class ThemeStateHolder @Inject constructor(
 
             if (!isPreload && currentSongUriString == uriString) {
                 _currentAlbumArtColorSchemePair.value = schemePair
+                currentAlbumArtUri = uriString
             }
         } catch (e: Exception) {
             if (!isPreload && albumArtUriAsUri != null && currentSongUriString == albumArtUriAsUri.toString()) {
                 _currentAlbumArtColorSchemePair.value = null
+                currentAlbumArtUri = null
             }
         } finally {
             Trace.endSection()
@@ -131,19 +136,19 @@ class ThemeStateHolder @Inject constructor(
 
     suspend fun forceRegenerateColorScheme(uriString: String) {
          colorSchemeProcessor.invalidateScheme(uriString)
+         
+         val newScheme = colorSchemeProcessor.getOrGenerateColorScheme(uriString)
+
          // Iterate if there is an active flow for this URI and update it
          val activeFlow = individualAlbumColorSchemes[uriString]
          if (activeFlow != null) {
-             val newScheme = colorSchemeProcessor.getOrGenerateColorScheme(uriString)
              activeFlow.value = newScheme
          }
          
-         // Also update the main current album art scheme if it matches
-         val currentGlobal = _currentAlbumArtColorSchemePair.value
-         // We can't easily check the URI of the current global scheme unless we stored it.
-         // But extracting again is safe.
-         // Actually, extractAndGenerateColorScheme handles the global one.
-         // We should probably allow the caller to trigger a refresh of global if needed.
+         // Also update the main current album art scheme if it matches the one we are tracking
+         if (currentAlbumArtUri == uriString) {
+             _currentAlbumArtColorSchemePair.value = newScheme
+         }
     }
 
 }
