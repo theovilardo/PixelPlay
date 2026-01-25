@@ -26,6 +26,7 @@ import com.theveloper.pixelplay.data.repository.LyricsRepository
 import com.theveloper.pixelplay.utils.AlbumArtCacheManager
 import com.theveloper.pixelplay.utils.AlbumArtUtils
 import com.theveloper.pixelplay.utils.AudioMetaUtils.getAudioMetadata
+import com.theveloper.pixelplay.utils.DirectoryRuleResolver
 import com.theveloper.pixelplay.utils.normalizeMetadataTextOrEmpty
 import com.theveloper.pixelplay.utils.splitArtistsByDelimiters
 import dagger.assisted.Assisted
@@ -83,6 +84,12 @@ constructor(
                             userPreferencesRepository.groupByAlbumArtistFlow.first()
                     val rescanRequired =
                             userPreferencesRepository.artistSettingsRescanRequiredFlow.first()
+
+                    // Feature: Directory Filtering
+                    val allowedDirs = userPreferencesRepository.allowedDirectoriesFlow.first()
+                    val blockedDirs = userPreferencesRepository.blockedDirectoriesFlow.first()
+                    val directoryResolver = DirectoryRuleResolver(allowedDirs, blockedDirs)
+                    
                     var lastSyncTimestamp = userPreferencesRepository.getLastSyncTimestamp()
 
                     Timber.tag(TAG)
@@ -100,7 +107,7 @@ constructor(
                     // We do this for INCREMENTAL and FULL modes. REBUILD clears everything anyway.
                     if (syncMode != SyncMode.REBUILD) {
                         val localSongIds = musicDao.getAllSongIds().toHashSet()
-                        val mediaStoreIds = fetchMediaStoreIds()
+                        val mediaStoreIds = fetchMediaStoreIds(directoryResolver)
 
                         // Identify IDs that are in local DB but not in MediaStore
                         val deletedIds = localSongIds - mediaStoreIds
@@ -147,6 +154,7 @@ constructor(
                             fetchMusicFromMediaStore(
                                     fetchTimestamp,
                                     forceMetadata,
+                                    directoryResolver,
                                     progressBatchSize
                             ) { current, total, phaseOrdinal ->
                                 setProgress(
@@ -171,14 +179,19 @@ constructor(
                             musicDao.clearAllMusicDataWithCrossRefs()
                         }
 
-                        val existingArtistImageUrls =
+                        val allExistingArtists =
                                 if (syncMode == SyncMode.REBUILD) {
-                                    emptyMap()
+                                    emptyList()
                                 } else {
-                                    musicDao.getAllArtistsListRaw().associate {
-                                        it.id to it.imageUrl
-                                    }
+                                    musicDao.getAllArtistsListRaw()
                                 }
+
+                        val existingArtistImageUrls =
+                                allExistingArtists.associate { it.id to it.imageUrl }
+                        
+                        // Load all existing artist IDs to ensure stability across incremental syncs
+                        val existingArtistIdMap = allExistingArtists.associate { it.name to it.id }.toMutableMap()
+                        val maxArtistId = musicDao.getMaxArtistId() ?: 0L
 
                         // Prepare list of existing songs to preserve user edits
                         // We only need to check against existing songs if we are updating them
@@ -270,7 +283,9 @@ constructor(
                                         songs = songsToInsert,
                                         artistDelimiters = artistDelimiters,
                                         groupByAlbumArtist = groupByAlbumArtist,
-                                        existingArtistImageUrls = existingArtistImageUrls
+                                        existingArtistImageUrls = existingArtistImageUrls,
+                                        existingArtistIdMap = existingArtistIdMap,
+                                        initialMaxArtistId = maxArtistId
                                 )
 
                         // Use incrementalSyncMusicData for all modes except REBUILD
@@ -420,9 +435,10 @@ constructor(
      * Efficiently fetches ONLY the IDs of all songs in MediaStore. Used for fast deletion
      * detection.
      */
-    private fun fetchMediaStoreIds(): Set<Long> {
+    private fun fetchMediaStoreIds(directoryResolver: DirectoryRuleResolver): Set<Long> {
         val ids = HashSet<Long>()
-        val projection = arrayOf(MediaStore.Audio.Media._ID)
+        // We need DATA to check path filtering
+        val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.DATA)
         val (selection, selectionArgs) = getBaseSelection()
 
         contentResolver.query(
@@ -434,8 +450,14 @@ constructor(
                 )
                 ?.use { cursor ->
                     val idCol = cursor.getColumnIndex(MediaStore.Audio.Media._ID)
-                    if (idCol >= 0) {
+                    val dataCol = cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
+                    if (idCol >= 0 && dataCol >= 0) {
                         while (cursor.moveToNext()) {
+                            val path = cursor.getString(dataCol)
+                            val parentPath = File(path).parent
+                            if (parentPath != null && directoryResolver.isBlocked(parentPath)) {
+                                continue 
+                            }
                             ids.add(cursor.getLong(idCol))
                         }
                     }
@@ -459,64 +481,14 @@ constructor(
             songs: List<SongEntity>,
             artistDelimiters: List<String>,
             groupByAlbumArtist: Boolean,
-            existingArtistImageUrls: Map<Long, String?>
+            existingArtistImageUrls: Map<Long, String?>,
+            existingArtistIdMap: MutableMap<String, Long>,
+            initialMaxArtistId: Long
     ): MultiArtistProcessResult {
-        // Need to take into account potentially existing artist IDs if we are in incremental mode
-        // For simplicity in this optimization, we re-calculate from the current batch.
-        // A more robust solution might check DB for existing artist IDs, but collisions are handled
-        // by Room REPLACE.
-        // However, to maintain stability of IDs for same names, we should ideally query mapping.
-        // But for now, we'll rely on the fact that we are processing a batch.
-        // TODO (Future): Load all existing Artist Name -> ID mappings to preserve IDs across
-        // incremental updates.
-        // Currently, new artists in this batch will get new IDs. Existing artists (by name) in this
-        // batch
-        // might get re-assigned IDs if we don't look them up.
-        // This is acceptable for a "Sync" worker - duplicate artists are merged by name in many
-        // players,
-        // but here we have explicit IDs.
-
-        // Optimization: In a real incremental sync, we might insert a song with an artist "Foo".
-        // If "Foo" acts as a new artist here, it might get a new ID, duplicating "Foo" in the DB
-        // if the DB already has "Foo" with a different ID.
-        // Room @Insert(onConflict = REPLACE) for Artists means if ID clashes, it replaces.
-        // But we are generating IDs here.
-
-        // Fix: We MUST know existing artist names to reuse IDs.
-        // Let's load the map of Name -> ID for all artists currently in DB
-        // Blocking call is fine here as we are in background worker
-        val existingArtistMap = ConcurrentHashMap<String, Long>()
-        // We can't access this safely in a blocking way easily without a new DAO method or taking
-        // it from existing lists
-        // Ideally we pass this map in.
-
-        // For the scope of this refactor, we will maintain the existing logic roughly,
-        // but it is a known limitation that incremental syncs might create duplicate artist entries
-        // if name matching isn't perfect against DB.
-        // However, since we use `artistName` as key in `artistNameToId` map locally,
-        // we ensure consistency within the batch.
-
-        // IMPROVEMENT: Retrieve max ID from DB to ensure we don't collide or reset.
-        // We'll trust `nextArtistId` starting from max existing in the batch is risky if we don't
-        // know DB max.
-        // Let's get maxArtistId from DB.
-
-        // Since we cannot easily add a method to DAO right now without modifying it,
-        // we will iterate and build the map from the passed `existingArtistImageUrls` keys if
-        // possible,
-        // or just rely on safely generating new IDs.
-
-        // Actually, `musicDao.getAllArtistsListRaw()` was called in doWork. We can use it.
-        // We'll pass `existingArtists` to this function ideally.
-        // For now, let's just make it robust enough.
-
-        val maxExistingArtistId = songs.maxOfOrNull { it.artistId } ?: 0L
-        // Note: songs.maxOfOrNull might be from the batch, not DB.
-        // Ideally we should query "SELECT MAX(id) FROM artists"
-
-        val nextArtistId = AtomicLong(maxExistingArtistId + 10000) // Safety buffer
-
-        val artistNameToId = mutableMapOf<String, Long>()
+        
+        val nextArtistId = AtomicLong(initialMaxArtistId + 1)
+        val artistNameToId = existingArtistIdMap // Re-use the map passed in
+        
         val allCrossRefs = mutableListOf<SongArtistCrossRef>()
         val artistTrackCounts = mutableMapOf<Long, Int>()
         val albumMap = mutableMapOf<Pair<String, String>, Long>()
@@ -534,16 +506,13 @@ constructor(
             artistsForSong.forEach { artistName ->
                 val normalizedName = artistName.trim()
                 if (normalizedName.isNotEmpty() && !artistNameToId.containsKey(normalizedName)) {
-                    val id =
-                            if (normalizedName == songArtistNameTrimmed) {
-                                song.artistId
-                            } else {
-                                nextArtistId.getAndIncrement()
-                            }
-                    artistNameToId[normalizedName] = id
+                     // Check if it's the song's primary artist and we want to preserve that ID if possible?
+                     // Actually, just generate new ID if not found in map.
+                     val id = nextArtistId.getAndIncrement()
+                     artistNameToId[normalizedName] = id
                 }
             }
-
+            
             val primaryArtistName =
                     artistsForSong.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() }
                             ?: songArtistNameTrimmed
@@ -553,77 +522,79 @@ constructor(
                 val normalizedName = artistName.trim()
                 val artistId = artistNameToId[normalizedName]
                 if (artistId != null) {
+                    val isPrimary = (index == 0) // First artist is primary
                     allCrossRefs.add(
                             SongArtistCrossRef(
                                     songId = song.id,
                                     artistId = artistId,
-                                    isPrimary = index == 0
+                                    isPrimary = isPrimary
                             )
                     )
                     artistTrackCounts[artistId] = (artistTrackCounts[artistId] ?: 0) + 1
                 }
             }
 
-            val albumArtistName =
-                    if (groupByAlbumArtist && !song.albumArtist.isNullOrBlank()) {
-                        song.albumArtist
-                    } else {
-                        primaryArtistName
-                    }
-            val canonicalAlbumId =
-                    albumMap.getOrPut(Pair(song.albumName, albumArtistName)) { song.albumId }
+            // --- Album Logic ---
+            val rawAlbumName = song.albumName.trim()
+            val albumIdentityArtist = if (groupByAlbumArtist) {
+                song.albumArtist?.trim()?.takeIf { it.isNotEmpty() } ?: primaryArtistName
+            } else {
+                primaryArtistName
+            }
+            
+            val albumKey = rawAlbumName to albumIdentityArtist
+            
+            if (!albumMap.containsKey(albumKey)) {
+                albumMap[albumKey] = song.albumId 
+            }
+            val finalAlbumId = albumMap[albumKey] ?: song.albumId // fallback
 
             correctedSongs.add(
                     song.copy(
                             artistId = primaryArtistId,
                             artistName = primaryArtistName,
-                            albumId = canonicalAlbumId
+                            albumId = finalAlbumId
                     )
             )
         }
 
-        // Create unique albums
-        val albums =
-                correctedSongs.groupBy { it.albumId }.map { (albumId, songsInAlbum) ->
-                    val firstSong = songsInAlbum.first()
-                    val albumArtistName =
-                            if (groupByAlbumArtist && !firstSong.albumArtist.isNullOrBlank()) {
-                                firstSong.albumArtist
-                            } else {
-                                firstSong.artistName
-                            }
-                    val albumArtistId = artistNameToId[albumArtistName] ?: firstSong.artistId
+        // Build Entities
+        val artistEntities = artistNameToId.map { (name, id) ->
+            val count = artistTrackCounts[id] ?: 0
+            ArtistEntity(
+                id = id,
+                name = name,
+                trackCount = count,
+                imageUrl = existingArtistImageUrls[id]
+            )
+        }
+        
+        // Re-calculate Album Entities from the corrected songs to ensure we have valid metadata (Art, Year)
+        // which isn't available in the simple albumMap (which only has ID)
+        val albumEntities = correctedSongs.groupBy { it.albumId }.map { (catAlbumId, songsInAlbum) ->
+             val firstSong = songsInAlbum.first()
+             // Determine Album Artist Name
+             val determinedAlbumArtist = firstSong.albumArtist?.takeIf { it.isNotBlank() } 
+                 ?: firstSong.artistName
+                 
+             // Determine Album Artist ID (best effort lookup)
+             val determinedAlbumArtistId = artistNameToId[determinedAlbumArtist] ?: 0L
 
-                    AlbumEntity(
-                            id = albumId,
-                            title = firstSong.albumName,
-                            artistName = albumArtistName,
-                            artistId = albumArtistId,
-                            albumArtUriString = firstSong.albumArtUriString,
-                            songCount = songsInAlbum.size,
-                            year = firstSong.year
-                    )
-                }
-
-        val artists =
-                artistNameToId.mapNotNull { (name, id) ->
-                    val trackCount = artistTrackCounts[id] ?: 0
-                    if (trackCount > 0) {
-                        ArtistEntity(
-                                id = id,
-                                name = name,
-                                trackCount = trackCount,
-                                imageUrl = existingArtistImageUrls[id]
-                        )
-                    } else {
-                        null
-                    }
-                }
+             AlbumEntity(
+                 id = catAlbumId,
+                 title = firstSong.albumName,
+                 artistName = determinedAlbumArtist,
+                 artistId = determinedAlbumArtistId,
+                 albumArtUriString = firstSong.albumArtUriString,
+                 songCount = songsInAlbum.size, 
+                 year = firstSong.year
+             )
+        }
 
         return MultiArtistProcessResult(
-                songs = correctedSongs,
-                albums = albums,
-                artists = artists,
+                songs = correctedSongs, // Corrected songs have the right Album IDs now
+                albums = albumEntities,
+                artists = artistEntities,
                 crossRefs = allCrossRefs
         )
     }
@@ -789,6 +760,7 @@ constructor(
     private suspend fun fetchMusicFromMediaStore(
             sinceTimestamp: Long, // Seconds
             forceMetadata: Boolean,
+            directoryResolver: DirectoryRuleResolver,
             progressBatchSize: Int,
             onProgress: suspend (current: Int, total: Int, phaseOrdinal: Int) -> Unit
     ): List<SongEntity> {
@@ -859,6 +831,17 @@ constructor(
                             cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
 
                     while (cursor.moveToNext()) {
+                        try {
+                            val data = cursor.getString(dataCol)
+                            val parentPath = File(data).parent
+                            if (parentPath != null && directoryResolver.isBlocked(parentPath)) {
+                                continue
+                            }
+                        } catch (e: Exception) {
+                            // Proceed on error
+                        }
+
+                        val songId = cursor.getLong(idCol)
                         rawDataList.add(
                                 RawSongData(
                                         id = cursor.getLong(idCol),

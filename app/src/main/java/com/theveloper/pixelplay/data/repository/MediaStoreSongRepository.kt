@@ -82,6 +82,7 @@ class MediaStoreSongRepository @Inject constructor(
             MediaStore.Audio.Media.TRACK,
             MediaStore.Audio.Media.YEAR,
             MediaStore.Audio.Media.DATE_ADDED,
+            MediaStore.Audio.Media.DATE_MODIFIED,
             MediaStore.Audio.Media.ALBUM_ARTIST, // Valid on API 30+, fallback needed if minSdk < 30
             // Genre is difficult in MediaStore.Audio.Media, usually requires separate query.
             // keeping it simple for now, maybe null or fetch separately.
@@ -113,6 +114,7 @@ class MediaStoreSongRepository @Inject constructor(
                 val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
                 val yearCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
                 val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+                val dateModifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
                 val albumArtistCol = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ARTIST) // Can be -1
 
                 val resolver = DirectoryRuleResolver(
@@ -157,6 +159,7 @@ class MediaStoreSongRepository @Inject constructor(
                         trackNumber = cursor.getInt(trackCol),
                         year = cursor.getInt(yearCol),
                         dateAdded = cursor.getLong(dateAddedCol),
+                        dateModified = cursor.getLong(dateModifiedCol),
                         mimeType = null, 
                         bitrate = null,
                         sampleRate = null

@@ -29,6 +29,7 @@ data class Song(
     val trackNumber: Int = 0,
     val year: Int = 0,
     val dateAdded: Long = 0,
+    val dateModified: Long = 0,
     val mimeType: String?,
     val bitrate: Int?,
     val sampleRate: Int?,
@@ -80,6 +81,7 @@ data class Song(
                 trackNumber = 0,
                 year = 0,
                 dateAdded = 0,
+                dateModified = 0,
                 mimeType = "-",
                 bitrate = 0,
                 sampleRate = 0

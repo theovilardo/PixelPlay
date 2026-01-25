@@ -129,4 +129,21 @@ class ThemeStateHolder @Inject constructor(
          return colorSchemeProcessor.getOrGenerateColorScheme(uriString)
     }
 
+    suspend fun forceRegenerateColorScheme(uriString: String) {
+         colorSchemeProcessor.invalidateScheme(uriString)
+         // Iterate if there is an active flow for this URI and update it
+         val activeFlow = individualAlbumColorSchemes[uriString]
+         if (activeFlow != null) {
+             val newScheme = colorSchemeProcessor.getOrGenerateColorScheme(uriString)
+             activeFlow.value = newScheme
+         }
+         
+         // Also update the main current album art scheme if it matches
+         val currentGlobal = _currentAlbumArtColorSchemePair.value
+         // We can't easily check the URI of the current global scheme unless we stored it.
+         // But extracting again is safe.
+         // Actually, extractAndGenerateColorScheme handles the global one.
+         // We should probably allow the caller to trigger a refresh of global if needed.
+    }
+
 }

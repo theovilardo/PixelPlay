@@ -197,6 +197,16 @@ class ColorSchemeProcessor @Inject constructor(
         memoryCache.remove(uri)
     }
 
+    /**
+     * Invalidates the color scheme for a URI in both memory and database.
+     */
+    suspend fun invalidateScheme(uri: String) {
+        memoryCache.remove(uri)
+        withContext(Dispatchers.IO) {
+            albumArtThemeDao.deleteThemesByUris(listOf(uri))
+        }
+    }
+
     // Mapping functions
     private fun mapColorSchemePairToEntity(uri: String, pair: ColorSchemePair): AlbumArtThemeEntity {
         fun mapScheme(cs: ColorScheme) = StoredColorSchemeValues(

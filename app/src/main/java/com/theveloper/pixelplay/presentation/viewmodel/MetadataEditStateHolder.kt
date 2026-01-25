@@ -3,6 +3,7 @@ package com.theveloper.pixelplay.presentation.viewmodel
 import android.content.Context
 import android.util.Log
 import com.theveloper.pixelplay.data.media.CoverArtUpdate
+import com.theveloper.pixelplay.data.media.ImageCacheManager
 import com.theveloper.pixelplay.data.media.MetadataEditError
 import com.theveloper.pixelplay.data.media.SongMetadataEditor
 import com.theveloper.pixelplay.data.model.Lyrics
@@ -19,6 +20,8 @@ import javax.inject.Inject
 class MetadataEditStateHolder @Inject constructor(
     private val songMetadataEditor: SongMetadataEditor,
     private val musicRepository: MusicRepository,
+    private val imageCacheManager: ImageCacheManager,
+    private val themeStateHolder: ThemeStateHolder,
     @ApplicationContext private val context: Context
 ) {
 
@@ -127,6 +130,15 @@ class MetadataEditStateHolder @Inject constructor(
                 musicRepository.getSong(song.id).first() ?: updatedSong
             } catch (e: Exception) {
                 updatedSong
+            }
+
+            // Force cache invalidation if album art might have changed
+            if (refreshedAlbumArtUri != null) {
+                // Invalidate Coil/Glide caches
+                imageCacheManager.invalidateCoverArtCaches(refreshedAlbumArtUri)
+                
+                // Force regenerate palette
+                themeStateHolder.forceRegenerateColorScheme(refreshedAlbumArtUri)
             }
 
             MetadataEditResult(

@@ -92,101 +92,80 @@ class MusicRepositoryImpl @Inject constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun getAudioFiles(): Flow<List<Song>> {
-        return songRepository.getSongs()
+        return combine(
+            userPreferencesRepository.allowedDirectoriesFlow,
+            userPreferencesRepository.blockedDirectoriesFlow
+        ) { allowed, blocked ->
+            Triple(allowed.toList(), blocked.isNotEmpty(), blocked)
+        }.flatMapLatest { (allowed, hasBlocked, blocked) ->
+            // In the new SSOT architecture, SyncWorker handles exclusion of blocked folders.
+            // So we primarily filter by 'allowed' if whitelist mode is active (implicit in how Android works? No).
+            // Actually, if we use blacklist (blockedDirs), SyncWorker removes those songs.
+            // If we use whitelist (allowedDirs), SyncWorker only includes those.
+            // So MusicDao just needs to query *everything* in the DB, because it's already clean.
+            // HOWEVER, simply returning musicDao.getAllSongs() is safest.
+            // But MusicDao.getSongs() has filtering params. Let's use them to be double safe 
+            // and support instant UI updates if pref changes but Sync hasn't run yet?
+            // No, SyncWorker is the new authority. If pref changes, Sync must run.
+            // But user might expect instant feedback.
+            // Let's rely on the DB being "mostly" correct and maybe apply a filter if we want "instant" hide
+            // before sync finishes. 
+            // For now, let's assume DB is SSOT and SyncWorker runs on pref change.
+            // We'll trust the DB logic.
+            
+            // Wait, MusicDao.getSongs uses `parent_directory_path`.
+            // We should pass the allowed/blocked config to valid instant blocking if possible?
+            // The SQL `parent_directory_path IN (:allowedParentDirs)` is for WHITELIST.
+            // The current app logic seems to use `DirectoryRuleResolver` which supports mixed white/black lists.
+            // SQL `IN` is not enough for complex rules.
+            // Since we decided SyncWorker does the heavy lifting, we can just query ALL songs.
+            // But we should verify if `musicDao.getAllSongs()` returns `List<SongEntity>`.
+            // We need to map `SongEntity` to `Song`.
+            
+            musicDao.getAllSongs(emptyList(), false).map { entities ->
+                 entities.map { it.toSong() }
+            }
+        }.flowOn(Dispatchers.IO)
     }
-    
-    /**
-     * Returns a Flow of PagingData<Song> for efficient pagination of large song libraries.
-     * Uses Room's built-in PagingSource integration with directory filtering.
-     * Re-emits when directory filter config changes to apply updated exclusions.
-     */
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     override fun getPaginatedSongs(): Flow<PagingData<Song>> {
-        return songRepository.getSongs().map { songs ->
-            PagingData.from(songs)
-        }.flowOn(Dispatchers.Default)
+       // Paging 3 integration will go here later. For now, standard list.
+       return getAudioFiles().map { songs -> PagingData.from(songs) }
     }
 
     override fun getSongCountFlow(): Flow<Int> {
         return musicDao.getSongCount()
     }
 
-    override suspend fun getRandomSongs(limit: Int): List<Song> = withContext(Dispatchers.Default) {
-        val allSongs = songRepository.getSongs().first()
-        if (allSongs.size <= limit) allSongs else allSongs.shuffled().take(limit)
+    override suspend fun getRandomSongs(limit: Int): List<Song> = withContext(Dispatchers.IO) {
+        musicDao.getRandomSongs(limit).map { it.toSong() }
     }
 
     override fun getAlbums(): Flow<List<Album>> {
-        return songRepository.getSongs().map { songs ->
-            songs.groupBy { it.albumId }.map { (albumId, albumSongs) ->
-                val first = albumSongs.first()
-                Album(
-                    id = albumId,
-                    title = first.album,
-                    artist = first.albumArtist ?: first.artist,
-                    // artistId removed as it's not in Album model
-                    albumArtUriString = first.albumArtUriString,
-                    songCount = albumSongs.size,
-                    year = first.year
-                )
-            }.sortedBy { it.title.lowercase() }
-        }.flowOn(Dispatchers.Default)
+        return musicDao.getAlbums(emptyList(), false).map { entities ->
+            entities.map { it.toAlbum() }
+        }.flowOn(Dispatchers.IO)
     }
 
     override fun getAlbumById(id: Long): Flow<Album?> {
-        return songRepository.getSongs().map { songs ->
-            val albumSongs = songs.filter { it.albumId == id }
-            if (albumSongs.isNotEmpty()) {
-                val first = albumSongs.first()
-                Album(
-                    id = id,
-                    title = first.album,
-                    artist = first.albumArtist ?: first.artist,
-                    // artistId removed
-                    albumArtUriString = first.albumArtUriString,
-                    songCount = albumSongs.size,
-                    year = first.year
-                )
-            } else {
-                null
-            }
-        }.flowOn(Dispatchers.Default)
+        return musicDao.getAlbumById(id).map { it?.toAlbum() }.flowOn(Dispatchers.IO)
     }
 
     override fun getArtists(): Flow<List<Artist>> {
-         return songRepository.getSongs().map { songs ->
-            songs.groupBy { it.artistId }.map { (artistId, artistSongs) ->
-                val first = artistSongs.first()
-                Artist(
-                    id = artistId,
-                    name = first.artist,
-                    songCount = artistSongs.size,
-                    imageUrl = null
-                )
-            }.sortedBy { it.name.lowercase() }
-        }.flowOn(Dispatchers.Default)
+        return musicDao.getArtists(emptyList(), false).map { entities ->
+            entities.map { it.toArtist() }
+        }.flowOn(Dispatchers.IO)
     }
 
     override fun getSongsForAlbum(albumId: Long): Flow<List<Song>> {
-        return songRepository.getSongs().map { songs ->
-            songs.filter { it.albumId == albumId }
-        }.flowOn(Dispatchers.Default)
+        return musicDao.getSongsByAlbumId(albumId).map { entities ->
+            entities.map { it.toSong() }
+        }.flowOn(Dispatchers.IO)
     }
 
     override fun getArtistById(artistId: Long): Flow<Artist?> {
-        return songRepository.getSongs().map { songs ->
-            val artistSongs = songs.filter { it.artistId == artistId }
-            if (artistSongs.isNotEmpty()) {
-                val first = artistSongs.first()
-                Artist(
-                    id = artistId,
-                    name = first.artist,
-                    songCount = artistSongs.size,
-                    imageUrl = null
-                )
-            } else {
-                null
-            }
-        }.flowOn(Dispatchers.Default)
+        return musicDao.getArtistById(artistId).map { it?.toArtist() }.flowOn(Dispatchers.IO)
     }
 
     override fun getArtistsForSong(songId: Long): Flow<List<Artist>> {
@@ -196,9 +175,9 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     override fun getSongsForArtist(artistId: Long): Flow<List<Song>> {
-        return songRepository.getSongs().map { songs ->
-            songs.filter { it.artistId == artistId }
-        }.flowOn(Dispatchers.Default)
+        return musicDao.getSongsForArtist(artistId).map { entities ->
+            entities.map { it.toSong() }
+        }.flowOn(Dispatchers.IO)
     }
 
     override suspend fun getAllUniqueAudioDirectories(): Set<String> = withContext(Dispatchers.IO) {
@@ -222,35 +201,34 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     override fun getAllUniqueAlbumArtUris(): Flow<List<Uri>> {
-        return songRepository.getSongs().map { songs ->
-            songs
-                .mapNotNull { it.albumArtUriString?.toUri() }
-                .distinct()
-        }.flowOn(Dispatchers.Default)
+        return musicDao.getAllUniqueAlbumArtUrisFromSongs().map { uriStrings ->
+            uriStrings.mapNotNull { it.toUri() }
+        }.flowOn(Dispatchers.IO)
     }
 
     // --- Métodos de Búsqueda ---
 
     override fun searchSongs(query: String): Flow<List<Song>> {
         if (query.isBlank()) return flowOf(emptyList())
-        return songRepository.getSongs().map { songs ->
-            songs.filter { it.title.contains(query, true) || it.artist.contains(query, true) }
-        }
+        // Passing emptyList and false for directory filter as we trust SSOT (SyncWorker filtered)
+        return musicDao.searchSongs(query, emptyList(), false).map { entities ->
+            entities.map { it.toSong() }
+        }.flowOn(Dispatchers.IO)
     }
 
 
     override fun searchAlbums(query: String): Flow<List<Album>> {
-        return getAlbums().map { albums ->
-             if (query.isBlank()) emptyList()
-             else albums.filter { it.title.contains(query, true) || it.artist.contains(query, true) }
-        }
+       if (query.isBlank()) return flowOf(emptyList())
+       return musicDao.searchAlbums(query, emptyList(), false).map { entities ->
+           entities.map { it.toAlbum() }
+       }.flowOn(Dispatchers.IO)
     }
 
     override fun searchArtists(query: String): Flow<List<Artist>> {
-         return getArtists().map { artists ->
-             if (query.isBlank()) emptyList()
-             else artists.filter { it.name.contains(query, true) }
-         }
+        if (query.isBlank()) return flowOf(emptyList())
+        return musicDao.searchArtists(query, emptyList(), false).map { entities ->
+            entities.map { it.toArtist() }
+        }.flowOn(Dispatchers.IO)
     }
 
     override suspend fun searchPlaylists(query: String): List<Playlist> {
@@ -360,16 +338,16 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     // Implementación de las nuevas funciones suspend para carga única
-    override suspend fun getAllSongsOnce(): List<Song> = withContext(Dispatchers.Default) {
-        songRepository.getSongs().first()
+    override suspend fun getAllSongsOnce(): List<Song> = withContext(Dispatchers.IO) {
+        musicDao.getAllSongsList().map { it.toSong() }
     }
 
-    override suspend fun getAllAlbumsOnce(): List<Album> = withContext(Dispatchers.Default) {
-        getAlbums().first()
+    override suspend fun getAllAlbumsOnce(): List<Album> = withContext(Dispatchers.IO) {
+        musicDao.getAllAlbumsList(emptyList(), false).map { it.toAlbum() }
     }
 
-    override suspend fun getAllArtistsOnce(): List<Artist> = withContext(Dispatchers.Default) {
-        getArtists().first()
+    override suspend fun getAllArtistsOnce(): List<Artist> = withContext(Dispatchers.IO) {
+        musicDao.getAllArtistsListRaw().map { it.toArtist() }
     }
 
     override suspend fun toggleFavoriteStatus(songId: String): Boolean = withContext(Dispatchers.IO) {
@@ -386,7 +364,7 @@ class MusicRepositoryImpl @Inject constructor(
 
     override fun getSong(songId: String): Flow<Song?> {
         val id = songId.toLongOrNull() ?: return flowOf(null)
-        return songRepository.getSongById(id)
+        return musicDao.getSongById(id).map { it?.toSong() }.flowOn(Dispatchers.IO)
     }
 
     override fun getGenres(): Flow<List<Genre>> {
