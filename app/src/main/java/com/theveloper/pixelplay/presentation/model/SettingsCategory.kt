@@ -56,6 +56,12 @@ enum class SettingsCategory(
         subtitle = "Adjust audio frequencies and presets",
         icon = Icons.Rounded.GraphicEq
     ),
+    DEVICE_CAPABILITIES(
+        id = "device_capabilities",
+        title = "Device Capabilities",
+        subtitle = "Audio specs, codecs, and decoder info",
+        icon = Icons.Rounded.Info // Placeholder, maybe Memory or SettingsInputComponent
+    ),
     ABOUT(
         id = "about",
         title = "About",

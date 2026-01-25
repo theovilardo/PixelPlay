@@ -251,7 +251,11 @@ fun SettingsScreen(
             item {
                 val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
                 ExpressiveSettingsGroup {
-                    val mainCategories = SettingsCategory.entries.filter { it != SettingsCategory.ABOUT && it != SettingsCategory.EQUALIZER }
+                    val mainCategories = SettingsCategory.entries.filter { 
+                        it != SettingsCategory.ABOUT && 
+                        it != SettingsCategory.EQUALIZER &&
+                        it != SettingsCategory.DEVICE_CAPABILITIES
+                    }
                     
                     mainCategories.forEachIndexed { index, category ->
                         val colors = getCategoryColors(category, isDark)
@@ -282,6 +286,16 @@ fun SettingsScreen(
                     category = SettingsCategory.EQUALIZER,
                     customColors = getCategoryColors(SettingsCategory.EQUALIZER, isDark),
                     onClick = { navController.navigate(Screen.Equalizer.route) }, // Direct navigation
+                    shape = RoundedCornerShape(24.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // Device Capabilities (Standalone)
+                ExpressiveCategoryItem(
+                    category = SettingsCategory.DEVICE_CAPABILITIES,
+                    customColors = getCategoryColors(SettingsCategory.DEVICE_CAPABILITIES, isDark),
+                    onClick = { navController.navigate(Screen.DeviceCapabilities.route) },
                     shape = RoundedCornerShape(24.dp)
                 )
 
@@ -431,6 +445,7 @@ private fun getCategoryColors(category: SettingsCategory, isDark: Boolean): Pair
             SettingsCategory.AI_INTEGRATION -> Color(0xFF004F58) to Color(0xFF88FAFF) 
             SettingsCategory.DEVELOPER -> Color(0xFF324F34) to Color(0xFFCBEFD0) 
             SettingsCategory.EQUALIZER -> Color(0xFF6E4E13) to Color(0xFFFFDEAC) 
+            SettingsCategory.DEVICE_CAPABILITIES -> Color(0xFF004D61) to Color(0xFFACEFEE) // Custom teal/cyan mix
             SettingsCategory.ABOUT -> Color(0xFF3F474D) to Color(0xFFDEE3EB) 
         }
     } else {
@@ -441,6 +456,7 @@ private fun getCategoryColors(category: SettingsCategory, isDark: Boolean): Pair
             SettingsCategory.AI_INTEGRATION -> Color(0xFFCCE8EA) to Color(0xFF004F58)
             SettingsCategory.DEVELOPER -> Color(0xFFCBEFD0) to Color(0xFF042106)
             SettingsCategory.EQUALIZER -> Color(0xFFFFDEAC) to Color(0xFF281900)
+            SettingsCategory.DEVICE_CAPABILITIES -> Color(0xFFACEFEE) to Color(0xFF002022)
             SettingsCategory.ABOUT -> Color(0xFFEFF1F7) to Color(0xFF44474F)
         }
     }

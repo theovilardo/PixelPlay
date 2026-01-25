@@ -149,27 +149,41 @@ class TelegramStreamProxy @Inject constructor(
                                 val read = raf.read(buffer, 0, toRead)
                                 if (read > 0) {
                                     writeFully(buffer, 0, read)
-                                    flush()
+                                    // writeFully(buffer, 0, read) - already done above
+                                    // flush() // Remove explicit flush to let underlying engine handle buffering efficiency
                                     currentPos += read
                                     noDataCount = 0
                                 } else {
                                      // Should not happen if currentPos < fileLength, but safer to break or delay
-                                     delay(10)
+                                     delay(5)
                                 }
                             } else {
                                 // Reached current end of file
-                                // Check if download is complete
-                                val currentFileInfo = telegramRepository.getFile(fileId)
-                                if (currentFileInfo?.local?.isDownloadingCompleted == true && currentPos >= currentFileInfo.size) {
-                                     break // Done
+                                
+                                // Optimization: Trust expectedSize if available causing "stream starvation" by blocking on getFile
+                                if (expectedSize > 0 && currentPos >= expectedSize) {
+                                    break // Done (reached expected end)
+                                }
+
+                                // Rate limit status checks (JNI calls) to avoid throttling the stream
+                                // Check only every ~2 seconds (200 * 10ms) instead of every iteration
+                                noDataCount++
+                                if (noDataCount % 200 == 0) {
+                                    val currentFileInfo = telegramRepository.getFile(fileId)
+                                    // Verify completion
+                                    if (currentFileInfo?.local?.isDownloadingCompleted == true && currentPos >= currentFileInfo.size) {
+                                         break // Done
+                                    }
+                                    // Verify cancellation/failure
+                                    if (currentFileInfo?.local?.isDownloadingCompleted == false && !currentFileInfo.local.canBeDownloaded) {
+                                         break // Failed/Cancelled
+                                    }
                                 }
                                 
-                                // Wait for more data
-                                noDataCount++
-                                if (noDataCount > 1000) { // ~50 seconds idle (1000 * 50ms)
+                                if (noDataCount > 5000) { // ~50 seconds idle (5000 * 10ms)
                                       break // Timeout
                                 }
-                                delay(50)
+                                delay(10) // 10ms polling for lower latency
                             }
                         }
                     } catch (e: Exception) {

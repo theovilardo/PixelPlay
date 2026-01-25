@@ -186,7 +186,7 @@ class PlayerViewModel @Inject constructor(
                 context.imageLoader.memoryCache?.remove(MemoryCache.Key(updatedArtUri))
                 context.imageLoader.diskCache?.remove(updatedArtUri)
                 // Re-extract colors
-                extractAndGenerateColorScheme(updatedArtUri.toUri(), isPreload = false)
+                themeStateHolder.extractAndGenerateColorScheme(updatedArtUri.toUri(), updatedArtUri, isPreload = false)
             }
         }
     }
@@ -287,6 +287,8 @@ class PlayerViewModel @Inject constructor(
     val lyricsSearchUiState: StateFlow<LyricsSearchUiState> = lyricsStateHolder.searchUiState
 
     private var bufferingDebounceJob: Job? = null
+
+
 
     // Toast Events
     private val _toastEvents = MutableSharedFlow<String>()
@@ -808,13 +810,9 @@ class PlayerViewModel @Inject constructor(
         mediaControllerFuture.addListener({
             try {
                 mediaController = mediaControllerFuture.get()
-<<<<<<< HEAD
                 mediaController?.addListener(mediaControllerListener)
-=======
                 // Pass controller to PlaybackStateHolder
                 playbackStateHolder.setMediaController(mediaController)
-                
->>>>>>> upstream/master
                 setupMediaControllerListeners()
                 flushPendingRepeatMode()
                 syncShuffleStateWithSession(playbackStateHolder.stablePlayerState.value.isShuffleEnabled)
@@ -2609,45 +2607,14 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun acceptLyricsSearchResultForCurrentSong(result: LyricsSearchResult) {
-<<<<<<< HEAD
         val currentSong = stablePlayerState.value.currentSong ?: return
-        lyricsStateHolder.setSearchState(LyricsSearchUiState.Success(result.lyrics))
-
-        val updatedSong = currentSong.copy(lyrics = result.rawLyrics)
-        updateSongInStates(updatedSong, result.lyrics)
-
-        // Only update database for local songs (numeric IDs)
-        // Telegram songs have string IDs like "chatId_messageId"
-        val songIdLong = currentSong.id.toLongOrNull()
-        if (songIdLong != null) {
-            viewModelScope.launch {
-                musicRepository.updateLyrics(songIdLong, result.rawLyrics)
-            }
-        } else {
-            Timber.d("Skipping lyrics DB update for non-local song: ${currentSong.id}")
-        }
-    }
-
-    fun resetLyricsForCurrentSong() {
-        resetLyricsSearchState()
-        val songIdLong = stablePlayerState.value.currentSong?.id?.toLongOrNull()
-        viewModelScope.launch {
-            if (songIdLong != null) {
-                musicRepository.resetLyrics(songIdLong)
-            }
-            _stablePlayerState.update { state -> state.copy(lyrics = null) }
-            // loadLyricsForCurrentSong()
-        }
-=======
-         val currentSong = stablePlayerState.value.currentSong ?: return
-         lyricsStateHolder.acceptLyricsSearchResult(result, currentSong)
+        lyricsStateHolder.acceptLyricsSearchResult(result, currentSong)
     }
 
     fun resetLyricsForCurrentSong() {
         val songId = stablePlayerState.value.currentSong?.id?.toLongOrNull() ?: return
         lyricsStateHolder.resetLyrics(songId)
         playbackStateHolder.updateStablePlayerState { state -> state.copy(lyrics = null) }
->>>>>>> upstream/master
     }
 
     fun resetAllLyrics() {

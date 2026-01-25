@@ -122,7 +122,7 @@ class DualPlayerEngine @Inject constructor(
                 telegramCacheManager.setActivePlayback(fileId)
                 Timber.tag("DualPlayerEngine").d("Telegram playback active: fileId=$fileId")
                 // Telegram streaming needs Network Lock to prevent buffering/stuttering
-                (playerA as? ExoPlayer)?.setWakeMode(C.WAKE_MODE_NETWORK)
+                (playerA as? ExoPlayer)?.setWakeMode(C.WAKE_MODE_LOCAL)
             } else {
                 // Non-Telegram song - clean up any previous Telegram file
                 telegramCacheManager.setActivePlayback(null)
@@ -262,7 +262,7 @@ class DualPlayerEngine @Inject constructor(
                 // We should probably ignore the passed one if we want to enforce ours, OR configure ours and pass it to super.
                 
                 val sink = androidx.media3.exoplayer.audio.DefaultAudioSink.Builder()
-                    .setEnableFloatOutput(true) // Enable 32-bit float output for Hi-Res processing
+                    .setEnableFloatOutput(false) // Disable Float output to fix CCodec/Hardware errors on some devices
                     .build()
 
                 out.add(object : MediaCodecAudioRenderer(
@@ -285,7 +285,7 @@ class DualPlayerEngine @Inject constructor(
 
                 super.buildAudioRenderers(context, extensionRendererMode, mediaCodecSelector, enableDecoderFallback, sink, eventHandler, eventListener, out)
             }
-        }.setEnableAudioFloatOutput(true) // Helper method on factory
+        }.setEnableAudioFloatOutput(false) // Disable Float output helper
          .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
 
         val audioAttributes = AudioAttributes.Builder()
@@ -358,17 +358,20 @@ class DualPlayerEngine @Inject constructor(
         val dataSourceFactory = DefaultDataSource.Factory(context)
         val resolvingFactory = ResolvingDataSource.Factory(dataSourceFactory, resolver)
 
-//        val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
-//            .setBufferDurationsMs(
-//                30_000, // Min buffer 30s
-//                60_000, // Max buffer 60s
-//                5_000,  // Buffer for playback start (Aggressive: 5s)
-//                10_000  // Buffer for rebuffer (Aggressive: 10s)
-//            )
-//            .build()
+        // Tune LoadControl to prevent "loop of death" (underrun -> start -> underrun)
+        // Increase bufferForPlaybackMs to wait for more data before starting/resuming.
+        val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                30_000, // Min buffer 30s
+                60_000, // Max buffer 60s
+                2_500,  // Buffer for playback start (Increased from default to 2.5s)
+                5_000   // Buffer for rebuffer (Increased to 5s to stop rapid cycling)
+            )
+            .build()
 
         return ExoPlayer.Builder(context, renderersFactory)
             .setMediaSourceFactory(DefaultMediaSourceFactory(resolvingFactory))
+            .setLoadControl(loadControl)
             .build().apply {
             setAudioAttributes(audioAttributes, handleAudioFocus)
             setHandleAudioBecomingNoisy(handleAudioFocus)
@@ -400,7 +403,7 @@ class DualPlayerEngine @Inject constructor(
             // Set appropriate WakeMode for the next item
             val scheme = mediaItem.localConfiguration?.uri?.scheme
             if (scheme == "telegram" || scheme == "http" || scheme == "https") {
-                 playerB.setWakeMode(C.WAKE_MODE_NETWORK)
+                 playerB.setWakeMode(C.WAKE_MODE_LOCAL)
             } else {
                  playerB.setWakeMode(C.WAKE_MODE_LOCAL)
             }
