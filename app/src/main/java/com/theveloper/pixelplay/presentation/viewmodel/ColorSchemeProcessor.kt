@@ -65,28 +65,35 @@ class ColorSchemeProcessor @Inject constructor(
      * Checks memory cache first, then database, then generates new.
      * All heavy operations are performed on appropriate dispatchers.
      */
-    suspend fun getOrGenerateColorScheme(albumArtUri: String): ColorSchemePair? {
+    /**
+     * Gets or generates a color scheme for the given album art URI.
+     * Checks memory cache first, then database, then generates new.
+     * @param forceRefresh If true, bypasses caches and forces regeneration from source image.
+     */
+    suspend fun getOrGenerateColorScheme(albumArtUri: String, forceRefresh: Boolean = false): ColorSchemePair? {
         Trace.beginSection("ColorSchemeProcessor.getOrGenerate")
         try {
-            // 1. Check memory cache first (fastest)
-            memoryCache.get(albumArtUri)?.let {
-                Trace.endSection()
-                return it
-            }
+            if (!forceRefresh) {
+                // 1. Check memory cache first (fastest)
+                memoryCache.get(albumArtUri)?.let {
+                    Trace.endSection()
+                    return it
+                }
 
-            // 2. Check database cache
-            val cachedEntity = withContext(Dispatchers.IO) {
-                albumArtThemeDao.getThemeByUri(albumArtUri)
-            }
-            if (cachedEntity != null) {
-                val schemePair = mapEntityToColorSchemePair(cachedEntity)
-                memoryCache.put(albumArtUri, schemePair)
-                Trace.endSection()
-                return schemePair
+                // 2. Check database cache
+                val cachedEntity = withContext(Dispatchers.IO) {
+                    albumArtThemeDao.getThemeByUri(albumArtUri)
+                }
+                if (cachedEntity != null) {
+                    val schemePair = mapEntityToColorSchemePair(cachedEntity)
+                    memoryCache.put(albumArtUri, schemePair)
+                    Trace.endSection()
+                    return schemePair
+                }
             }
 
             // 3. Generate new color scheme
-            return generateAndCacheColorScheme(albumArtUri)
+            return generateAndCacheColorScheme(albumArtUri, forceRefresh)
         } finally {
             Trace.endSection()
         }
@@ -96,12 +103,12 @@ class ColorSchemeProcessor @Inject constructor(
      * Generates a color scheme from the album art bitmap.
      * All processing done on Default dispatcher for CPU-bound work.
      */
-    private suspend fun generateAndCacheColorScheme(albumArtUri: String): ColorSchemePair? {
+    private suspend fun generateAndCacheColorScheme(albumArtUri: String, forceRefresh: Boolean = false): ColorSchemePair? {
         Trace.beginSection("ColorSchemeProcessor.generate")
         try {
             // Load bitmap on IO dispatcher
             val bitmap = withContext(Dispatchers.IO) {
-                loadBitmapForColorExtraction(albumArtUri)
+                loadBitmapForColorExtraction(albumArtUri, forceRefresh)
             } ?: return null
 
             // Extract colors on Default dispatcher (CPU-bound)
@@ -131,15 +138,17 @@ class ColorSchemeProcessor @Inject constructor(
     /**
      * Loads a small bitmap optimized for color extraction.
      */
-    private suspend fun loadBitmapForColorExtraction(uri: String): Bitmap? {
+    private suspend fun loadBitmapForColorExtraction(uri: String, skipCache: Boolean): Bitmap? {
         return try {
+            val cachePolicy = if (skipCache) CachePolicy.DISABLED else CachePolicy.ENABLED
+            
             val request = ImageRequest.Builder(context)
                 .data(uri)
                 .allowHardware(false) // Required for pixel access
                 .size(Size(128, 128)) // Small size for fast processing
                 .bitmapConfig(Bitmap.Config.ARGB_8888)
-                .memoryCachePolicy(CachePolicy.ENABLED)
-                .diskCachePolicy(CachePolicy.ENABLED)
+                .memoryCachePolicy(cachePolicy)
+                .diskCachePolicy(cachePolicy)
                 .build()
             
             val drawable = context.imageLoader.execute(request).drawable ?: return null

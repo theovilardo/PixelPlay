@@ -135,9 +135,12 @@ class ThemeStateHolder @Inject constructor(
     }
 
     suspend fun forceRegenerateColorScheme(uriString: String) {
+         android.util.Log.d("ThemeStateHolder", "forceRegenerateColorScheme called for: $uriString")
+         android.util.Log.d("ThemeStateHolder", "Current tracked global URI: $currentAlbumArtUri")
+         
          colorSchemeProcessor.invalidateScheme(uriString)
          
-         val newScheme = colorSchemeProcessor.getOrGenerateColorScheme(uriString)
+         val newScheme = colorSchemeProcessor.getOrGenerateColorScheme(uriString, forceRefresh = true)
 
          // Iterate if there is an active flow for this URI and update it
          val activeFlow = individualAlbumColorSchemes[uriString]
@@ -146,8 +149,12 @@ class ThemeStateHolder @Inject constructor(
          }
          
          // Also update the main current album art scheme if it matches the one we are tracking
+         // We use equality check. If they are the same string object or equal content.
          if (currentAlbumArtUri == uriString) {
+             android.util.Log.d("ThemeStateHolder", "Updating global color scheme flow directly.")
              _currentAlbumArtColorSchemePair.value = newScheme
+         } else {
+             android.util.Log.d("ThemeStateHolder", "Global URI did not match. Skipping global update.")
          }
     }
 
