@@ -14,10 +14,12 @@ import com.theveloper.pixelplay.utils.normalizeMetadataText
 import com.theveloper.pixelplay.utils.normalizeMetadataTextOrEmpty
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -37,7 +39,9 @@ class MediaStoreSongRepository @Inject constructor(
     }
 
     private fun getBaseSelection(): String {
-        return "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.TITLE} != '' AND ${MediaStore.Audio.Media.DURATION} >= 30000"
+        // Relaxed filter: Remove IS_MUSIC to include all audio strings (WhatsApp, Recs, etc.)
+        // We filter by duration to skip extremely short clips (likely UI sounds).
+        return "${MediaStore.Audio.Media.DURATION} >= 30000 AND ${MediaStore.Audio.Media.TITLE} != ''"
     }
 
     private suspend fun getFavoriteIds(): Set<Long> {
@@ -127,8 +131,9 @@ class MediaStoreSongRepository @Inject constructor(
                     
                     // Directory Filtering
                     if (isFilterActive) {
-                        val parentPath = File(path).parent ?: ""
-                        if (resolver.isBlocked(normalizePath(parentPath))) {
+                        val lastSlashIndex = path.lastIndexOf('/')
+                        val parentPath = if (lastSlashIndex != -1) path.substring(0, lastSlashIndex) else ""
+                        if (resolver.isBlocked(parentPath)) {
                             continue
                         }
                     }
@@ -243,5 +248,72 @@ class MediaStoreSongRepository @Inject constructor(
         return getSongs().flowOn(Dispatchers.IO).combine(kotlinx.coroutines.flow.flowOf(songId)) { songs, id ->
             songs.find { it.id == id.toString() }
         }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun getPaginatedSongs(): Flow<androidx.paging.PagingData<Song>> {
+        return combine(
+            mediaStoreObserver.mediaStoreChanges.onStart { emit(Unit) },
+            userPreferencesRepository.allowedDirectoriesFlow,
+            userPreferencesRepository.blockedDirectoriesFlow
+        ) { _, allowedDirs, blockedDirs ->
+            Triple(allowedDirs, blockedDirs, Unit)
+        }.flatMapLatest { (allowedDirs, blockedDirs, _) ->
+             val musicIds = getFilteredSongIds(allowedDirs.toList(), blockedDirs.toList())
+             val genreMap = getSongIdToGenreMap(context.contentResolver) // Potentially expensive, optimize if needed
+             
+             androidx.paging.Pager(
+                 config = androidx.paging.PagingConfig(
+                     pageSize = 50,
+                     enablePlaceholders = true,
+                     initialLoadSize = 50
+                 ),
+                 pagingSourceFactory = {
+                     com.theveloper.pixelplay.data.paging.MediaStorePagingSource(context, musicIds, genreMap)
+                 }
+             ).flow
+        }.flowOn(Dispatchers.IO)
+    }
+
+    private suspend fun getFilteredSongIds(allowedDirs: List<String>, blockedDirs: List<String>): List<Long> = withContext(Dispatchers.IO) {
+        val ids = mutableListOf<Long>()
+        val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.DATA)
+        val selection = getBaseSelection()
+        
+        try {
+            context.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                selection,
+                null,
+                "${MediaStore.Audio.Media.TITLE} ASC"
+            )?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                val pathCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+                
+                val resolver = DirectoryRuleResolver(
+                    allowedDirs.map(::normalizePath).toSet(),
+                    blockedDirs.map(::normalizePath).toSet()
+                )
+                val isFilterActive = blockedDirs.isNotEmpty()
+
+                while (cursor.moveToNext()) {
+                    val path = cursor.getString(pathCol)
+                    if (isFilterActive) {
+                    if (isFilterActive) {
+                        val lastSlashIndex = path.lastIndexOf('/')
+                        val parentPath = if (lastSlashIndex != -1) path.substring(0, lastSlashIndex) else ""
+                        if (resolver.isBlocked(parentPath)) {
+                            continue
+                        }
+                    }
+                    }
+                    ids.add(cursor.getLong(idCol))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("MediaStoreSongRepository", "Error getting IDs", e)
+        }
+        ids
     }
 }

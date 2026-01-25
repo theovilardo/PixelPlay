@@ -72,8 +72,7 @@ class SyncManager @Inject constructor(
             )
 
     init {
-        // Cancel legacy SyncWorker as we moved to direct MediaStore querying
-        workManager.cancelUniqueWork(SyncWorker.WORK_NAME)
+        // Ensure worker is not cancelled blindly on startup
     }
 
     /**
@@ -128,8 +127,13 @@ class SyncManager @Inject constructor(
             )
 
     fun sync() {
-        Log.i(TAG, "Sync requested - Triggering MediaStore rescan")
-        mediaStoreObserver.forceRescan()
+        Log.i(TAG, "Sync requested - Scheduling Incremental Sync")
+        workManager.enqueueUniqueWork(
+            SyncWorker.WORK_NAME,
+            ExistingWorkPolicy.KEEP,
+            SyncWorker.incrementalSyncWork()
+        )
+        mediaStoreObserver.forceRescan() // Keep this for reactive updates
     }
 
     /**

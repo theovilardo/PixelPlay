@@ -9,4 +9,5 @@ interface SongRepository {
     fun getSongsByArtist(artistId: Long): Flow<List<Song>>
     suspend fun searchSongs(query: String): List<Song>
     fun getSongById(songId: Long): Flow<Song?>
+    fun getPaginatedSongs(): Flow<androidx.paging.PagingData<Song>>
 }

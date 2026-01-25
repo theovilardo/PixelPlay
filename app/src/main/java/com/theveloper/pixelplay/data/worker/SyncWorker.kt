@@ -834,8 +834,11 @@ constructor(
                         try {
                             val data = cursor.getString(dataCol)
                             val parentPath = File(data).parent
-                            if (parentPath != null && directoryResolver.isBlocked(parentPath)) {
-                                continue
+                            if (parentPath != null) {
+                                val normalizedParent = File(parentPath).absolutePath
+                                if (directoryResolver.isBlocked(normalizedParent)) {
+                                    continue
+                                }
                             }
                         } catch (e: Exception) {
                             // Proceed on error
@@ -1023,27 +1026,18 @@ constructor(
      */
     private suspend fun triggerMediaScanForNewFiles() {
         withContext(Dispatchers.IO) {
-            val directories =
-                    listOf(
-                            Environment.getExternalStoragePublicDirectory(
-                                    Environment.DIRECTORY_MUSIC
-                            ),
-                            Environment.getExternalStoragePublicDirectory(
-                                    Environment.DIRECTORY_DOWNLOADS
-                            ),
-                            File(Environment.getExternalStorageDirectory(), "Music"),
-                            File(Environment.getExternalStorageDirectory(), "Download")
-                    )
+            // "Global Augmented Scan"
+            // We always scan the External Storage Root, but we use the 'allowedDirs' list
+            // as "Explicit Includes" to bypass default filters (like skipping Android).
+            val searchRoots = listOf(Environment.getExternalStorageDirectory())
+            val allowedSet = userPreferencesRepository.allowedDirectoriesFlow.first().map { File(it) }.toSet()
+            
+            Log.i(TAG, "Starting Global Augmented Scan. Explicit includes: ${allowedSet.size}")
+            
+            val existingRoots = searchRoots.filter { it.exists() && it.isDirectory }
 
-            // Filter to only existing directories
-            val existingDirs =
-                    directories
-                            .filter { it.exists() && it.isDirectory }
-                            .map { it.absolutePath }
-                            .distinct()
-
-            if (existingDirs.isEmpty()) {
-                Log.d(TAG, "No music directories found to scan")
+            if (existingRoots.isEmpty()) {
+                Log.d(TAG, "No storage roots found")
                 return@withContext
             }
 
@@ -1057,12 +1051,35 @@ constructor(
                     setOf("mp3", "flac", "m4a", "wav", "ogg", "opus", "aac", "wma", "aiff")
             val newFilesToScan = mutableListOf<String>()
 
-            existingDirs.forEach { dirPath ->
-                val dir = File(dirPath)
-                dir.walkTopDown()
-                        .filter { it.isFile && it.extension.lowercase() in audioExtensions }
-                        .filter { it.absolutePath !in mediaStorePaths } // Only new files
-                        .forEach { newFilesToScan.add(it.absolutePath) }
+            existingRoots.forEach { root ->
+                root.walkTopDown()
+                    .onEnter { dir ->
+                        val name = dir.name
+                        if (dir.isHidden || name.startsWith(".")) return@onEnter false
+                        
+                        // Default Skip Rules (System Folders)
+                        val isSystemFolder = (name == "Android" || name == "data" || name == "obb")
+                        if (isSystemFolder) {
+                            // Check if this specific folder is Explicitly Allowed or is a Parent of an allowed folder
+                            // e.g. if Allowed is "Android/media", we MUST enter "Android".
+                            // e.g. if Allowed is "Android" (root), we MUST enter "Android".
+                            val path = dir.absolutePath
+                            val isAllowed = allowedSet.any { allowed -> 
+                                allowed.absolutePath == path || allowed.absolutePath.startsWith("$path/")
+                            }
+                            
+                            if (!isAllowed) {
+                                // Apply strict skipping for Android/data and Android/obb if not allowed
+                                val parent = dir.parentFile
+                                if (name == "Android" && parent?.absolutePath == Environment.getExternalStorageDirectory().absolutePath) return@onEnter false
+                                if (parent?.name == "Android" && (name == "data" || name == "obb")) return@onEnter false
+                            }
+                        }
+                        true
+                    }
+                    .filter { it.isFile && it.extension.lowercase() in audioExtensions }
+                    .filter { it.absolutePath !in mediaStorePaths } // Only new files
+                    .forEach { newFilesToScan.add(it.absolutePath) }
             }
 
             if (newFilesToScan.isEmpty()) {

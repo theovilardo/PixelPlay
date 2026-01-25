@@ -272,8 +272,11 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun toggleDirectoryAllowed(file: File) {
-        fileExplorerStateHolder.toggleDirectoryAllowed(file)
-        syncManager.sync()
+        viewModelScope.launch {
+            fileExplorerStateHolder.toggleDirectoryAllowed(file)
+            // Now that preferences are securely saved, we can sync/refresh
+            syncManager.sync()
+        }
     }
 
     fun loadDirectory(file: File) {
