@@ -44,8 +44,7 @@ class MediaStoreSongRepository @Inject constructor(
         return favoritesDao.getFavoriteSongIdsOnce().toSet()
     }
 
-    private fun normalizePath(path: String): String =
-        runCatching { File(path).canonicalPath }.getOrElse { File(path).absolutePath }
+    private fun normalizePath(path: String): String = File(path).absolutePath
 
     private fun getExcludedPaths(): Set<String> {
         // This should come from a repository/store, not blocking flow preferably, 

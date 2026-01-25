@@ -56,8 +56,10 @@ class DirectoryRuleResolver(
     }
 
     private fun isParentOrSame(root: String, path: String): Boolean {
-        if (!path.startsWith(root)) return false
+        if (!path.startsWith(root, ignoreCase = true)) return false
         // It starts with root. Check if it's exactly root or a subdirectory (slash after root)
-        return path.length == root.length || path[root.length] == '/'
+        // Check needs to safeguard bounds
+        if (path.length == root.length) return true
+        return path[root.length] == '/'
     }
 }
