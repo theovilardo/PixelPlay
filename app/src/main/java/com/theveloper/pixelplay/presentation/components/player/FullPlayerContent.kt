@@ -127,6 +127,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
+import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -214,6 +216,12 @@ fun FullPlayerContent(
         }
     )
 
+    val expansionFraction by remember {
+        derivedStateOf { expansionFractionProvider().coerceIn(0f, 1f) }
+    }
+    val visualExpansionFraction by remember {
+        derivedStateOf { (expansionFraction * 120f).roundToInt() / 120f }
+    }
     // totalDurationValue is derived from stablePlayerState, so it's fine.
     // OPTIMIZATION: Use passed provider instead of collecting flow
     val totalDurationValue = totalDurationProvider()
@@ -312,7 +320,7 @@ fun FullPlayerContent(
             DelayedContent(
                 shouldDelay = shouldDelay,
                 showPlaceholders = loadingTweaks.showPlaceholders,
-                expansionFractionProvider = expansionFractionProvider,
+                expansionFraction = visualExpansionFraction,
                 isExpandedOverride = currentSheetState == PlayerSheetState.EXPANDED,
                 normalStartThreshold = 0.08f,
                 delayAppearThreshold = loadingTweaks.contentAppearThresholdPercent / 100f,
@@ -349,14 +357,14 @@ fun FullPlayerContent(
     fun ControlsSection() {
         val shouldDelay = loadingTweaks.delayAll || loadingTweaks.delayControls
 
-        DelayedContent(
-            shouldDelay = shouldDelay,
-            showPlaceholders = loadingTweaks.showPlaceholders,
-            expansionFractionProvider = expansionFractionProvider,
-            isExpandedOverride = currentSheetState == PlayerSheetState.EXPANDED,
-            normalStartThreshold = 0.42f,
-            delayAppearThreshold = loadingTweaks.contentAppearThresholdPercent / 100f,
-            placeholder = {
+            DelayedContent(
+                shouldDelay = shouldDelay,
+                showPlaceholders = loadingTweaks.showPlaceholders,
+                expansionFraction = visualExpansionFraction,
+                isExpandedOverride = currentSheetState == PlayerSheetState.EXPANDED,
+                normalStartThreshold = 0.42f,
+                delayAppearThreshold = loadingTweaks.contentAppearThresholdPercent / 100f,
+                placeholder = {
                 if (loadingTweaks.transparentPlaceholders) {
                     Box(Modifier.fillMaxWidth().height(174.dp))
                 } else {
@@ -408,7 +416,8 @@ fun FullPlayerContent(
             currentPositionProvider = currentPositionProvider,
             totalDurationValue = totalDurationValue,
             onSeek = onSeek,
-            expansionFractionProvider = expansionFractionProvider,
+            expansionFraction = expansionFraction,
+            visualExpansionFraction = visualExpansionFraction,
             isPlayingProvider = isPlayingProvider,
             currentSheetState = currentSheetState,
             activeTrackColor = LocalMaterialTheme.current.primary,
@@ -423,31 +432,31 @@ fun FullPlayerContent(
     fun SongMetadataSection() {
         val shouldDelay = loadingTweaks.delayAll || loadingTweaks.delaySongMetadata
 
-        DelayedContent(
-            shouldDelay = shouldDelay,
-            showPlaceholders = loadingTweaks.showPlaceholders,
-            expansionFractionProvider = expansionFractionProvider,
-            isExpandedOverride = currentSheetState == PlayerSheetState.EXPANDED,
-            normalStartThreshold = 0.20f,
-            delayAppearThreshold = loadingTweaks.contentAppearThresholdPercent / 100f,
-            placeholder = {
-                if (loadingTweaks.transparentPlaceholders) {
-                    Box(Modifier.fillMaxWidth().height(70.dp))
-                } else {
-                    MetadataPlaceholder(expansionFractionProvider(), placeholderColor, placeholderOnColor)
+            DelayedContent(
+                shouldDelay = shouldDelay,
+                showPlaceholders = loadingTweaks.showPlaceholders,
+                expansionFraction = visualExpansionFraction,
+                isExpandedOverride = currentSheetState == PlayerSheetState.EXPANDED,
+                normalStartThreshold = 0.20f,
+                delayAppearThreshold = loadingTweaks.contentAppearThresholdPercent / 100f,
+                placeholder = {
+                    if (loadingTweaks.transparentPlaceholders) {
+                        Box(Modifier.fillMaxWidth().height(70.dp))
+                    } else {
+                        MetadataPlaceholder(placeholderColor, placeholderOnColor)
+                    }
                 }
-            }
-        ) {
-            SongMetadataDisplaySection(
-                modifier = Modifier
-                    .padding(start = 0.dp),
-                onClickLyrics = onLyricsClick,
-                song = song,
-                currentSongArtists = currentSongArtists,
-                expansionFractionProvider = expansionFractionProvider,
-                textColor = LocalMaterialTheme.current.onPrimaryContainer,
-                artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f),
-                playerViewModel = playerViewModel,
+            ) {
+                SongMetadataDisplaySection(
+                    modifier = Modifier
+                        .padding(start = 0.dp),
+                    onClickLyrics = onLyricsClick,
+                    song = song,
+                    currentSongArtists = currentSongArtists,
+                    expansionFraction = visualExpansionFraction,
+                    textColor = LocalMaterialTheme.current.onPrimaryContainer,
+                    artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f),
+                    playerViewModel = playerViewModel,
                 gradientEdgeColor = LocalMaterialTheme.current.primaryContainer,
                 showQueueButton = isLandscape,
                 onClickQueue = {
@@ -540,7 +549,7 @@ fun FullPlayerContent(
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
                 // Check condition AFTER the down event occurs
-                val isFullyExpanded = currentSheetState == PlayerSheetState.EXPANDED && expansionFractionProvider() >= 0.99f
+                val isFullyExpanded = currentSheetState == PlayerSheetState.EXPANDED && expansionFraction >= 0.99f
 
                 if (!isFullyExpanded) {
                     return@awaitEachGesture
@@ -578,7 +587,7 @@ fun FullPlayerContent(
             if (!isLandscape) {
                 TopAppBar(
                     modifier = Modifier.graphicsLayer {
-                        val fraction = expansionFractionProvider()
+                        val fraction = visualExpansionFraction
                         // TopBar should always fade in smoothly, ignoring delayAll to avoid empty UI
                         val startThreshold = 0f
                         val endThreshold = 1f
@@ -891,7 +900,7 @@ fun FullPlayerContent(
 private fun SongMetadataDisplaySection(
     song: Song?,
     currentSongArtists: List<Artist>,
-    expansionFractionProvider: () -> Float,
+    expansionFraction: Float,
     textColor: Color,
     artistTextColor: Color,
     gradientEdgeColor: Color,
@@ -915,7 +924,7 @@ private fun SongMetadataDisplaySection(
                 artist = currentSong.displayArtist,
                 artistId = currentSong.artistId,
                 artists = currentSongArtists,
-                expansionFractionProvider = expansionFractionProvider,
+                expansionFraction = expansionFraction,
                 textColor = textColor,
                 artistTextColor = artistTextColor,
                 gradientEdgeColor = gradientEdgeColor,
@@ -1007,7 +1016,8 @@ private fun PlayerProgressBarSection(
     currentPositionProvider: () -> Long,
     totalDurationValue: Long,
     onSeek: (Long) -> Unit,
-    expansionFractionProvider: () -> Float,
+    expansionFraction: Float,
+    visualExpansionFraction: Float,
     isPlayingProvider: () -> Boolean,
     currentSheetState: PlayerSheetState,
     activeTrackColor: Color,
@@ -1017,7 +1027,6 @@ private fun PlayerProgressBarSection(
     loadingTweaks: FullPlayerLoadingTweaks? = null,
     modifier: Modifier = Modifier
 ) {
-    val expansionFraction = expansionFractionProvider()
     val isExpanded = currentSheetState == PlayerSheetState.EXPANDED &&
             expansionFraction >= 0.995f
 
@@ -1066,7 +1075,7 @@ private fun PlayerProgressBarSection(
     DelayedContent(
         shouldDelay = shouldDelay,
         showPlaceholders = loadingTweaks?.showPlaceholders ?: false,
-        expansionFractionProvider = expansionFractionProvider,
+        expansionFraction = visualExpansionFraction,
         isExpandedOverride = currentSheetState == PlayerSheetState.EXPANDED,
         normalStartThreshold = 0.08f,
         delayAppearThreshold = (loadingTweaks?.contentAppearThresholdPercent ?: 100) / 100f,
@@ -1074,14 +1083,14 @@ private fun PlayerProgressBarSection(
              if (loadingTweaks?.transparentPlaceholders == true) {
                  Box(Modifier.fillMaxWidth().heightIn(min = 70.dp))
              } else {
-                 ProgressPlaceholder(expansionFractionProvider(), placeholderColor, placeholderOnColor)
+                 ProgressPlaceholder(placeholderColor, placeholderOnColor)
              }
         }
     ) {
         Column(
             modifier = modifier
                 .fillMaxWidth()
-                .padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
+                .padding(vertical = lerp(2.dp, 0.dp, visualExpansionFraction))
                 .heightIn(min = 70.dp)
         ) {
             WavyMusicSlider(
@@ -1133,7 +1142,7 @@ private fun PlayerProgressBarSection(
 private fun DelayedContent(
     shouldDelay: Boolean,
     showPlaceholders: Boolean,
-    expansionFractionProvider: () -> Float,
+    expansionFraction: Float,
     isExpandedOverride: Boolean = false,
     normalStartThreshold: Float,
     delayAppearThreshold: Float,
@@ -1143,32 +1152,32 @@ private fun DelayedContent(
     // Some carousel styles (e.g., one-peek) can leave the sheet fraction just shy of 1f when reopening
     // the player, which kept delayed sections stuck on placeholders. Treat near-complete expansion as
     // fully expanded to ensure content becomes visible without needing an extra interaction.
-    val expansionFraction by remember {
-        derivedStateOf {
-            val raw = expansionFractionProvider().coerceIn(0f, 1f)
-            if (isExpandedOverride) 1f else raw
+    val resolvedExpansionFraction =
+        if (isExpandedOverride) 1f else expansionFraction.coerceIn(0f, 1f)
+    val easedExpansionFraction =
+        if (resolvedExpansionFraction >= 0.985f || isExpandedOverride) 1f else resolvedExpansionFraction
+
+    var gateLatched by remember { mutableStateOf(false) }
+    val isDelayGateOpen =
+        !shouldDelay || isExpandedOverride || easedExpansionFraction >= delayAppearThreshold.coerceIn(0f, 1f)
+
+    val resetThreshold = min(0.02f, normalStartThreshold * 0.5f)
+    LaunchedEffect(isDelayGateOpen, resolvedExpansionFraction, isExpandedOverride) {
+        when {
+            isDelayGateOpen -> gateLatched = true
+            !isExpandedOverride && resolvedExpansionFraction <= resetThreshold -> gateLatched = false
         }
-    }
-    val easedExpansionFraction by remember {
-        derivedStateOf { if (expansionFraction >= 0.985f || isExpandedOverride) 1f else expansionFraction }
     }
 
-    val isDelayGateOpen by remember(shouldDelay, delayAppearThreshold, isExpandedOverride) {
-        derivedStateOf {
-            !shouldDelay || isExpandedOverride || easedExpansionFraction >= delayAppearThreshold.coerceIn(0f, 1f)
-        }
-    }
+    val effectiveFraction = if (isExpandedOverride) 1f else easedExpansionFraction
+    val baseAlpha =
+        ((effectiveFraction - normalStartThreshold) / (1f - normalStartThreshold)).coerceIn(0f, 1f)
 
-    val baseAlpha by remember(normalStartThreshold, isExpandedOverride) {
-        derivedStateOf {
-            val effectiveFraction = if (isExpandedOverride) 1f else easedExpansionFraction
-            ((effectiveFraction - normalStartThreshold) / (1f - normalStartThreshold)).coerceIn(0f, 1f)
-        }
-    }
+    val gateOpen = if (shouldDelay) gateLatched else true
 
     if (shouldDelay) {
         Crossfade(
-            targetState = isDelayGateOpen,
+            targetState = gateOpen,
             label = "DelayedContentCrossfade"
         ) { gateOpen ->
             if (gateOpen) {
@@ -1180,7 +1189,13 @@ private fun DelayedContent(
                     content()
                 }
             } else if (showPlaceholders) {
-                placeholder()
+                Box(
+                    modifier = Modifier.graphicsLayer {
+                        alpha = baseAlpha
+                    }
+                ) {
+                    placeholder()
+                }
             }
         }
     } else {
@@ -1201,7 +1216,7 @@ private fun PlayerSongInfo(
     artist: String,
     artistId: Long,
     artists: List<Artist>,
-    expansionFractionProvider: () -> Float,
+    expansionFraction: Float,
     textColor: Color,
     artistTextColor: Color,
     gradientEdgeColor: Color,
@@ -1228,9 +1243,8 @@ private fun PlayerSongInfo(
                 .padding(vertical = 10.dp)
                 .fillMaxWidth()
             .graphicsLayer {
-                val fraction = expansionFractionProvider()
-                alpha = fraction // Or apply specific fade logic if desired
-                translationY = (1f - fraction) * 24f
+                alpha = expansionFraction // Or apply specific fade logic if desired
+                translationY = (1f - expansionFraction) * 24f
             }
     ) {
         // We pass 1f to AutoScrollingTextOnDemand because the alpha/translation is now handled by the parent Column graphicsLayer
@@ -1243,7 +1257,7 @@ private fun PlayerSongInfo(
             title,
             titleStyle,
             gradientEdgeColor,
-            expansionFractionProvider,
+            { expansionFraction },
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(4.dp))
@@ -1252,7 +1266,7 @@ private fun PlayerSongInfo(
             text = artist,
             style = artistStyle,
             gradientEdgeColor = gradientEdgeColor,
-            expansionFractionProvider = expansionFractionProvider,
+            expansionFractionProvider = { expansionFraction },
             modifier = Modifier
                 .fillMaxWidth()
                 .combinedClickable(
@@ -1321,7 +1335,7 @@ private fun AlbumPlaceholder(height: Dp, color: Color, onColor: Color) {
 }
 
 @Composable
-private fun MetadataPlaceholder(expansionFraction: Float, color: Color, onColor: Color) {
+private fun MetadataPlaceholder(color: Color, onColor: Color) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1364,11 +1378,10 @@ private fun MetadataPlaceholder(expansionFraction: Float, color: Color, onColor:
 }
 
 @Composable
-private fun ProgressPlaceholder(expansionFraction: Float, color: Color, onColor: Color) {
+private fun ProgressPlaceholder(color: Color, onColor: Color) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .graphicsLayer { alpha = expansionFraction }
             .heightIn(min = 70.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp)
