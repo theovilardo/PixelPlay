@@ -192,6 +192,8 @@ fun UnifiedPlayerSheet(
     val carouselStyle by playerViewModel.carouselStyle.collectAsState()
     val fullPlayerLoadingTweaks by playerViewModel.fullPlayerLoadingTweaks.collectAsState()
     val tapBackgroundClosesPlayer by playerViewModel.tapBackgroundClosesPlayer.collectAsState()
+    val useSmoothCorners by playerViewModel.useSmoothCorners.collectAsState()
+
     LaunchedEffect(stablePlayerState.currentSong?.id) {
         if (stablePlayerState.currentSong != null) {
             prewarmFullPlayer = true
@@ -828,17 +830,32 @@ fun UnifiedPlayerSheet(
 
     val miniAlpha by t.animateFloat(label = "miniAlpha") { f -> (1f - f * 2f).coerceIn(0f, 1f) }
 
-    val playerShadowShape = remember(overallSheetTopCornerRadius, playerContentActualBottomRadius) {
-        AbsoluteSmoothCornerShape(
-            cornerRadiusTL = overallSheetTopCornerRadius,
-            smoothnessAsPercentBL = 60,
-            cornerRadiusTR = overallSheetTopCornerRadius,
-            smoothnessAsPercentBR = 60,
-            cornerRadiusBR = playerContentActualBottomRadius,
-            smoothnessAsPercentTL = 60,
-            cornerRadiusBL = playerContentActualBottomRadius,
-            smoothnessAsPercentTR = 60
-        )
+    val useSmoothShape by remember(useSmoothCorners, isDragging, playerContentExpansionFraction.isRunning) {
+        derivedStateOf {
+            useSmoothCorners && !isDragging && !playerContentExpansionFraction.isRunning
+        }
+    }
+
+    val playerShadowShape = remember(overallSheetTopCornerRadius, playerContentActualBottomRadius, useSmoothShape) {
+        if (useSmoothShape) {
+             AbsoluteSmoothCornerShape(
+                cornerRadiusTL = overallSheetTopCornerRadius,
+                smoothnessAsPercentBL = 60,
+                cornerRadiusTR = overallSheetTopCornerRadius,
+                smoothnessAsPercentBR = 60,
+                cornerRadiusBR = playerContentActualBottomRadius,
+                smoothnessAsPercentTL = 60,
+                cornerRadiusBL = playerContentActualBottomRadius,
+                smoothnessAsPercentTR = 60
+            )
+        } else {
+            RoundedCornerShape(
+                topStart = overallSheetTopCornerRadius,
+                topEnd = overallSheetTopCornerRadius,
+                bottomStart = playerContentActualBottomRadius,
+                bottomEnd = playerContentActualBottomRadius
+            )
+        }
     }
 
     val isCollapsedState =
@@ -1006,16 +1023,7 @@ fun UnifiedPlayerSheet(
                                 )
                                 .background(
                                     color = albumColorScheme.primaryContainer,
-                                    shape = AbsoluteSmoothCornerShape(
-                                        cornerRadiusTL = overallSheetTopCornerRadius,
-                                        smoothnessAsPercentBL = 60,
-                                        cornerRadiusTR = overallSheetTopCornerRadius,
-                                        smoothnessAsPercentBR = 60,
-                                        cornerRadiusBR = playerContentActualBottomRadius,
-                                        smoothnessAsPercentTL = 60,
-                                        cornerRadiusBL = playerContentActualBottomRadius,
-                                        smoothnessAsPercentTR = 60
-                                    )
+                                    shape = playerShadowShape
                                 )
                                 .clipToBounds()
                                 .pointerInput(Unit) {

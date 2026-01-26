@@ -109,6 +109,7 @@ constructor(
         val LIBRARY_TABS_ORDER = stringPreferencesKey("library_tabs_order")
         val IS_FOLDER_FILTER_ACTIVE = booleanPreferencesKey("is_folder_filter_active")
         val IS_FOLDERS_PLAYLIST_VIEW = booleanPreferencesKey("is_folders_playlist_view")
+        val USE_SMOOTH_CORNERS = booleanPreferencesKey("use_smooth_corners")
         val KEEP_PLAYING_IN_BACKGROUND = booleanPreferencesKey("keep_playing_in_background")
         val IS_CROSSFADE_ENABLED = booleanPreferencesKey("is_crossfade_enabled")
         val CROSSFADE_DURATION = intPreferencesKey("crossfade_duration")
@@ -1268,10 +1269,21 @@ constructor(
         }
     }
 
-    val isFoldersPlaylistViewFlow: Flow<Boolean> =
-            dataStore.data.map { preferences ->
-                preferences[PreferencesKeys.IS_FOLDERS_PLAYLIST_VIEW] ?: false
-            }
+    val isFoldersPlaylistViewFlow: Flow<Boolean> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.IS_FOLDERS_PLAYLIST_VIEW] ?: false
+        }
+
+    val useSmoothCornersFlow: Flow<Boolean> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.USE_SMOOTH_CORNERS] ?: true
+        }
+
+    suspend fun setUseSmoothCorners(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.USE_SMOOTH_CORNERS] = enabled
+        }
+    }
 
     suspend fun setFoldersPlaylistView(isPlaylistView: Boolean) {
         dataStore.edit { preferences ->

@@ -571,12 +571,21 @@ class SettingsViewModel @Inject constructor(
     val albumArtQuality: StateFlow<AlbumArtQuality> = userPreferencesRepository.albumArtQualityFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AlbumArtQuality.MEDIUM)
 
+    val useSmoothCorners: StateFlow<Boolean> = userPreferencesRepository.useSmoothCornersFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
     val tapBackgroundClosesPlayer: StateFlow<Boolean> = userPreferencesRepository.tapBackgroundClosesPlayerFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
     fun setAlbumArtQuality(quality: AlbumArtQuality) {
         viewModelScope.launch {
             userPreferencesRepository.setAlbumArtQuality(quality)
+        }
+    }
+
+    fun setUseSmoothCorners(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setUseSmoothCorners(enabled)
         }
     }
 

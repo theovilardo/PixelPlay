@@ -82,6 +82,7 @@ import kotlinx.coroutines.launch
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
+import com.theveloper.pixelplay.data.preferences.LaunchTab
 
 @Composable
 fun SettingsTopBar(
@@ -171,6 +172,12 @@ fun SettingsScreen(
 
     val minTopBarHeightPx = with(density) { minTopBarHeight.toPx() }
     val maxTopBarHeightPx = with(density) { maxTopBarHeight.toPx() }
+
+    val uiState by settingsViewModel.uiState.collectAsState()
+    val launchTab = uiState.launchTab
+    val useSmoothCorners by settingsViewModel.useSmoothCorners.collectAsState()
+
+    var showCornerRadiusOverlay by remember { mutableStateOf(false) }
 
     val topBarHeight = remember { Animatable(maxTopBarHeightPx) }
     var collapseFraction by remember { mutableStateOf(0f) }
