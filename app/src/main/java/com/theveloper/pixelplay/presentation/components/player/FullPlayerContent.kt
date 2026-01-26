@@ -3,6 +3,7 @@ package com.theveloper.pixelplay.presentation.components.player
 import android.annotation.SuppressLint
 import android.content.res.Configuration
 import android.net.Uri
+import com.theveloper.pixelplay.data.model.Lyrics
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -149,6 +150,10 @@ fun FullPlayerContent(
     currentPositionProvider: () -> Long,
     isPlayingProvider: () -> Boolean,
     isFavoriteProvider: () -> Boolean,
+    repeatModeProvider: () -> Int,
+    isShuffleEnabledProvider: () -> Boolean,
+    totalDurationProvider: () -> Long,
+    lyricsProvider: () -> Lyrics? = { null }, 
     // State
     isCastConnecting: Boolean = false,
     // Event Handlers
@@ -177,7 +182,9 @@ fun FullPlayerContent(
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var showLyricsSheet by remember { mutableStateOf(false) }
     var showArtistPicker by rememberSaveable { mutableStateOf(false) }
-    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
+    
+    // REMOVED: val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
+    
     val lyricsSearchUiState by playerViewModel.lyricsSearchUiState.collectAsState()
     val currentSongArtists by playerViewModel.currentSongArtists.collectAsState()
     val lyricsSyncOffset by playerViewModel.currentSongLyricsSyncOffset.collectAsState()
@@ -208,9 +215,8 @@ fun FullPlayerContent(
     )
 
     // totalDurationValue is derived from stablePlayerState, so it's fine.
-    val totalDurationValue by remember {
-        playerViewModel.stablePlayerState.map { it.totalDuration }.distinctUntilChanged()
-    }.collectAsState(initial = 0L)
+    // OPTIMIZATION: Use passed provider instead of collecting flow
+    val totalDurationValue = totalDurationProvider()
 
     val stableControlAnimationSpec = remember {
         tween<Float>(durationMillis = 240, easing = FastOutSlowInEasing)
@@ -230,7 +236,7 @@ fun FullPlayerContent(
 
     // Lógica para el botón de Lyrics en el reproductor expandido
     val onLyricsClick = {
-        val lyrics = stablePlayerState.lyrics
+        val lyrics = lyricsProvider()
         if (lyrics?.synced.isNullOrEmpty() && lyrics?.plain.isNullOrEmpty()) {
             // Si no hay letra, mostramos el diálogo para buscar
             showFetchLyricsDialog = true
@@ -243,7 +249,7 @@ fun FullPlayerContent(
     if (showFetchLyricsDialog) {
         FetchLyricsDialog(
             uiState = lyricsSearchUiState,
-            currentSong = stablePlayerState.currentSong,
+            currentSong = song, // Use 'song' which is derived from args/retained
             onConfirm = { forcePick ->
                 // El usuario confirma, iniciamos la búsqueda
                 playerViewModel.fetchLyricsForCurrentSong(forcePick)
@@ -385,8 +391,8 @@ fun FullPlayerContent(
                         .heightIn(min = 58.dp, max = 78.dp)
                         .padding(horizontal = 26.dp, vertical = 0.dp)
                         .padding(bottom = 6.dp),
-                    isShuffleEnabled = isShuffleEnabled,
-                    repeatMode = repeatMode,
+                    isShuffleEnabled = isShuffleEnabledProvider(),
+                    repeatMode = repeatModeProvider(),
                     isFavoriteProvider = isFavoriteProvider,
                     onShuffleToggle = onShuffleToggle,
                     onRepeatToggle = onRepeatToggle,
@@ -799,6 +805,13 @@ fun FullPlayerContent(
         enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
         exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut()
     ) {
+        // We can create a temporary StablePlayerState for LyricsSheet if needed, or update LyricsSheet to take Granular args.
+        // For now, let's keep LyricsSheet collecting stablePlayerState internally IF it must, OR better:
+        // Pass the subset we have.
+        // LyricsSheet signature: stablePlayerStateFlow: StateFlow<StablePlayerState>
+        // We can't change that easily without refactoring LyricsSheet too.
+        // For now, pass the flow but LyricsSheet is only visible when sheet is open.
+        // Ideally we should refactor LyricsSheet too, but let's stick to FullPlayerContent optimizations first.
         LyricsSheet(
             stablePlayerStateFlow = playerViewModel.stablePlayerState,
             playerUiStateFlow = playerViewModel.playerUiState,

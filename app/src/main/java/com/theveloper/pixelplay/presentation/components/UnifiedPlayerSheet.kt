@@ -113,6 +113,7 @@ import com.theveloper.pixelplay.presentation.components.scoped.rememberExpansion
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.StablePlayerState
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.coroutineScope
@@ -162,26 +163,42 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
-    // Granular collection for playerUiState fields used directly by UnifiedPlayerSheet or its main sub-components
-    val currentPosition by remember {
+    val infrequentPlayerStateReference = remember {
+        playerViewModel.stablePlayerState
+            .map { it.copy(currentPosition = 0L) } // Keep totalDuration, only mask volatile position
+            .distinctUntilChanged()
+    }.collectAsState(initial = StablePlayerState())
+    val infrequentPlayerState = infrequentPlayerStateReference.value
+
+    val currentPositionState = remember {
         playerViewModel.playerUiState.map { it.currentPosition }.distinctUntilChanged()
     }.collectAsState(initial = 0L)
-    val remotePosition by playerViewModel.remotePosition.collectAsState()
+
+    val remotePositionState = playerViewModel.remotePosition.collectAsState()
+    // We observe isRemotePlaybackActive directly as switching modes is a major event
     val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
-    val positionToDisplay = if (isRemotePlaybackActive) remotePosition else currentPosition
+    
+    // Position Provider: Reads state inside the lambda to prevent recomposition of UnifiedPlayerSheet
+    val positionToDisplayProvider = remember(isRemotePlaybackActive) {
+        {
+            if (isRemotePlaybackActive) remotePositionState.value
+            else currentPositionState.value
+        }
+    }
+    
     val isFavorite by playerViewModel.isCurrentSongFavorite.collectAsState()
 
     val currentPlaybackQueue by remember {
         playerViewModel.playerUiState.map { it.currentPlaybackQueue }.distinctUntilChanged()
     }.collectAsState(initial = persistentListOf())
+
     val currentQueueSourceName by remember {
         playerViewModel.playerUiState.map { it.currentQueueSourceName }.distinctUntilChanged()
     }.collectAsState(initial = "")
+
     val showDismissUndoBar by remember {
         playerViewModel.playerUiState.map { it.showDismissUndoBar }.distinctUntilChanged()
     }.collectAsState(initial = false)
-
 
     val currentSheetContentState by playerViewModel.sheetState.collectAsState()
     val predictiveBackCollapseProgress by playerViewModel.predictiveBackCollapseFraction.collectAsState()
@@ -194,12 +211,12 @@ fun UnifiedPlayerSheet(
     val tapBackgroundClosesPlayer by playerViewModel.tapBackgroundClosesPlayer.collectAsState()
     val useSmoothCorners by playerViewModel.useSmoothCorners.collectAsState()
 
-    LaunchedEffect(stablePlayerState.currentSong?.id) {
-        if (stablePlayerState.currentSong != null) {
+    LaunchedEffect(infrequentPlayerState.currentSong?.id) {
+        if (infrequentPlayerState.currentSong != null) {
             prewarmFullPlayer = true
         }
     }
-    LaunchedEffect(stablePlayerState.currentSong?.id, prewarmFullPlayer) {
+    LaunchedEffect(infrequentPlayerState.currentSong?.id, prewarmFullPlayer) {
         if (prewarmFullPlayer) {
             delay(32)
             prewarmFullPlayer = false
@@ -233,8 +250,8 @@ fun UnifiedPlayerSheet(
 
     val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
 
-    val showPlayerContentArea by remember {
-        derivedStateOf { stablePlayerState.currentSong != null || isCastConnecting }
+    val showPlayerContentArea by remember(infrequentPlayerState.currentSong, isCastConnecting) {
+        derivedStateOf { infrequentPlayerState.currentSong != null || isCastConnecting }
     }
 
     // Use the granular showDismissUndoBar here
@@ -515,8 +532,8 @@ fun UnifiedPlayerSheet(
         navBarStyle,
         showPlayerContentArea,
         playerContentExpansionFraction,
-        stablePlayerState.isPlaying,
-        stablePlayerState.currentSong,
+        infrequentPlayerState.isPlaying,
+        infrequentPlayerState.currentSong,
         predictiveBackCollapseProgress,
         currentSheetContentState,
         swipeDismissProgress.value,
@@ -544,7 +561,7 @@ fun UnifiedPlayerSheet(
                             26.dp
                         }
                     } else {
-                        if (!stablePlayerState.isPlaying || stablePlayerState.currentSong == null) {
+                        if (!infrequentPlayerState.isPlaying || infrequentPlayerState.currentSong == null) {
                             if (isNavBarHidden) 32.dp else navBarCornerRadius.dp
                         } else {
                             if (isNavBarHidden) 32.dp else 12.dp
@@ -1146,9 +1163,10 @@ fun UnifiedPlayerSheet(
                                     playerViewModel.togglePlayerSheetState()
                                 }
                         ) {
-                            if (showPlayerContentArea) {
-                                // stablePlayerState.currentSong is already available from the top-level collection
-                                stablePlayerState.currentSong?.let { currentSongNonNull ->
+                                    // MiniPlayerContentInternal
+                                    // stablePlayerState.currentSong is already available from the top-level collection
+                                    // Use infrequentPlayerState
+                                    infrequentPlayerState.currentSong?.let { currentSongNonNull ->
                                     // MiniPlayer
                                     Crossfade(
                                         targetState = albumColorScheme,
@@ -1169,7 +1187,7 @@ fun UnifiedPlayerSheet(
                                                 MiniPlayerContentInternal(
                                                     song = currentSongNonNull, // Use non-null version
                                                     cornerRadiusAlb = (overallSheetTopCornerRadius.value * 0.5).dp,
-                                                    isPlaying = stablePlayerState.isPlaying, // from top-level stablePlayerState
+                                                    isPlaying = infrequentPlayerState.isPlaying, // from top-level stablePlayerState
                                                     isCastConnecting = isCastConnecting,
                                                     onPlayPause = { playerViewModel.playPause() },
                                                     onPrevious = { playerViewModel.previousSong() },
@@ -1209,16 +1227,20 @@ fun UnifiedPlayerSheet(
                                                 currentSong = currentSongNonNull,
                                                 currentPlaybackQueue = currentPlaybackQueue,
                                                 currentQueueSourceName = currentQueueSourceName,
-                                                isShuffleEnabled = stablePlayerState.isShuffleEnabled,
-                                                repeatMode = stablePlayerState.repeatMode,
+                                                isShuffleEnabled = infrequentPlayerState.isShuffleEnabled,
+                                                repeatMode = infrequentPlayerState.repeatMode,
                                                 expansionFractionProvider = { playerContentExpansionFraction.value },
                                                 currentSheetState = currentSheetContentState,
                                                 carouselStyle = carouselStyle,
                                                 loadingTweaks = fullPlayerLoadingTweaks,
                                                 playerViewModel = playerViewModel,
                                                 // State Providers
-                                                currentPositionProvider = { positionToDisplay },
-                                                isPlayingProvider = { stablePlayerState.isPlaying },
+                                                currentPositionProvider = positionToDisplayProvider,
+                                                isPlayingProvider = { infrequentPlayerState.isPlaying },
+                                                repeatModeProvider = { infrequentPlayerState.repeatMode },
+                                                isShuffleEnabledProvider = { infrequentPlayerState.isShuffleEnabled },
+                                                totalDurationProvider = { infrequentPlayerState.totalDuration },
+                                                lyricsProvider = { infrequentPlayerState.lyrics },
                                                 isFavoriteProvider = { isFavorite },
                                                 // Event Handlers
                                                 onPlayPause = playerViewModel::playPause,
@@ -1243,12 +1265,11 @@ fun UnifiedPlayerSheet(
                                         }
                                     }
                                 }
-                            }
                         }
                     }
 
                     // Prewarm full player once per track to reduce first-open jank.
-                    if (prewarmFullPlayer && stablePlayerState.currentSong != null) {
+                    if (prewarmFullPlayer && infrequentPlayerState.currentSong != null) {
                         CompositionLocalProvider(
                             LocalMaterialTheme provides (albumColorScheme
                                 ?: MaterialTheme.colorScheme)
@@ -1261,18 +1282,22 @@ fun UnifiedPlayerSheet(
                                     .clipToBounds()
                             ) {
                                 FullPlayerContent(
-                                    currentSong = stablePlayerState.currentSong!!,
+                                    currentSong = infrequentPlayerState.currentSong!!,
                                     currentPlaybackQueue = currentPlaybackQueue,
                                     currentQueueSourceName = currentQueueSourceName,
-                                    isShuffleEnabled = stablePlayerState.isShuffleEnabled,
-                                    repeatMode = stablePlayerState.repeatMode,
+                                    isShuffleEnabled = infrequentPlayerState.isShuffleEnabled,
+                                    repeatMode = infrequentPlayerState.repeatMode,
                                     expansionFractionProvider = { 1f },
                                     currentSheetState = PlayerSheetState.EXPANDED,
                                     carouselStyle = carouselStyle,
                                     loadingTweaks = fullPlayerLoadingTweaks,
                                     playerViewModel = playerViewModel,
-                                    currentPositionProvider = { positionToDisplay },
-                                    isPlayingProvider = { stablePlayerState.isPlaying },
+                                    currentPositionProvider = positionToDisplayProvider,
+                                    isPlayingProvider = { infrequentPlayerState.isPlaying },
+                                    repeatModeProvider = { infrequentPlayerState.repeatMode },
+                                    isShuffleEnabledProvider = { infrequentPlayerState.isShuffleEnabled },
+                                    totalDurationProvider = { infrequentPlayerState.totalDuration },
+                                    lyricsProvider = { infrequentPlayerState.lyrics },
                                     isFavoriteProvider = { isFavorite },
                                     onShowQueueClicked = { animateQueueSheet(true) },
                                     onQueueDragStart = { beginQueueDrag() },
@@ -1351,7 +1376,7 @@ fun UnifiedPlayerSheet(
                                     },
                                 queue = currentPlaybackQueue, // Use granular state
                                 currentQueueSourceName = currentQueueSourceName, // Use granular state
-                                currentSongId = stablePlayerState.currentSong?.id, // stablePlayerState is fine here
+                                currentSongId = infrequentPlayerState.currentSong?.id, // stablePlayerState is fine here
                                 onDismiss = { animateQueueSheet(false) },
                                 onSongInfoClick = { song -> selectedSongForInfo = song }, // Trigger SongInfoBottomSheet
                                 onPlaySong = { song ->
@@ -1372,8 +1397,8 @@ fun UnifiedPlayerSheet(
                                         to
                                     )
                                 },
-                                repeatMode = stablePlayerState.repeatMode,
-                                isShuffleOn = stablePlayerState.isShuffleEnabled,
+                                repeatMode = infrequentPlayerState.repeatMode,
+                                isShuffleOn = infrequentPlayerState.isShuffleEnabled,
                                 onToggleRepeat = { playerViewModel.cycleRepeatMode() },
                                 onToggleShuffle = { playerViewModel.toggleShuffle() },
                                 onClearQueue = { playerViewModel.clearQueueExceptCurrent() },
