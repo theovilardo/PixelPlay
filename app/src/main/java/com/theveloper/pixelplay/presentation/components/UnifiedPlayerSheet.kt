@@ -289,10 +289,9 @@ fun UnifiedPlayerSheet(
             .filterNotNull()
             .conflate()
             .collect { update ->
-                withFrameNanos {
-                    currentSheetTranslationY.snapTo(update.newY)
-                    playerContentExpansionFraction.snapTo(update.newFraction)
-                }
+                withFrameNanos { }
+                currentSheetTranslationY.snapTo(update.newY)
+                playerContentExpansionFraction.snapTo(update.newFraction)
             }
     }
 
