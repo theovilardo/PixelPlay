@@ -72,6 +72,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.withFrameNanos
 import com.theveloper.pixelplay.ui.theme.LocalPixelPlayDarkTheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -118,8 +119,11 @@ import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
@@ -132,6 +136,7 @@ import kotlin.math.sign
 internal val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("No ColorScheme provided") }
 
 private enum class DragPhase { IDLE, TENSION, SNAPPING, FREE_DRAG }
+private data class DragUpdate(val newY: Float, val newFraction: Float)
 
 val MiniPlayerHeight = 64.dp
 const val ANIMATION_DURATION_MS = 255
@@ -277,6 +282,18 @@ fun UnifiedPlayerSheet(
     val initialY =
         if (currentSheetContentState == PlayerSheetState.COLLAPSED) sheetCollapsedTargetY else sheetExpandedTargetY
     val currentSheetTranslationY = remember { Animatable(initialY) }
+    val dragUpdates = remember { MutableStateFlow<DragUpdate?>(null) }
+
+    LaunchedEffect(dragUpdates, currentSheetTranslationY, playerContentExpansionFraction) {
+        dragUpdates
+            .filterNotNull()
+            .conflate()
+            .collect { update ->
+                withFrameNanos { }
+                currentSheetTranslationY.snapTo(update.newY)
+                playerContentExpansionFraction.snapTo(update.newFraction)
+            }
+    }
 
     LaunchedEffect(
         navController,
@@ -400,40 +417,9 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val playerContentAreaActualHeightPx by remember(
-        showPlayerContentArea,
-        playerContentExpansionFraction,
-        containerHeight,
-        miniPlayerContentHeightPx
-    ) {
-        derivedStateOf {
-            if (showPlayerContentArea) {
-                val containerHeightPx = with(density) { containerHeight.toPx() }
-                lerp(
-                    miniPlayerContentHeightPx,
-                    containerHeightPx,
-                    playerContentExpansionFraction.value
-                )
-            } else {
-                0f
-            }
-        }
+    val playerContentAreaHeightDp by remember(showPlayerContentArea, containerHeight) {
+        derivedStateOf { if (showPlayerContentArea) containerHeight else 0.dp }
     }
-    val playerContentAreaHeightDp by remember(
-        showPlayerContentArea,
-        playerContentExpansionFraction,
-        containerHeight
-    ) {
-        derivedStateOf {
-            if (showPlayerContentArea) lerp(
-                MiniPlayerHeight,
-                containerHeight,
-                playerContentExpansionFraction.value
-            )
-            else 0.dp
-        }
-    }
-    val playerContentAreaActualHeightDp = with(density) { playerContentAreaActualHeightPx.toDp() }
 
     val totalSheetHeightWhenContentCollapsedPx = remember(
         isPlayerSlotOccupied,
@@ -1066,27 +1052,23 @@ fun UnifiedPlayerSheet(
                                         onVerticalDrag = { change, dragAmount ->
                                             change.consume()
                                             accumulatedDragYSinceStart += dragAmount
-                                            scope.launch {
-                                                val newY =
-                                                    (currentSheetTranslationY.value + dragAmount)
-                                                        .coerceIn(
-                                                            expandedY.value - miniH.value * 0.2f,
-                                                            collapsedY.value + miniH.value * 0.2f
-                                                        )
-                                                currentSheetTranslationY.snapTo(newY)
-
-                                                val denom =
-                                                    (collapsedY.value - expandedY.value).coerceAtLeast(
-                                                        1f
+                                            val newY =
+                                                (currentSheetTranslationY.value + dragAmount)
+                                                    .coerceIn(
+                                                        expandedY.value - miniH.value * 0.2f,
+                                                        collapsedY.value + miniH.value * 0.2f
                                                     )
-                                                val dragRatio = (initialYOnDragStart - newY) / denom
-                                                val newFraction =
-                                                    (initialFractionOnDragStart + dragRatio).coerceIn(
-                                                        0f,
-                                                        1f
-                                                    )
-                                                playerContentExpansionFraction.snapTo(newFraction)
-                                            }
+                                            val denom =
+                                                (collapsedY.value - expandedY.value).coerceAtLeast(
+                                                    1f
+                                                )
+                                            val dragRatio = (initialYOnDragStart - newY) / denom
+                                            val newFraction =
+                                                (initialFractionOnDragStart + dragRatio).coerceIn(
+                                                    0f,
+                                                    1f
+                                                )
+                                            dragUpdates.value = DragUpdate(newY, newFraction)
                                             velocityTracker.addPosition(
                                                 change.uptimeMillis,
                                                 change.position
