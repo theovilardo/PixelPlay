@@ -417,40 +417,9 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val playerContentAreaActualHeightPx by remember(
-        showPlayerContentArea,
-        playerContentExpansionFraction,
-        containerHeight,
-        miniPlayerContentHeightPx
-    ) {
-        derivedStateOf {
-            if (showPlayerContentArea) {
-                val containerHeightPx = with(density) { containerHeight.toPx() }
-                lerp(
-                    miniPlayerContentHeightPx,
-                    containerHeightPx,
-                    playerContentExpansionFraction.value
-                )
-            } else {
-                0f
-            }
-        }
+    val playerContentAreaHeightDp by remember(showPlayerContentArea, containerHeight) {
+        derivedStateOf { if (showPlayerContentArea) containerHeight else 0.dp }
     }
-    val playerContentAreaHeightDp by remember(
-        showPlayerContentArea,
-        playerContentExpansionFraction,
-        containerHeight
-    ) {
-        derivedStateOf {
-            if (showPlayerContentArea) lerp(
-                MiniPlayerHeight,
-                containerHeight,
-                playerContentExpansionFraction.value
-            )
-            else 0.dp
-        }
-    }
-    val playerContentAreaActualHeightDp = with(density) { playerContentAreaActualHeightPx.toDp() }
 
     val totalSheetHeightWhenContentCollapsedPx = remember(
         isPlayerSlotOccupied,
