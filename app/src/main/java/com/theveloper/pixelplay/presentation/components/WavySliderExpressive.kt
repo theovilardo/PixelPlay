@@ -55,7 +55,7 @@ fun WavySliderExpressive(
     thumbColor: Color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
     
     isPlaying: Boolean = true,
-    strokeWidth: Dp = 4.dp,
+    strokeWidth: Dp = 5.dp,
     thumbRadius: Dp = 8.dp,
     wavelength: Dp = WavyProgressIndicatorDefaults.LinearDeterminateWavelength,
     waveSpeed: Dp = WavyProgressIndicatorDefaults.LinearDeterminateWavelength / 2f, // Slower wave as requested
@@ -167,8 +167,8 @@ fun WavySliderExpressive(
             trackColor = inactiveTrackColor,
             stroke = stroke,
             trackStroke = stroke,
-            gapSize = thumbRadius + 6.dp, // Slightly larger gap to be safe
-            stopSize = WavyProgressIndicatorDefaults.LinearTrackStopIndicatorSize,
+            gapSize = thumbRadius + 4.dp, // Slightly larger gap to be safe
+            stopSize = 3.dp, //WavyProgressIndicatorDefaults.LinearTrackStopIndicatorSize,
             amplitude = { progress -> if (progress > 0f) animatedAmplitude else 0f },
             wavelength = wavelength,
             waveSpeed = waveSpeed

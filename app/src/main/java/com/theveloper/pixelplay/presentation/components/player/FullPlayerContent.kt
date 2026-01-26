@@ -133,6 +133,7 @@ import kotlin.math.roundToLong
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import com.theveloper.pixelplay.presentation.components.WavySliderExpressive
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @SuppressLint("StateFlowValueCalledInComposition")
@@ -1173,7 +1174,7 @@ private fun EfficientSlider(
     interactionSource: MutableInteractionSource,
     isPlaying: Boolean // Added parameter
 ) {
-    com.theveloper.pixelplay.presentation.components.WavySliderExpressive(
+    WavySliderExpressive(
         value = valueState.value,
         onValueChange = onValueChange,
         onValueChangeFinished = onValueChangeFinished,
@@ -1183,7 +1184,7 @@ private fun EfficientSlider(
         isPlaying = isPlaying,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(vertical = 8.dp, horizontal = 6.dp)
     )
 }
 
