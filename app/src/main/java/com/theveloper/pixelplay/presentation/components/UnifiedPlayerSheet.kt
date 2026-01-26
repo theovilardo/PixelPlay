@@ -637,9 +637,9 @@ fun UnifiedPlayerSheet(
     }
     val queueSheetOffset = remember(screenHeightPx) { Animatable(screenHeightPx) }
     var queueSheetHeightPx by remember { mutableFloatStateOf(0f) }
-    val queueHiddenOffsetPx by remember(currentBottomPadding, queueSheetHeightPx, density) {
+    val queueHiddenOffsetPx by remember(currentBottomPaddingState, queueSheetHeightPx, density) {
         derivedStateOf {
-            val basePadding = with(density) { currentBottomPadding.toPx() }
+            val basePadding = with(density) { currentBottomPaddingState.value.toPx() }
             if (queueSheetHeightPx == 0f) 0f else queueSheetHeightPx + basePadding
         }
     }
@@ -909,7 +909,7 @@ fun UnifiedPlayerSheet(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = currentBottomPadding)
+                    .bottomPadding(currentBottomPaddingState)
             ) {
                 Column(
                     modifier = Modifier.fillMaxSize()
@@ -1652,6 +1652,22 @@ private fun Modifier.playerLayout(
     layout(constraints.maxWidth, heightPx) {
         // Place content centered horizontally (padding applies to start)
         placeable.placeRelative(paddingPx, 0)
+    }
+}
+
+private fun Modifier.bottomPadding(paddingState: State<Dp>) = layout { measurable, constraints ->
+    val paddingPx = paddingState.value.roundToPx()
+    val verticalConstraints = constraints.maxHeight
+    val contentMaxHeight = if (verticalConstraints != Int.MAX_VALUE) {
+        (verticalConstraints - paddingPx).coerceAtLeast(0)
+    } else {
+        Int.MAX_VALUE
+    }
+
+    val placeable = measurable.measure(constraints.copy(maxHeight = contentMaxHeight))
+
+    layout(placeable.width, placeable.height + paddingPx) {
+        placeable.placeRelative(0, 0)
     }
 }
 
