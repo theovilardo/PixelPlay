@@ -864,27 +864,33 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val dynamicRoundedShape = remember {
-        DynamicCornerShape(
-            topRadiusState = overallSheetTopCornerRadiusState,
-            bottomRadiusState = playerContentActualBottomRadiusState
-        )
+    val dynamicRoundedShapeState = remember {
+        derivedStateOf {
+            RoundedCornerShape(
+                topStart = overallSheetTopCornerRadiusState.value,
+                topEnd = overallSheetTopCornerRadiusState.value,
+                bottomStart = playerContentActualBottomRadiusState.value,
+                bottomEnd = playerContentActualBottomRadiusState.value
+            )
+        }
     }
 
-    val playerShadowShape = remember(useSmoothShape) {
-        if (useSmoothShape) {
-             AbsoluteSmoothCornerShape(
-                cornerRadiusTL = overallSheetTopCornerRadiusState.value,
-                smoothnessAsPercentBL = 60,
-                cornerRadiusTR = overallSheetTopCornerRadiusState.value,
-                smoothnessAsPercentBR = 60,
-                cornerRadiusBR = playerContentActualBottomRadiusState.value,
-                smoothnessAsPercentTL = 60,
-                cornerRadiusBL = playerContentActualBottomRadiusState.value,
-                smoothnessAsPercentTR = 60
-            )
-        } else {
-            dynamicRoundedShape
+    val playerShadowShapeState = remember(useSmoothShape) {
+        derivedStateOf {
+            if (useSmoothShape) {
+                AbsoluteSmoothCornerShape(
+                    cornerRadiusTL = overallSheetTopCornerRadiusState.value,
+                    smoothnessAsPercentBL = 60,
+                    cornerRadiusTR = overallSheetTopCornerRadiusState.value,
+                    smoothnessAsPercentBR = 60,
+                    cornerRadiusBR = playerContentActualBottomRadiusState.value,
+                    smoothnessAsPercentTL = 60,
+                    cornerRadiusBL = playerContentActualBottomRadiusState.value,
+                    smoothnessAsPercentTR = 60
+                )
+            } else {
+                dynamicRoundedShapeState.value
+            }
         }
     }
 
@@ -1043,12 +1049,11 @@ fun UnifiedPlayerSheet(
                                     scaleY = visualOvershootScaleY.value
                                     transformOrigin = TransformOrigin(0.5f, 1f)
                                     shadowElevation = playerAreaElevationState.value.toPx()
-                                    shape = playerShadowShape
-                                    clip = false
+                                    shape = playerShadowShapeState.value
+                                    clip = true
                                 }
                                 .background(
-                                    color = albumColorScheme.primaryContainer,
-                                    shape = playerShadowShape
+                                    color = albumColorScheme.primaryContainer
                                 )
                                 .clipToBounds()
                                 .pointerInput(Unit) {
