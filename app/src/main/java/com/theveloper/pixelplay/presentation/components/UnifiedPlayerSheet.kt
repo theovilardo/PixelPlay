@@ -109,7 +109,6 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.presentation.components.player.FullPlayerContent
-import com.theveloper.pixelplay.presentation.components.scoped.rememberExpansionTransition
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
@@ -841,11 +840,17 @@ fun UnifiedPlayerSheet(
 
     val albumColorScheme = targetColorScheme
 
-    val t = rememberExpansionTransition(playerContentExpansionFraction.value)
+    val playerAreaElevation by remember {
+        derivedStateOf { lerp(2.dp, 12.dp, playerContentExpansionFraction.value) }
+    }
 
-    val playerAreaElevation by t.animateDp(label = "elev") { f -> lerp(2.dp, 12.dp, f) }
+    val miniAlpha by remember {
+        derivedStateOf { (1f - playerContentExpansionFraction.value * 2f).coerceIn(0f, 1f) }
+    }
 
-    val miniAlpha by t.animateFloat(label = "miniAlpha") { f -> (1f - f * 2f).coerceIn(0f, 1f) }
+    val isMiniPlayerAbove by remember {
+        derivedStateOf { playerContentExpansionFraction.value < 0.5f }
+    }
 
     val useSmoothShape by remember(useSmoothCorners, isDragging, playerContentExpansionFraction.isRunning) {
         derivedStateOf {
@@ -1182,7 +1187,7 @@ fun UnifiedPlayerSheet(
                                                     .graphicsLayer {
                                                         alpha = miniAlpha
                                                     }
-                                                    .zIndex(if (playerContentExpansionFraction.value < 0.5f) 1f else 0f)
+                                                    .zIndex(if (isMiniPlayerAbove) 1f else 0f)
                                             ) {
                                                 MiniPlayerContentInternal(
                                                     song = currentSongNonNull, // Use non-null version
@@ -1220,7 +1225,7 @@ fun UnifiedPlayerSheet(
                                                     scaleX = fullPlayerScale
                                                     scaleY = fullPlayerScale
                                                 }
-                                                .zIndex(if (playerContentExpansionFraction.value >= 0.5f) 1f else 0f)
+                                                .zIndex(if (!isMiniPlayerAbove) 1f else 0f)
                                                 .offset { if (playerContentExpansionFraction.value <= 0.01f) IntOffset(0, 10000) else IntOffset.Zero }
                                         ) {
                                             FullPlayerContent(
