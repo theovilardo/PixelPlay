@@ -95,6 +95,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.res.stringResource
 import androidx.media3.common.Player
@@ -130,6 +132,7 @@ import timber.log.Timber
 import kotlin.math.roundToLong
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @SuppressLint("StateFlowValueCalledInComposition")
@@ -1017,49 +1020,90 @@ private fun PlayerProgressBarSection(
     loadingTweaks: FullPlayerLoadingTweaks? = null,
     modifier: Modifier = Modifier
 ) {
-    val expansionFraction = expansionFractionProvider()
-    val isExpanded = currentSheetState == PlayerSheetState.EXPANDED &&
-            expansionFraction >= 0.995f
+    val expansionFraction by remember { derivedStateOf { expansionFractionProvider() } }
+    
+    val isVisible by remember { derivedStateOf { expansionFraction > 0.01f } }
+
+    val isExpanded by remember { 
+        derivedStateOf { 
+            currentSheetState == PlayerSheetState.EXPANDED && expansionFraction >= 0.995f 
+        } 
+    }
 
     val durationForCalc = totalDurationValue.coerceAtLeast(1L)
-    val rawPosition = currentPositionProvider()
-    val rawProgress = (rawPosition.coerceAtLeast(0) / durationForCalc.toFloat()).coerceIn(0f, 1f)
-
-    val (smoothProgress, _) = rememberSmoothProgress(
+    
+    // Pass isVisible to rememberSmoothProgress
+    val (smoothProgressState, _) = rememberSmoothProgress(
         isPlayingProvider = isPlayingProvider,
         currentPositionProvider = currentPositionProvider,
         totalDuration = totalDurationValue,
         sampleWhilePlayingMs = 200L,
-        sampleWhilePausedMs = 800L
+        sampleWhilePausedMs = 800L,
+        isVisible = isVisible
     )
 
     var sliderDragValue by remember { mutableStateOf<Float?>(null) }
-    val interactionSource = remember { MutableInteractionSource() }
-
-    val targetProgress = sliderDragValue ?: if (isExpanded) rawProgress else smoothProgress
-
-    val animatedProgress = remember {
-        Animatable(targetProgress)
-    }
-
-    LaunchedEffect(targetProgress, sliderDragValue != null) {
-        val clampedTarget = targetProgress.coerceIn(0f, 1f)
-        if (sliderDragValue != null) {
-            animatedProgress.snapTo(clampedTarget)
-        } else {
-            animatedProgress.animateTo(
-                targetValue = clampedTarget,
-                animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
-            )
+    // Optimistic Seek: Holds the target position immediately after seek to prevent snap-back
+    var optimisticPosition by remember { mutableStateOf<Long?>(null) }
+    
+    // Clear optimistic position ONLY when the SMOOTH (visual) progress catches up
+    // using raw position causes a jump because smooth progress might lag behind raw.
+    LaunchedEffect(optimisticPosition) {
+        val target = optimisticPosition
+        if (target != null) {
+            val start = System.currentTimeMillis()
+            val targetFl = target.toFloat() / durationForCalc.toFloat()
+            
+            while (optimisticPosition != null) {
+                // Check if the current VISUAL progress (smoothState) corresponds to the target
+                // We use the derived state value which falls back to smoothProgressState
+                val currentVisual = smoothProgressState.value
+                val currentVisualMs = (currentVisual * durationForCalc).toLong()
+                
+                // If visual is close enough (within 500ms visual distance)
+                if (kotlin.math.abs(currentVisualMs - target) < 500 || (System.currentTimeMillis() - start) > 2000) {
+                     optimisticPosition = null
+                }
+                kotlinx.coroutines.delay(50)
+            }
         }
     }
 
-    val effectiveProgress = animatedProgress.value
-    val effectivePosition = (effectiveProgress * durationForCalc).roundToLong().coerceIn(0L, totalDurationValue.coerceAtLeast(0L))
+    val interactionSource = remember { MutableInteractionSource() }
+
+    // Logic to determine target progress without reading values
+    val rawPositionProvider = remember(currentPositionProvider, isVisible) {
+        { if (isVisible) currentPositionProvider() else 0L }
+    }
+    
+    // DIRECT State derivation - No intermediate Animatable (fixes "stepping" lag)
+    val animatedProgressState = remember(isExpanded, sliderDragValue, optimisticPosition, smoothProgressState, durationForCalc, rawPositionProvider) {
+        derivedStateOf {
+             if (sliderDragValue != null) {
+                 sliderDragValue!!
+             } else if (optimisticPosition != null) {
+                 (optimisticPosition!!.toFloat() / durationForCalc.toFloat()).coerceIn(0f, 1f)
+             } else if (isExpanded) {
+                 val rawPos = rawPositionProvider()
+                 (rawPos.coerceAtLeast(0) / durationForCalc.toFloat()).coerceIn(0f, 1f)
+             } else {
+                 smoothProgressState.value
+             }
+        }
+    }
+
+    // No LaunchedEffect/snapshotFlow needed anymore. 
+    // smoothProgressState is already 60fps animated.
+
+    val effectivePositionState = remember(durationForCalc, animatedProgressState, isVisible, totalDurationValue) {
+        derivedStateOf {
+             val progress = animatedProgressState.value
+             (progress * durationForCalc).roundToLong().coerceIn(0L, totalDurationValue.coerceAtLeast(0L))
+        }
+    }
 
     val shouldDelay = loadingTweaks?.let { it.delayAll || it.delayProgressBar } ?: false
 
-    // Placeholder colors needed here too
     val placeholderColor = LocalMaterialTheme.current.primary.copy(alpha = 0.08f)
     val placeholderOnColor = LocalMaterialTheme.current.primary.copy(alpha = 0.04f)
 
@@ -1074,58 +1118,115 @@ private fun PlayerProgressBarSection(
              if (loadingTweaks?.transparentPlaceholders == true) {
                  Box(Modifier.fillMaxWidth().heightIn(min = 70.dp))
              } else {
-                 ProgressPlaceholder(expansionFractionProvider(), placeholderColor, placeholderOnColor)
+                 ProgressPlaceholder(expansionFraction, placeholderColor, placeholderOnColor)
              }
         }
     ) {
         Column(
             modifier = modifier
                 .fillMaxWidth()
+                .graphicsLayer { 
+                    // No reads here
+                }
                 .padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
                 .heightIn(min = 70.dp)
         ) {
-            WavyMusicSlider(
-                value = effectiveProgress,
-                onValueChange = { newValue -> sliderDragValue = newValue },
+            
+            // Isolated Slider Component
+            EfficientSlider(
+                valueState = animatedProgressState,
+                onValueChange = { sliderDragValue = it },
                 onValueChangeFinished = {
                     sliderDragValue?.let { finalValue ->
-                        onSeek((finalValue * durationForCalc).roundToLong())
+                        val targetMs = (finalValue * durationForCalc).roundToLong()
+                        optimisticPosition = targetMs
+                        onSeek(targetMs)
                     }
                     sliderDragValue = null
                 },
-                interactionSource = interactionSource,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                trackHeight = 6.dp,
-                thumbRadius = 8.dp,
+                thumbColor = thumbColor,
                 activeTrackColor = activeTrackColor,
                 inactiveTrackColor = inactiveTrackColor,
-                thumbColor = thumbColor,
-                waveLength = 30.dp,
-                isPlaying = (isPlayingProvider() && isExpanded),
-                isWaveEligible = isExpanded
+                interactionSource = interactionSource,
+                isPlaying = isPlayingProvider()
             )
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    formatDuration(effectivePosition),
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                    color = timeTextColor
-                )
-                Text(
-                    formatDuration(totalDurationValue),
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                    color = timeTextColor
-                )
-            }
+            // Isolated Time Labels
+            EfficientTimeLabels(
+                positionState = effectivePositionState,
+                duration = totalDurationValue,
+                isVisible = isVisible,
+                textColor = timeTextColor
+            )
         }
+    }
+}
+
+@Composable
+private fun EfficientSlider(
+    valueState: androidx.compose.runtime.State<Float>,
+    onValueChange: (Float) -> Unit,
+    onValueChangeFinished: () -> Unit,
+    thumbColor: Color,
+    activeTrackColor: Color,
+    inactiveTrackColor: Color,
+    interactionSource: MutableInteractionSource,
+    isPlaying: Boolean // Added parameter
+) {
+    com.theveloper.pixelplay.presentation.components.WavySliderExpressive(
+        value = valueState.value,
+        onValueChange = onValueChange,
+        onValueChangeFinished = onValueChangeFinished,
+        activeTrackColor = activeTrackColor,
+        inactiveTrackColor = inactiveTrackColor,
+        thumbColor = thumbColor,
+        isPlaying = isPlaying,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    )
+}
+
+@Composable
+private fun EfficientTimeLabels(
+    positionState: androidx.compose.runtime.State<Long>,
+    duration: Long,
+    isVisible: Boolean,
+    textColor: Color
+) {
+    // Move state derivation inside the component but remember it based on inputs
+    // Actually, we can just use derivedStateOf here.
+    val posStr by remember(isVisible) { 
+        derivedStateOf { if (isVisible) formatDuration(positionState.value) else "--:--" } 
+    }
+    val durStr by remember(isVisible, duration) { 
+        derivedStateOf { if (isVisible) formatDuration(duration) else "--:--" } 
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Reads happen here, but now we read the derived String state.
+        // If the String doesn't change, Text *might* skip recomposition if it's smart,
+        // but the Row body will still execute?
+        // No, if we read `posStr` (delegated property), we read the State<String>. 
+        // If the State<String> didn't change (because derivedStateOf result equality check), 
+        // this scope won't recompose!
+        
+        Text(
+            posStr,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+            color = textColor
+        )
+        Text(
+            durStr,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+            color = textColor
+        )
     }
 }
 

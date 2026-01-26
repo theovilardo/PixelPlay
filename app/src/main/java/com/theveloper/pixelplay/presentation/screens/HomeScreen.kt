@@ -83,6 +83,7 @@ import com.theveloper.pixelplay.presentation.viewmodel.SettingsViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.StatsViewModel
 import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
@@ -130,8 +131,11 @@ fun HomeScreen(
     }.collectAsState(initial = null)
 
     // 3) Observe shuffle state for sync
-    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
-    val isShuffleEnabled = stablePlayerState.isShuffleEnabled
+    val isShuffleEnabled by remember(playerViewModel.stablePlayerState) {
+        playerViewModel.stablePlayerState
+            .map { it.isShuffleEnabled }
+            .distinctUntilChanged()
+    }.collectAsState(initial = false)
 
     // Padding inferior si hay canción en reproducción
     val bottomPadding = if (currentSong != null) MiniPlayerHeight else 0.dp
