@@ -259,6 +259,13 @@ class PlayerViewModel @Inject constructor(
         lyricsStateHolder.setSyncOffset(songId, offsetMs)
     }
 
+    val useSmoothCorners: StateFlow<Boolean> = userPreferencesRepository.useSmoothCornersFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = true
+        )
+
 
 
     private val _isInitialThemePreloadComplete = MutableStateFlow(false)

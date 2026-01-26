@@ -323,6 +323,17 @@ fun SettingsCategoryScreen(
                             )
                         }
                         SettingsCategory.APPEARANCE -> {
+                            val useSmoothCorners by settingsViewModel.useSmoothCorners.collectAsState()
+
+                            SwitchSettingItem(
+                                title = "Use Smooth Corners",
+                                subtitle = "Use complex shaped corners effectively improving aesthetics but may affect performance on low-end devices",
+                                checked = useSmoothCorners,
+                                onCheckedChange = settingsViewModel::setUseSmoothCorners,
+                                leadingIcon = { Icon(painterResource(R.drawable.rounded_rounded_corner_24), null, tint = MaterialTheme.colorScheme.secondary) }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            
                             ThemeSelectorItem(
                                 label = "App Theme",
                                 description = "Switch between light, dark, or follow system appearance.",
