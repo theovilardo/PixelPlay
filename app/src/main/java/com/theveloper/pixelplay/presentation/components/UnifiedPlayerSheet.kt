@@ -102,6 +102,16 @@ import kotlin.math.roundToInt
 import androidx.compose.ui.util.lerp
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.toRect
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.runtime.State
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
 import coil.size.Size
@@ -295,15 +305,15 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val fullPlayerContentAlpha by remember {
+    val fullPlayerContentAlphaState = remember {
         derivedStateOf {
             (playerContentExpansionFraction.value - 0.25f).coerceIn(0f, 0.75f) / 0.75f
         }
     }
 
-    val fullPlayerTranslationY by remember {
+    val fullPlayerTranslationYState = remember {
         derivedStateOf {
-            lerp(initialFullPlayerOffsetY, 0f, fullPlayerContentAlpha)
+            lerp(initialFullPlayerOffsetY, 0f, fullPlayerContentAlphaState.value)
         }
     }
 
@@ -384,7 +394,7 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val currentBottomPadding by remember(
+    val currentBottomPaddingState = remember(
         showPlayerContentArea,
         collapsedStateHorizontalPadding,
         predictiveBackCollapseProgress,
@@ -399,7 +409,7 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val playerContentAreaActualHeightPx by remember(
+    val playerContentAreaActualHeightPxState = remember(
         showPlayerContentArea,
         playerContentExpansionFraction,
         containerHeight,
@@ -418,7 +428,8 @@ fun UnifiedPlayerSheet(
             }
         }
     }
-    val playerContentAreaHeightDp by remember(
+
+    val playerContentAreaHeightDpState = remember(
         showPlayerContentArea,
         playerContentExpansionFraction,
         containerHeight
@@ -432,7 +443,6 @@ fun UnifiedPlayerSheet(
             else 0.dp
         }
     }
-    val playerContentAreaActualHeightDp = with(density) { playerContentAreaActualHeightPx.toDp() }
 
     val totalSheetHeightWhenContentCollapsedPx = remember(
         isPlayerSlotOccupied,
@@ -486,7 +496,7 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val overallSheetTopCornerRadiusTargetValue by remember(
+    val overallSheetTopCornerRadiusState = remember(
         showPlayerContentArea,
         playerContentExpansionFraction,
         predictiveBackCollapseProgress,
@@ -525,9 +535,7 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val overallSheetTopCornerRadius = overallSheetTopCornerRadiusTargetValue
-
-    val playerContentActualBottomRadiusTargetValue by remember(
+    val playerContentActualBottomRadiusState = remember(
         navBarStyle,
         showPlayerContentArea,
         playerContentExpansionFraction,
@@ -581,12 +589,10 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val playerContentActualBottomRadius = playerContentActualBottomRadiusTargetValue
-
     val actualCollapsedStateHorizontalPadding =
         if (navBarStyle == NavBarStyle.FULL_WIDTH) 14.dp else collapsedStateHorizontalPadding
 
-    val currentHorizontalPadding by remember(
+    val currentHorizontalPaddingState = remember(
         showPlayerContentArea,
         playerContentExpansionFraction,
         actualCollapsedStateHorizontalPadding,
@@ -840,11 +846,11 @@ fun UnifiedPlayerSheet(
 
     val albumColorScheme = targetColorScheme
 
-    val playerAreaElevation by remember {
+    val playerAreaElevationState = remember {
         derivedStateOf { lerp(2.dp, 12.dp, playerContentExpansionFraction.value) }
     }
 
-    val miniAlpha by remember {
+    val miniAlphaState = remember {
         derivedStateOf { (1f - playerContentExpansionFraction.value * 2f).coerceIn(0f, 1f) }
     }
 
@@ -858,25 +864,27 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val playerShadowShape = remember(overallSheetTopCornerRadius, playerContentActualBottomRadius, useSmoothShape) {
+    val dynamicRoundedShape = remember {
+        DynamicCornerShape(
+            topRadiusState = overallSheetTopCornerRadiusState,
+            bottomRadiusState = playerContentActualBottomRadiusState
+        )
+    }
+
+    val playerShadowShape = remember(useSmoothShape) {
         if (useSmoothShape) {
              AbsoluteSmoothCornerShape(
-                cornerRadiusTL = overallSheetTopCornerRadius,
+                cornerRadiusTL = overallSheetTopCornerRadiusState.value,
                 smoothnessAsPercentBL = 60,
-                cornerRadiusTR = overallSheetTopCornerRadius,
+                cornerRadiusTR = overallSheetTopCornerRadiusState.value,
                 smoothnessAsPercentBR = 60,
-                cornerRadiusBR = playerContentActualBottomRadius,
+                cornerRadiusBR = playerContentActualBottomRadiusState.value,
                 smoothnessAsPercentTL = 60,
-                cornerRadiusBL = playerContentActualBottomRadius,
+                cornerRadiusBL = playerContentActualBottomRadiusState.value,
                 smoothnessAsPercentTR = 60
             )
         } else {
-            RoundedCornerShape(
-                topStart = overallSheetTopCornerRadius,
-                topEnd = overallSheetTopCornerRadius,
-                bottomStart = playerContentActualBottomRadius,
-                bottomEnd = playerContentActualBottomRadius
-            )
+            dynamicRoundedShape
         }
     }
 
@@ -1026,23 +1034,18 @@ fun UnifiedPlayerSheet(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .then(dismissGestureModifier)
-                                .padding(horizontal = currentHorizontalPadding)
-                                .height(playerContentAreaHeightDp)
+                                .playerLayout(
+                                    heightState = playerContentAreaHeightDpState,
+                                    horizontalPaddingState = currentHorizontalPaddingState
+                                )
                                 .graphicsLayer {
                                     translationX = offsetAnimatable.value
                                     scaleY = visualOvershootScaleY.value
                                     transformOrigin = TransformOrigin(0.5f, 1f)
-                                }
-                                .shadow(
-                                    elevation = playerAreaElevation,
-                                    shape = RoundedCornerShape(
-                                        topStart = overallSheetTopCornerRadius,
-                                        topEnd = overallSheetTopCornerRadius,
-                                        bottomStart = playerContentActualBottomRadius,
-                                        bottomEnd = playerContentActualBottomRadius
-                                    ),
+                                    shadowElevation = playerAreaElevationState.value.toPx()
+                                    shape = playerShadowShape
                                     clip = false
-                                )
+                                }
                                 .background(
                                     color = albumColorScheme.primaryContainer,
                                     shape = playerShadowShape
@@ -1185,13 +1188,13 @@ fun UnifiedPlayerSheet(
                                                 modifier = Modifier
                                                     .align(Alignment.TopCenter)
                                                     .graphicsLayer {
-                                                        alpha = miniAlpha
+                                                        alpha = miniAlphaState.value
                                                     }
                                                     .zIndex(if (isMiniPlayerAbove) 1f else 0f)
                                             ) {
                                                 MiniPlayerContentInternal(
                                                     song = currentSongNonNull, // Use non-null version
-                                                    cornerRadiusAlb = (overallSheetTopCornerRadius.value * 0.5).dp,
+                                                    cornerRadiusAlb = 0.dp,
                                                     isPlaying = infrequentPlayerState.isPlaying, // from top-level stablePlayerState
                                                     isCastConnecting = isCastConnecting,
                                                     onPlayPause = { playerViewModel.playPause() },
@@ -1220,8 +1223,8 @@ fun UnifiedPlayerSheet(
                                         Box(
                                             modifier = Modifier
                                                 .graphicsLayer {
-                                                    alpha = fullPlayerContentAlpha
-                                                    translationY = fullPlayerTranslationY
+                                                    alpha = fullPlayerContentAlphaState.value
+                                                    translationY = fullPlayerTranslationYState.value
                                                     scaleX = fullPlayerScale
                                                     scaleY = fullPlayerScale
                                                 }
@@ -1601,6 +1604,55 @@ private fun CastConnectingDialog() {
 fun getNavigationBarHeight(): Dp {
     val insets = WindowInsets.safeDrawing.asPaddingValues()
     return insets.calculateBottomPadding()
+}
+
+private class DynamicCornerShape(
+    private val topRadiusState: State<Dp>,
+    private val bottomRadiusState: State<Dp>
+) : Shape {
+    override fun createOutline(
+        size: androidx.compose.ui.geometry.Size,
+        layoutDirection: LayoutDirection,
+        density: Density
+    ): Outline {
+        val topPx = with(density) { topRadiusState.value.toPx() }
+        val bottomPx = with(density) { bottomRadiusState.value.toPx() }
+
+        return Outline.Rounded(
+            RoundRect(
+                rect = size.toRect(),
+                topLeft = CornerRadius(topPx),
+                topRight = CornerRadius(topPx),
+                bottomLeft = CornerRadius(bottomPx),
+                bottomRight = CornerRadius(bottomPx)
+            )
+        )
+    }
+}
+
+private fun Modifier.playerLayout(
+    heightState: State<Dp>,
+    horizontalPaddingState: State<Dp>
+) = layout { measurable, constraints ->
+    val heightPx = heightState.value.roundToPx()
+    val paddingPx = horizontalPaddingState.value.roundToPx()
+
+    // Constrain the content width by removing padding from both sides
+    val contentWidth = (constraints.maxWidth - (paddingPx * 2)).coerceAtLeast(0)
+
+    val contentConstraints = constraints.copy(
+        minWidth = contentWidth,
+        maxWidth = contentWidth,
+        minHeight = heightPx,
+        maxHeight = heightPx
+    )
+
+    val placeable = measurable.measure(contentConstraints)
+
+    layout(constraints.maxWidth, heightPx) {
+        // Place content centered horizontally (padding applies to start)
+        placeable.placeRelative(paddingPx, 0)
+    }
 }
 
 @Composable
