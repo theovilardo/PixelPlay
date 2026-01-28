@@ -1,26 +1,64 @@
 package com.theveloper.pixelplay.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import kotlin.math.abs
 
-data class GenreColor(
-    val lightColor: Color,
-    val onLightColor: Color,
-    val darkColor: Color,
-    val onDarkColor: Color
+data class GenreThemeColor(
+    val container: Color,
+    val onContainer: Color
 )
 
-object GenreColors {
-    val colors = listOf(
-        GenreColor(Color(0xFFE0BBE4), Color(0xFF3B2942), Color(0xFF6D4A7A), Color(0xFFFFFFFF)),
-        GenreColor(Color(0xFF957DAD), Color(0xFF2C1B3E), Color(0xFF503D6E), Color(0xFFFFFFFF)),
-        GenreColor(Color(0xFFD291BC), Color(0xFF422139), Color(0xFF7A4E6F), Color(0xFFFFFFFF)),
-        GenreColor(Color(0xFFFEC8D8), Color(0xFF59323C), Color(0xFF996D7A), Color(0xFFFFFFFF)),
-        GenreColor(Color(0xFFFFF2CC), Color(0xFF4D4223), Color(0xFF8C7A4F), Color(0xFF000000)),
-        GenreColor(Color(0xFFA2D2FF), Color(0xFF283E4D), Color(0xFF587A99), Color(0xFFFFFFFF)),
-        GenreColor(Color(0xFFBDE0FE), Color(0xFF344452), Color(0xFF6A88A1), Color(0xFFFFFFFF)),
-        GenreColor(Color(0xFFA2D2FF), Color(0xFF283E4D), Color(0xFF587A99), Color(0xFFFFFFFF)),
-        GenreColor(Color(0xFFCDB4DB), Color(0xFF3E3142), Color(0xFF74607A), Color(0xFFFFFFFF)),
-        GenreColor(Color(0xFFFFC8DD), Color(0xFF593241), Color(0xFF996D81), Color(0xFFFFFFFF)),
-        GenreColor(Color(0xFFBDE0FE), Color(0xFF344452), Color(0xFF6A88A1), Color(0xFFFFFFFF))
+object GenreThemeUtils {
+    
+    private val darkColors = listOf(
+        GenreThemeColor(Color(0xFF004A77), Color(0xFFC2E7FF)), // Blue
+        GenreThemeColor(Color(0xFF7D5260), Color(0xFFFFD8E4)), // Rose
+        GenreThemeColor(Color(0xFF633B48), Color(0xFFFFD8EC)), // Pink
+        GenreThemeColor(Color(0xFF004F58), Color(0xFF88FAFF)), // Cyan
+        GenreThemeColor(Color(0xFF324F34), Color(0xFFCBEFD0)), // Green
+        GenreThemeColor(Color(0xFF6E4E13), Color(0xFFFFDEAC)), // Gold/Orange
+        GenreThemeColor(Color(0xFF3F474D), Color(0xFFDEE3EB)), // Slate
+        GenreThemeColor(Color(0xFF4A4458), Color(0xFFE8DEF8)), // Purple
+        GenreThemeColor(Color(0xFF7D2B2B), Color(0xFFFFB4AB)), // Red
+        GenreThemeColor(Color(0xFF5B6300), Color(0xFFDDF669)), // Lime
+        GenreThemeColor(Color(0xFF005047), Color(0xFF8CF4E6)), // Teal
+        GenreThemeColor(Color(0xFF4F378B), Color(0xFFEADDFF)), // Indigo
+        GenreThemeColor(Color(0xFF8B4A62), Color(0xFFFFD9E2)), // Maroon
+        GenreThemeColor(Color(0xFF725C00), Color(0xFFFFE084)), // Yellow
+        GenreThemeColor(Color(0xFF00213B), Color(0xFF99CBFF)), // Navy
+        GenreThemeColor(Color(0xFF23507D), Color(0xFFD1E4FF)), // Steel Blue
+        GenreThemeColor(Color(0xFF93000A), Color(0xFFFFDAD6)), // Brick Red
+        GenreThemeColor(Color(0xFF45464F), Color(0xFFC4C6D0)), // Grey
+        GenreThemeColor(Color(0xFF5D3F75), Color(0xFFE8B6FF)), // Violet
+        GenreThemeColor(Color(0xFF7A5900), Color(0xFFFFDEA5))  // Amber
     )
+
+    private val lightColors = listOf(
+        GenreThemeColor(Color(0xFFD7E3FF), Color(0xFF005AC1)), // Blue
+        GenreThemeColor(Color(0xFFFFD8E4), Color(0xFF631835)), // Rose
+        GenreThemeColor(Color(0xFFFFD8EC), Color(0xFF631B4B)), // Pink
+        GenreThemeColor(Color(0xFFCCE8EA), Color(0xFF004F58)), // Cyan
+        GenreThemeColor(Color(0xFFCBEFD0), Color(0xFF042106)), // Green
+        GenreThemeColor(Color(0xFFFFDEAC), Color(0xFF281900)), // Gold/Orange
+        GenreThemeColor(Color(0xFFEFF1F7), Color(0xFF44474F)), // Slate
+        GenreThemeColor(Color(0xFFE8DEF8), Color(0xFF1D192B)), // Purple
+        GenreThemeColor(Color(0xFFFFB4AB), Color(0xFF690005)), // Red
+        GenreThemeColor(Color(0xFFDDF669), Color(0xFF2F3300)), // Lime
+        GenreThemeColor(Color(0xFF8CF4E6), Color(0xFF00201C)), // Teal
+        GenreThemeColor(Color(0xFFEADDFF), Color(0xFF21005D)), // Indigo
+        GenreThemeColor(Color(0xFFFFD9E2), Color(0xFF3B071D)), // Maroon
+        GenreThemeColor(Color(0xFFFFE084), Color(0xFF231B00)), // Yellow
+        GenreThemeColor(Color(0xFF99CBFF), Color(0xFF003258)), // Navy
+        GenreThemeColor(Color(0xFFD1E4FF), Color(0xFF051C36)), // Steel Blue
+        GenreThemeColor(Color(0xFFFFDAD6), Color(0xFF410002)), // Brick Red
+        GenreThemeColor(Color(0xFFE2E2E9), Color(0xFF191C20)), // Grey
+        GenreThemeColor(Color(0xFFF2DAFF), Color(0xFF2C004F)), // Violet
+        GenreThemeColor(Color(0xFFFFDEA5), Color(0xFF261900))  // Amber
+    )
+
+    fun getGenreThemeColor(genreId: String, isDark: Boolean): GenreThemeColor {
+        val hash = abs(genreId.hashCode())
+        val index = hash % darkColors.size
+        return if (isDark) darkColors[index] else lightColors[index]
+    }
 }

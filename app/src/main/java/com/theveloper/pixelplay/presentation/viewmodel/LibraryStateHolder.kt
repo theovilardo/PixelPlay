@@ -97,14 +97,16 @@ class LibraryStateHolder @Inject constructor(
                     } else {
                         genreName.lowercase().replace(" ", "_").replace("/", "_")
                     }
-                    val color = com.theveloper.pixelplay.ui.theme.GenreColors.colors[index % com.theveloper.pixelplay.ui.theme.GenreColors.colors.size]
+                    val lightThemeColor = com.theveloper.pixelplay.ui.theme.GenreThemeUtils.getGenreThemeColor(id, isDark = false)
+                    val darkThemeColor = com.theveloper.pixelplay.ui.theme.GenreThemeUtils.getGenreThemeColor(id, isDark = true)
+                    
                     com.theveloper.pixelplay.data.model.Genre(
                         id = id,
                         name = genreName,
-                        lightColorHex = color.lightColor.toHexString(),
-                        onLightColorHex = color.onLightColor.toHexString(),
-                        darkColorHex = color.darkColor.toHexString(),
-                        onDarkColorHex = color.onDarkColor.toHexString()
+                        lightColorHex = lightThemeColor.container.toHexString(),
+                        onLightColorHex = lightThemeColor.onContainer.toHexString(),
+                        darkColorHex = darkThemeColor.container.toHexString(),
+                        onDarkColorHex = darkThemeColor.onContainer.toHexString()
                     )
                 } else {
                     null
