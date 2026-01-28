@@ -55,7 +55,9 @@ data class SettingsUiState(
     val fullPlayerLoadingTweaks: FullPlayerLoadingTweaks = FullPlayerLoadingTweaks(),
     // Developer Options
     val albumArtQuality: AlbumArtQuality = AlbumArtQuality.MEDIUM,
-    val tapBackgroundClosesPlayer: Boolean = true
+    val tapBackgroundClosesPlayer: Boolean = true,
+    val immersiveLyricsEnabled: Boolean = false,
+    val immersiveLyricsTimeout: Long = 4000L
 )
 
 data class FailedSongInfo(
@@ -101,7 +103,9 @@ private sealed interface SettingsUiUpdate {
         val persistentShuffleEnabled: Boolean,
         val lyricsSourcePreference: LyricsSourcePreference,
         val autoScanLrcFiles: Boolean,
-        val blockedDirectories: Set<String>
+        val blockedDirectories: Set<String>,
+        val immersiveLyricsEnabled: Boolean,
+        val immersiveLyricsTimeout: Long
     ) : SettingsUiUpdate
 }
 
@@ -208,7 +212,9 @@ class SettingsViewModel @Inject constructor(
                 userPreferencesRepository.persistentShuffleEnabledFlow,
                 userPreferencesRepository.lyricsSourcePreferenceFlow,
                 userPreferencesRepository.autoScanLrcFilesFlow,
-                userPreferencesRepository.blockedDirectoriesFlow
+                userPreferencesRepository.blockedDirectoriesFlow,
+                userPreferencesRepository.immersiveLyricsEnabledFlow,
+                userPreferencesRepository.immersiveLyricsTimeoutFlow
             ) { values ->
                 SettingsUiUpdate.Group2(
                     keepPlayingInBackground = values[0] as Boolean,
@@ -219,7 +225,9 @@ class SettingsViewModel @Inject constructor(
                     persistentShuffleEnabled = values[5] as Boolean,
                     lyricsSourcePreference = values[6] as LyricsSourcePreference,
                     autoScanLrcFiles = values[7] as Boolean,
-                    blockedDirectories = @Suppress("UNCHECKED_CAST") (values[8] as Set<String>)
+                    blockedDirectories = @Suppress("UNCHECKED_CAST") (values[8] as Set<String>),
+                    immersiveLyricsEnabled = values[9] as Boolean,
+                    immersiveLyricsTimeout = values[10] as Long
                 )
             }.collect { update ->
                 _uiState.update { state ->
@@ -232,7 +240,9 @@ class SettingsViewModel @Inject constructor(
                         persistentShuffleEnabled = update.persistentShuffleEnabled,
                         lyricsSourcePreference = update.lyricsSourcePreference,
                         autoScanLrcFiles = update.autoScanLrcFiles,
-                        blockedDirectories = update.blockedDirectories
+                        blockedDirectories = update.blockedDirectories,
+                        immersiveLyricsEnabled = update.immersiveLyricsEnabled,
+                        immersiveLyricsTimeout = update.immersiveLyricsTimeout
                     )
                 }
             }
@@ -460,6 +470,18 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             if (isSyncing.value) return@launch
             syncManager.fullSync()
+        }
+    }
+
+    fun setImmersiveLyricsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setImmersiveLyricsEnabled(enabled)
+        }
+    }
+
+    fun setImmersiveLyricsTimeout(timeout: Long) {
+        viewModelScope.launch {
+            userPreferencesRepository.setImmersiveLyricsTimeout(timeout)
         }
     }
 

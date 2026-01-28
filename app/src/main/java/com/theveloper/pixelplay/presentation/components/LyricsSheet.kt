@@ -1,15 +1,33 @@
 package com.theveloper.pixelplay.presentation.components
 
 import android.widget.Toast
+import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.data.model.Lyrics
+import com.theveloper.pixelplay.R
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.ui.zIndex
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.layout.ContentScale
+import com.theveloper.pixelplay.presentation.components.SmartImage
+import com.theveloper.pixelplay.presentation.components.AutoScrollingText
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.AnimationState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateTo
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -28,6 +46,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
@@ -40,15 +59,36 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.animation.core.Animatable
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.input.pointer.consumePositionChange
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import kotlinx.coroutines.delay
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.theveloper.pixelplay.R
-import com.theveloper.pixelplay.data.model.Lyrics
+
 import com.theveloper.pixelplay.data.model.SyncedLine
 import com.theveloper.pixelplay.data.model.SyncedWord
 import com.theveloper.pixelplay.data.repository.LyricsSearchResult
@@ -69,7 +109,7 @@ import com.theveloper.pixelplay.utils.LyricsUtils
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
-import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -77,6 +117,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.text.style.TextGeometricTransform
+import androidx.compose.ui.text.style.TextOverflow
+import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -103,8 +146,15 @@ fun LyricsSheet(
     onTertiaryColor: Color,
     onBackClick: () -> Unit,
     onSeekTo: (Long) -> Unit,
-    onPlayPause: () -> Unit, // New parameter
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onPrev: () -> Unit,
+    immersiveLyricsEnabled: Boolean,
+    immersiveLyricsTimeout: Long,
+    isImmersiveTemporarilyDisabled: Boolean,
+    onSetImmersiveTemporarilyDisabled: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    swipeThreshold: Dp = 100.dp,
     highlightZoneFraction: Float = 0.08f, // Reduced from 0.22 for less padding
     highlightOffsetDp: Dp = 32.dp,
     autoscrollAnimationSpec: AnimationSpec<Float> = tween(durationMillis = 450, easing = FastOutSlowInEasing)
@@ -124,6 +174,59 @@ fun LyricsSheet(
     var wasResetTriggered by remember { mutableStateOf(false) }
     // Save lyrics dialog state
     var showSaveLyricsDialog by remember { mutableStateOf(false) }
+    var showSyncControls by remember { mutableStateOf(false) }
+
+    var showSyncedLyrics by remember(lyrics) {
+        mutableStateOf(
+            when {
+                lyrics?.synced != null -> true
+                lyrics?.plain != null -> false
+                else -> null
+            }
+        )
+    }
+
+    // Immersive Mode State
+    var immersiveMode by remember { mutableStateOf(false) }
+    var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    // Swipe Gesture State
+    val hapticFeedback = LocalHapticFeedback.current
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    var isSwipeActive by remember { mutableStateOf(false) }
+    var hasTriggeredAction by remember { mutableStateOf(false) }
+    val swipeThresholdPx = with(LocalDensity.current) { swipeThreshold.toPx() }
+    val overlayTranslation = remember { Animatable(0f) }
+    val swipeProgress = remember { Animatable(0f) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Auto-hide controls logic
+    // Auto-hide controls logic
+    LaunchedEffect(immersiveLyricsEnabled, lastInteractionTime, showSyncedLyrics, isImmersiveTemporarilyDisabled) {
+        if (immersiveLyricsEnabled && showSyncedLyrics == true && !isImmersiveTemporarilyDisabled) {
+            delay(immersiveLyricsTimeout)
+            immersiveMode = true
+        } else {
+            immersiveMode = false
+        }
+    }
+
+    // Font Scaling
+    val fontScale by animateFloatAsState(
+        targetValue = if (immersiveMode) 1.4f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        label = "fontScale"
+    )
+    
+    val scaledTextStyle = lyricsTextStyle.copy(
+        fontSize = lyricsTextStyle.fontSize * fontScale,
+        lineHeight = lyricsTextStyle.lineHeight * fontScale
+    )
+
+    fun resetImmersiveTimer() {
+        lastInteractionTime = System.currentTimeMillis()
+        immersiveMode = false
+    }
 
     LaunchedEffect(currentSong, lyrics, isLoadingLyrics) {
         if (currentSong != null && lyrics == null && !isLoadingLyrics) {
@@ -211,506 +314,453 @@ fun LyricsSheet(
         )
     }
 
-    var showSyncedLyrics by remember(lyrics) {
-        mutableStateOf(
-            when {
-                lyrics?.synced != null -> true
-                lyrics?.plain != null -> false
-                else -> null
-            }
-        )
-    }
 
-    val fabShapeCornerRadius by animateDpAsState(
-        targetValue = if (isPlaying) 24.dp else 50.dp,
-        label = "fabShapeAnimation"
-    )
+    
 
-    var fabShape = AbsoluteSmoothCornerShape(
-        cornerRadiusTL = fabShapeCornerRadius,
-        smoothnessAsPercentBL = 60,
-        cornerRadiusTR = fabShapeCornerRadius,
-        smoothnessAsPercentBR = 60,
-        cornerRadiusBL = fabShapeCornerRadius,
-        smoothnessAsPercentTL = 60,
-        cornerRadiusBR = fabShapeCornerRadius,
-        smoothnessAsPercentTR = 60
-    )
-
-    val tabTitles = listOf("Synced", "Static")
 
     Scaffold(
         modifier = modifier
             .fillMaxSize()
-            .clip(RoundedCornerShape(32.dp)),
+            .clip(RoundedCornerShape(32.dp))
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = {
+                        isSwipeActive = true
+                        hasTriggeredAction = false
+                        dragOffset = 0f
+                        resetImmersiveTimer()
+                        coroutineScope.launch {
+                            swipeProgress.snapTo(0f)
+                        }
+                    },
+                    onDragEnd = {
+                        isSwipeActive = false
+                        val committed = abs(dragOffset) > swipeThresholdPx && !hasTriggeredAction 
+                        
+                        if (committed) {
+                            if (dragOffset > 0) onPrev() else onNext()
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
+
+                        coroutineScope.launch {
+                             swipeProgress.animateTo(0f, tween(200))
+                             dragOffset = 0f
+                        }
+                    },
+                    onDragCancel = {
+                        isSwipeActive = false
+                        dragOffset = 0f
+                        coroutineScope.launch {
+                            swipeProgress.animateTo(0f, tween(200))
+                        }
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        resetImmersiveTimer()
+                        
+                        if (!hasTriggeredAction) {
+                            dragOffset += dragAmount.x
+                            val progress = (abs(dragOffset) / swipeThresholdPx).coerceIn(0f, 1f)
+                            
+                            coroutineScope.launch {
+                                swipeProgress.snapTo(progress)
+                            }
+                        }
+                    }
+                )
+            },
         containerColor = containerColor,
         contentColor = contentColor,
-        topBar = {
+        // Removed TopBar and FAB
+    ) { paddingValues ->
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = paddingValues.calculateTopPadding())
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    resetImmersiveTimer()
+                }
+        ) {
+            val syncedListState = rememberLazyListState()
+            val staticListState = rememberLazyListState()
+            val playerUiState by playerUiStateFlow.collectAsState()
+            // Apply lyrics sync offset to the position flow
+            val positionFlow = remember(playerUiStateFlow, lyricsSyncOffset) {
+                playerUiStateFlow.map { (it.currentPosition + lyricsSyncOffset).coerceAtLeast(0L) }
+            }
+
+            LaunchedEffect(lyrics) {
+                syncedListState.scrollToItem(0)
+                staticListState.scrollToItem(0)
+            }
+
+            // Lyrics Content (Weight 1)
             Box(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .align(Alignment.Start)
+                    .weight(1f)
+                    .fillMaxWidth()
             ) {
+                // Track Info Header (Fixed at top)
+                AnimatedContent(
+                    targetState = currentSong,
+                    transitionSpec = {
+                        (fadeIn(animationSpec = tween(300)) + 
+                         scaleIn(initialScale = 0.9f, animationSpec = tween(300)))
+                        .togetherWith(fadeOut(animationSpec = tween(300)))
+                    },
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .zIndex(2f)
+                        // .fillMaxWidth() removed to allow wrapping
+                        .wrapContentWidth(),
+                    label = "headerAnimation"
+                ) { song ->
+                    LyricsTrackInfo(
+                        song = song,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(
+                                top = 4.dp, bottom = 24.dp, start = 18.dp, end = 18.dp
+                            )
+                            .background(
+                                color = backgroundColor,
+                                shape = CircleShape
+//                                shape = RoundedCornerShape(
+//                                    topStart = 16.dp,
+//                                    topEnd = 50.dp,
+//                                    bottomEnd = 50.dp,
+//                                    bottomStart = 16.dp
+//                                )
+                            )
+                            .wrapContentWidth()
+                            .animateContentSize(), // Animate width changes
+                        backgroundColor = backgroundColor, // Distinct solid background
+                        contentColor = contentColor
+                    )
+                }
+
+                when (showSyncedLyrics) {
+                    null -> {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(top = 110.dp, bottom = 24.dp, start = 24.dp, end = 24.dp)
+                        ) {
+                            item(key = "loader_or_empty") {
+                                Box(
+                                    modifier = Modifier
+                                        .fillParentMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isLoadingLyrics) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text(
+                                                text = context.resources.getString(R.string.loading_lyrics),
+                                                style = MaterialTheme.typography.titleMedium
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            LinearWavyProgressIndicator(
+                                                trackColor = accentColor.copy(alpha = 0.4f),
+                                                color = accentColor,
+                                                modifier = Modifier.width(100.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    true -> {
+                        lyrics?.synced?.let { synced ->
+                            SyncedLyricsList(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 24.dp),
+                                contentPadding = PaddingValues(top = 130.dp, bottom = 100.dp),
+                                lines = synced,
+                                listState = syncedListState,
+                                positionFlow = positionFlow,
+                                accentColor = accentColor,
+                                textStyle = scaledTextStyle,
+                                onLineClick = { syncedLine -> 
+                                    onSeekTo(syncedLine.time.toLong())
+                                    resetImmersiveTimer()
+                                },
+                                highlightZoneFraction = highlightZoneFraction,
+                                highlightOffsetDp = highlightOffsetDp,
+                                autoscrollAnimationSpec = autoscrollAnimationSpec,
+                                footer = {
+                                    if (lyrics?.areFromRemote == true) {
+                                        item(key = "provider_text") {
+                                            ProviderText(
+                                                providerText = context.resources.getString(R.string.lyrics_provided_by),
+                                                uri = context.resources.getString(R.string.lrclib_uri),
+                                                textAlign = TextAlign.Center,
+                                                accentColor = accentColor,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    false -> {
+                        lyrics?.plain?.let { plain ->
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                state = staticListState,
+                                contentPadding = PaddingValues(
+                                    start = 24.dp,
+                                    end = 24.dp,
+                                    top = 130.dp,
+                                    bottom = 24.dp
+                                )
+                            ) {
+                                itemsIndexed(
+                                    items = plain,
+                                    key = { index, line -> "$index-$line" }
+                                ) { _, line ->
+                                    PlainLyricsLine(
+                                        line = line,
+                                        style = lyricsTextStyle,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Top Gradient for fade
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .height(130.dp)
                         .align(Alignment.TopCenter)
-                        .height(218.dp)
                         .background(
                             brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    containerColor,
-                                    containerColor,
-                                    containerColor,
-                                    containerColor,
-                                    containerColor,
-                                    containerColor,
-                                    containerColor,
-                                    Color.Transparent
-                                )
+                                colors = listOf(containerColor, Color.Transparent)
                             )
                         )
-                ) {
+                )
 
-                }
-                Column(
-                    Modifier.align(Alignment.TopCenter)
-                ) {
-                    CenterAlignedTopAppBar(
-                        title = {
-                            Text(
-                                text = "Lyrics",
-                                fontWeight = FontWeight.Bold,
-                                color = onBackgroundColor
-                            )
-                        },
-                        navigationIcon = {
-                            FilledIconButton(
-                                modifier = Modifier.padding(start = 12.dp),
-                                colors = IconButtonDefaults.iconButtonColors(
-                                    containerColor = backgroundColor,
-                                    contentColor = onBackgroundColor
-                                ),
-                                onClick = onBackClick
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.ArrowBack,
-                                    contentDescription = context.resources.getString(R.string.close_lyrics_sheet)
-                                )
-                            }
-                        },
-                        actions = {
-                            
-                            var expanded by remember { mutableStateOf(false) }
-                            IconButton(
-                                colors = IconButtonDefaults.iconButtonColors(
-                                    contentColor = onBackgroundColor
-                                ),
-                                onClick = { expanded = !expanded }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.MoreVert,
-                                    contentDescription = "Lyrics options",
-                                    tint = onBackgroundColor
-                                )
-                                DropdownMenu(
-                                    shape = AbsoluteSmoothCornerShape(
-                                        cornerRadiusBL = 20.dp,
-                                        smoothnessAsPercentTL = 60,
-                                        cornerRadiusBR = 20.dp,
-                                        smoothnessAsPercentTR = 60,
-                                        cornerRadiusTL = 20.dp,
-                                        smoothnessAsPercentBL = 60,
-                                        cornerRadiusTR = 20.dp,
-                                        smoothnessAsPercentBR = 60
-                                    ),
-                                    containerColor = backgroundColor,
-                                    expanded = expanded,
-                                    onDismissRequest = { expanded = false }
-                                ) {
-                                    // Save lyrics as .lrc option
-                                    DropdownMenuItem(
-                                        leadingIcon = {
-                                            Icon(
-                                                painter = painterResource(R.drawable.outline_save_24),
-                                                contentDescription = null
-                                            )
-                                        },
-                                        text = { Text(text = stringResource(R.string.save_lyrics_as_lrc)) },
-                                        enabled = lyrics != null,
-                                        onClick = {
-                                            expanded = false
-                                            if (lyrics != null) {
-                                                showSaveLyricsDialog = true
-                                            } else {
-                                                Toast.makeText(
-                                                    context,
-                                                    context.getString(R.string.no_lyrics_to_save),
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                            }
-                                        }
-                                    )
-                                    // Reset imported lyrics option
-                                    DropdownMenuItem(
-                                        leadingIcon = {
-                                            Icon(
-                                                painter = painterResource(R.drawable.outline_restart_alt_24),
-                                                contentDescription = null
-                                            )
-                                        },
-                                        text = { Text(text = stringResource(R.string.reset_imported_lyrics)) },
-                                        onClick = {
-                                            expanded = false
-                                            wasResetTriggered = true
-                                            resetLyricsForCurrentSong()
-                                        }
-                                    )
-                                }
-                            }
-                        },
-                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                            containerColor = Color.Transparent
-                        )
-                    )
-                    if (lyrics?.synced != null && lyrics?.plain != null) {
-                        val selectedTabIndex = if (showSyncedLyrics == true) 0 else 1
-
-                        TabRow(
-                            modifier = Modifier
-                                .fillMaxWidth(),
-                            selectedTabIndex = selectedTabIndex,
-                            containerColor = Color.Transparent,
-                            indicator = { tabPositions ->
-                                if (selectedTabIndex < tabPositions.size) {
-                                    TabRowDefaults.PrimaryIndicator(
-                                        modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
-                                        height = 3.dp,
-                                        color = Color.Transparent
-                                    )
-                                }
-                            },
-                            divider = {}
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceEvenly
-                            ) {
-                                Spacer(modifier = Modifier.width(14.dp))
-                                tabTitles.forEachIndexed { index, title ->
-                                    TabAnimation(
-                                        modifier = Modifier.weight(1f),
-                                        selectedColor = accentColor,
-                                        onSelectedColor = onAccentColor,
-                                        unselectedColor = contentColor.copy(alpha = 0.15f),
-                                        onUnselectedColor = contentColor,
-                                        index = index,
-                                        title = title,
-                                        selectedIndex = selectedTabIndex,
-                                        onClick = {
-                                            showSyncedLyrics = (index == 0)
-                                        },
-                                        content = {
-                                            Text(
-                                                text = title,
-                                                fontWeight = FontWeight.Bold,
-                                                fontFamily = GoogleSansRounded
-                                            )
-                                        }
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(14.dp))
-                            }
-                        }
-                    }
-
-                    // Quick offset controls for synced lyrics
-                    if (lyrics?.synced != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                //.padding(top = 6.dp)
-//                                .background(
-//                                    color = containerColor,
-//                                    shape = CircleShape
-//                                )
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .align(Alignment.Center)
-                                    .background(
-                                        color = backgroundColor,
-                                        shape = CircleShape
-                                ),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    // -0.5s button
-                                    FilledTonalIconButton(
-                                        onClick = { onLyricsSyncOffsetChange(lyricsSyncOffset - 500) },
-                                        modifier = Modifier.size(32.dp),
-                                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                            containerColor = onAccentColor, //.copy(alpha = 0.5f),
-                                            contentColor = accentColor
-                                        )
-                                    ) {
-                                        Text("−.5", style = MaterialTheme.typography.labelSmall, fontSize = 9.sp)
-                                    }
-                                    // -0.1s button
-                                    FilledTonalIconButton(
-                                        onClick = { onLyricsSyncOffsetChange(lyricsSyncOffset - 100) },
-                                        modifier = Modifier.size(32.dp),
-                                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                            containerColor = onAccentColor, //.copy(alpha = 0.5f),
-                                            contentColor = accentColor
-                                        )
-                                    ) {
-                                        Text("−.1", style = MaterialTheme.typography.labelSmall, fontSize = 9.sp)
-                                    }
-                                    // Current offset display / Reset button
-                                    FilledTonalIconButton(
-                                        onClick = { onLyricsSyncOffsetChange(0) },
-                                        modifier = Modifier.width(48.dp).height(32.dp),
-                                        enabled = lyricsSyncOffset != 0,
-                                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                            containerColor = if (lyricsSyncOffset != 0) accentColor.copy(alpha = 0.3f) else backgroundColor.copy(alpha = 0.7f),
-                                            contentColor = onBackgroundColor
-                                        )
-                                    ) {
-                                        Text(
-                                            text = if (lyricsSyncOffset == 0) "0s" else String.format("%+.1fs", lyricsSyncOffset / 1000f),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                    // +0.1s button
-                                    FilledTonalIconButton(
-                                        onClick = { onLyricsSyncOffsetChange(lyricsSyncOffset + 100) },
-                                        modifier = Modifier.size(32.dp),
-                                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                            containerColor = onAccentColor, //.copy(alpha = 0.5f),
-                                            contentColor = accentColor
-                                        )
-                                    ) {
-                                        Text("+.1", style = MaterialTheme.typography.labelSmall, fontSize = 9.sp)
-                                    }
-                                    // +0.5s button
-                                    FilledTonalIconButton(
-                                        onClick = { onLyricsSyncOffsetChange(lyricsSyncOffset + 500) },
-                                        modifier = Modifier.size(32.dp),
-                                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                            containerColor = onAccentColor, //.copy(alpha = 0.5f),
-                                            contentColor = accentColor
-                                        )
-                                    ) {
-                                        Text("+.5", style = MaterialTheme.typography.labelSmall, fontSize = 9.sp)
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                }
-            }
-        },
-        floatingActionButton = {
-            LargeExtendedFloatingActionButton(
-                modifier = Modifier.padding(bottom = 64.dp),
-                onClick = onPlayPause,
-                shape = fabShape,
-                containerColor = tertiaryColor,
-                contentColor = onTertiaryColor
-            ) {
-                AnimatedContent(
-                    targetState = isPlaying,
-                    label = "playPauseIconAnimation"
-                ) { playing ->
-                    if (playing) {
-                        Icon(
-                            modifier = Modifier.size(36.dp),
-                            imageVector = Icons.Rounded.Pause,
-                            contentDescription = "Pause"
-                        )
-                    } else {
-                        Icon(
-                            modifier = Modifier.size(36.dp),
-                            imageVector = Icons.Rounded.PlayArrow,
-                            contentDescription = "Play"
-                        )
-                    }
-                }
-            }
-        },
-        floatingActionButtonPosition = FabPosition.Center,
-    ) { paddingValues ->
-        val syncedListState = rememberLazyListState()
-        val staticListState = rememberLazyListState()
-        val playerUiState by playerUiStateFlow.collectAsState()
-        // Apply lyrics sync offset to the position flow
-        val positionFlow = remember(playerUiStateFlow, lyricsSyncOffset) {
-            playerUiStateFlow.map { (it.currentPosition + lyricsSyncOffset).coerceAtLeast(0L) }
-        }
-
-        LaunchedEffect(lyrics) {
-            syncedListState.scrollToItem(0)
-            staticListState.scrollToItem(0)
-        }
-
-        Box(
-            modifier = Modifier.fillMaxSize()
-        ) {
-
-            when (showSyncedLyrics) {
-                null -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(
-                            top = paddingValues.calculateTopPadding(),
-                            bottom = paddingValues.calculateBottomPadding() + 180.dp,
-                            start = 24.dp,
-                            end = 24.dp
-                        )
-                    ) {
-                        item(key = "loader_or_empty") {
-                            Box(
-                                modifier = Modifier
-                                    .fillParentMaxSize()
-                                    .padding(bottom = 160.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (isLoadingLyrics) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(
-                                            text = context.resources.getString(R.string.loading_lyrics),
-                                            style = MaterialTheme.typography.titleMedium
-                                        )
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        LinearWavyProgressIndicator(
-                                            trackColor = accentColor.copy(alpha = .5f),
-                                            modifier = Modifier.width(100.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                true -> {
-                    lyrics?.synced?.let { synced ->
-                        SyncedLyricsList(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(
-                                    start = 24.dp,
-                                    end = 24.dp,
-                                    //top = paddingValues.calculateTopPadding(),
-                                    //bottom = paddingValues.calculateBottomPadding() //+ 180.dp
-                                ),
-                            lines = synced,
-                            listState = syncedListState,
-                            positionFlow = positionFlow,
-                            accentColor = accentColor,
-                            textStyle = lyricsTextStyle,
-                            onLineClick = { syncedLine -> onSeekTo(syncedLine.time.toLong()) },
-                            highlightZoneFraction = highlightZoneFraction,
-                            highlightOffsetDp = highlightOffsetDp,
-                            autoscrollAnimationSpec = autoscrollAnimationSpec,
-                            footer = {
-                                if (lyrics?.areFromRemote == true) {
-                                    item(key = "provider_text") {
-                                        ProviderText(
-                                            providerText = context.resources.getString(R.string.lyrics_provided_by),
-                                            uri = context.resources.getString(R.string.lrclib_uri),
-                                            textAlign = TextAlign.Center,
-                                            accentColor = accentColor,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 16.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        )
-                    }
-                }
-
-                false -> {
-                    lyrics?.plain?.let { plain ->
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            state = staticListState,
-                            contentPadding = PaddingValues(
-                                start = 24.dp,
-                                end = 24.dp,
-                                top = paddingValues.calculateTopPadding(),
-                                bottom = paddingValues.calculateBottomPadding() + 180.dp
-                            )
-                        ) {
-                            itemsIndexed(
-                                items = plain,
-                                key = { index, line -> "$index-$line" }
-                            ) { _, line ->
-                                PlainLyricsLine(
-                                    line = line,
-                                    style = lyricsTextStyle,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                            }
-                        }
-                    }
-                }
-            }
-
-            val bottomPadding = paddingValues.calculateBottomPadding() + 10.dp
-            val footerBaseHeight = 76.dp
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .heightIn(min = footerBaseHeight + bottomPadding)
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                containerColor
-                            )
-                        )
-                    )
-            ) {
-
-            }
-
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(bottom = bottomPadding)
-                    .padding(horizontal = 24.dp)
-            ) {
-                PlayerSeekBar(
-                    backgroundColor = backgroundColor,
-                    onBackgroundColor = onBackgroundColor,
-                    primaryColor = accentColor,
-                    currentPosition = playerUiState.currentPosition,
-                    totalDuration = stablePlayerState.totalDuration,
-                    onSeek = onSeekTo,
-                    isPlaying = isPlaying,
+                // Bottom Gradient for fade
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp)
+                        .height(80.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, containerColor)
+                            )
+                        )
+                )
+            }
+
+            // Controls Section (Auto-hide in immersive mode)
+            AnimatedVisibility(
+                visible = !immersiveMode,
+                enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(containerColor)
+                        .padding(bottom = paddingValues.calculateBottomPadding() + 10.dp, end = 16.dp, start = 16.dp)
+                ) {
+                // Sync Offset Controls (Visible only if synced lyrics are shown AND enabled via some toggle, 
+                // but user didn't specify a toggle for this in the new toolbar, just "encolumnada". 
+                // "no debemos perder acceos a las opciones actuales".
+                // I'll show them if showSyncedLyrics is true. Or maybe I should add a toggle in the toolbar?
+                // The prompt ends with "el Slider lo vas a cambiar por el WavySliderExpressive...".
+                // I will keep the offsets here.
+                
+                AnimatedVisibility(
+                    visible = showSyncedLyrics == true && lyrics?.synced != null && showSyncControls,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    LyricsSyncControls(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        offsetMillis = lyricsSyncOffset,
+                        onOffsetChange = onLyricsSyncOffsetChange,
+                        backgroundColor = backgroundColor,
+                        accentColor = accentColor,
+                        onAccentColor = onAccentColor,
+                        onBackgroundColor = onBackgroundColor
+                    )
+                }
+
+                // Playback Controls Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 0.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Play/Pause Button (Smaller)
+                    val playPauseCornerRadius by animateDpAsState(
+                        targetValue = if (isPlaying) 18.dp else 50.dp,
+                        animationSpec = spring(stiffness = Spring.StiffnessLow),
+                        label = "playPauseShape"
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .size(78.dp)
+                            .clip(RoundedCornerShape(playPauseCornerRadius))
+                            .background(tertiaryColor)
+                            .clickable(onClick = onPlayPause),
+                        contentAlignment = Alignment.Center
+                    ) {
+                         AnimatedContent(
+                            targetState = isPlaying,
+                            label = "playPauseIconAnimation"
+                        ) { playing ->
+                            if (playing) {
+                                Icon(
+                                    modifier = Modifier.size(32.dp),
+                                    imageVector = Icons.Rounded.Pause,
+                                    contentDescription = "Pause",
+                                    tint = onTertiaryColor
+                                )
+                            } else {
+                                Icon(
+                                    modifier = Modifier.size(32.dp),
+                                    imageVector = Icons.Rounded.PlayArrow,
+                                    contentDescription = "Play",
+                                    tint = onTertiaryColor
+                                )
+                            }
+                        }
+                    }
+
+                    // Progress Bar
+                    PlayerSeekBar(
+                        backgroundColor = backgroundColor, // Transparent as it's now inline
+                        onBackgroundColor = onBackgroundColor,
+                        primaryColor = accentColor,
+                        currentPosition = playerUiState.currentPosition,
+                        totalDuration = stablePlayerState.totalDuration,
+                        onSeek = onSeekTo,
+                        isPlaying = isPlaying,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Floating Toolbar
+                LyricsFloatingToolbar(
+                    modifier = Modifier.padding(horizontal = 0.dp),
+                    showSyncedLyrics = showSyncedLyrics,
+                    onShowSyncedLyricsChange = { showSyncedLyrics = it },
+                    lyrics = lyrics,
+                    onSaveLyricsAsLrc = { showSaveLyricsDialog = true },
+                    onResetImportedLyrics = {
+                        wasResetTriggered = true
+                        resetLyricsForCurrentSong()
+                    },
+                    onNavigateBack = {
+                        onBackClick()
+                    },
+                    isSyncControlsVisible = showSyncControls,
+                    onToggleSyncControls = { showSyncControls = !showSyncControls },
+                    backgroundColor = backgroundColor,
+                    onBackgroundColor = onBackgroundColor,
+                    accentColor = accentColor,
+                    onAccentColor = onAccentColor,
+                    isImmersiveTemporarilyDisabled = isImmersiveTemporarilyDisabled,
+                    onSetImmersiveTemporarilyDisabled = onSetImmersiveTemporarilyDisabled
+                )
+             }
+            }
+        }
+
+       // Show Controls Button (Overlay)
+       AnimatedVisibility(
+            visible = immersiveMode,
+            enter = fadeIn() + slideInVertically { it / 2 },
+            exit = fadeOut() + slideOutVertically { it / 2 },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 32.dp)
+        ) {
+            FilledIconButton(
+                onClick = { resetImmersiveTimer() },
+                modifier = Modifier.size(48.dp),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = backgroundColor,
+                    contentColor = accentColor
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.KeyboardArrowUp,
+                    contentDescription = "Show Controls"
                 )
             }
         }
+       
+       // Swipe Feedback Overlay
+       if (isSwipeActive || swipeProgress.value > 0f) {
+           val isNext = dragOffset < 0
+           val overlayAlignment = if (isNext) Alignment.CenterEnd else Alignment.CenterStart
+           val icon = if (isNext) Icons.Rounded.SkipNext else Icons.Rounded.SkipPrevious
+           
+           Box(
+               modifier = Modifier
+                   .align(overlayAlignment)
+                   .size(100.dp) // Base size
+                   .padding(
+                       start = if(isNext) 0.dp else 6.dp,
+                       end = if(isNext) 6.dp else 0.dp
+                   )
+                   .graphicsLayer {
+                        val widthPx = size.width
+                        val initialOffset = if(isNext) widthPx else -widthPx
+                        translationX = initialOffset * (1f - swipeProgress.value)
+
+                        scaleX = 0.8f + (swipeProgress.value * 0.2f)
+                        scaleY = 0.8f + (swipeProgress.value * 0.2f)
+                   }
+                   .background(
+                        color = accentColor, // No alpha modulation
+                        shape = RoundedCornerShape(
+                            topStart = if(isNext) 360.dp else 8.dp,
+                            bottomStart = if(isNext) 360.dp else 8.dp,
+                            topEnd = if(isNext) 8.dp else 360.dp,
+                            bottomEnd = if(isNext) 8.dp else 360.dp
+                        )
+                   ),
+               contentAlignment = Alignment.Center
+           ) {
+               Icon(
+                   imageVector = icon,
+                   contentDescription = null,
+                   modifier = Modifier.size(48.dp),
+                   tint = onAccentColor
+               )
+           }
+       }
+
+      }
     }
 }
 
@@ -727,6 +777,7 @@ fun SyncedLyricsList(
     highlightOffsetDp: Dp,
     autoscrollAnimationSpec: AnimationSpec<Float>,
     modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
     footer: LazyListScope.() -> Unit = {}
 ) {
     val density = LocalDensity.current
@@ -776,10 +827,7 @@ fun SyncedLyricsList(
                 modifier = Modifier.fillMaxSize(),
                 state = listState,
                 flingBehavior = flingBehavior,
-                contentPadding = PaddingValues(
-                    top = 220.dp, // Slightly increased top padding
-                    bottom = 200.dp // Bottom padding for FAB and seek bar
-                )
+                contentPadding = contentPadding
             ) {
                 itemsIndexed(
                     items = lines,
@@ -877,7 +925,8 @@ fun LyricLineRow(
         ) {
             sanitizedWords.forEachIndexed { wordIndex, word ->
                 key("${line.time}_${word.time}_${word.word}") {
-                    val nextWordTime = sanitizedWords.getOrNull(wordIndex + 1)?.time?.toLong() ?: nextTime.toLong()
+                    val nextWordTime =
+                        sanitizedWords.getOrNull(wordIndex + 1)?.time?.toLong() ?: nextTime.toLong()
                     val isCurrentWord by remember(position, word.time, nextWordTime) {
                         derivedStateOf { position in word.time.toLong()..<nextWordTime }
                     }
@@ -889,7 +938,7 @@ fun LyricLineRow(
                         unhighlightedColor = unhighlightedColor
                     )
                 }
-            }
+            } // End Column
         }
     }
 }
@@ -1021,7 +1070,7 @@ internal suspend fun animateToSnapIndex(
  */
 private fun saveLyricsToFile(
     context: android.content.Context,
-    song: com.theveloper.pixelplay.data.model.Song,
+    song: Song,
     lyrics: Lyrics,
     preferSynced: Boolean
 ) {
@@ -1070,5 +1119,91 @@ private fun saveLyricsToFile(
             context.getString(R.string.lyrics_save_failed),
             Toast.LENGTH_SHORT
         ).show()
+    }
+}
+
+@Composable
+private fun LyricsTrackInfo(
+    song: Song?,
+    modifier: Modifier = Modifier,
+    backgroundColor: Color,
+    contentColor: Color
+) {
+    if (song == null) return
+
+    val albumShape = CircleShape
+//    val albumShape = AbsoluteSmoothCornerShape(
+//        cornerRadiusTR = 10.dp,
+//        smoothnessAsPercentTL = 60,
+//        cornerRadiusTL = 10.dp,
+//        smoothnessAsPercentTR = 60,
+//        cornerRadiusBR = 10.dp,
+//        smoothnessAsPercentBL = 60,
+//        cornerRadiusBL = 10.dp,
+//        smoothnessAsPercentBR = 60
+//    )
+
+    Row(
+        modifier = modifier,
+//            .background(
+//                brush = Brush.verticalGradient(
+//                    colors = listOf(
+//                        backgroundColor,
+//                        backgroundColor,
+//                        backgroundColor.copy(alpha = 0.8f),
+//                        Color.Transparent
+//                    )
+//                )
+//            )
+            //.padding(top = 24.dp, bottom = 24.dp, start = 24.dp, end = 24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        SmartImage(
+            model = song.albumArtUriString ?: R.drawable.rounded_album_24,
+            shape = albumShape,
+            contentDescription = "Cover Art",
+            modifier = Modifier
+                .size(66.dp)
+                .padding(6.dp)
+                .clip(albumShape),
+            contentScale = ContentScale.Crop
+        )
+
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = false) // Allow shrinking if content is small
+                .padding(vertical = 6.dp)
+                .padding(end = 6.dp),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = song.title,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    color = contentColor,
+                    //textGeometricTransform = TextGeometricTransform(scaleX = (0.9f)),
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = song.displayArtist,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    color = contentColor.copy(alpha = 0.7f),
+                    //textGeometricTransform = TextGeometricTransform(scaleX = (0.9f)),
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        PlayingEqIcon(
+            modifier = Modifier
+                .padding(start = 8.dp, end = 18.dp)
+                .size(width = 18.dp, height = 16.dp),
+            color = contentColor,
+            isPlaying = true
+        )
     }
 }

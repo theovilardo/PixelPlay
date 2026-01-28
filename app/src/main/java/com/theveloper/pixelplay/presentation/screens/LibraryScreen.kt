@@ -1115,69 +1115,6 @@ fun LibraryNavigationPill(
     }
 }
 
-//@OptIn(ExperimentalAnimationApi::class)
-//@Composable
-//private fun LibraryNavigationPill(
-//    title: String,
-//    animationDirection: Int,
-//    onClick: () -> Unit
-//) {
-//    val pillShape = RoundedCornerShape(26.dp)
-//    Surface(
-//        shape = pillShape,
-//        tonalElevation = 8.dp,
-//        color = MaterialTheme.colorScheme.primaryContainer,
-//        modifier = Modifier
-//            .padding(start = 4.dp)
-//            .clip(pillShape)
-//            .clickable(onClick = onClick)
-//    ) {
-//        Row(
-//            modifier = Modifier
-//                .clip(pillShape)
-//                .padding(horizontal = 10.dp, vertical = 10.dp),
-//            horizontalArrangement = Arrangement.spacedBy(16.dp),
-//            verticalAlignment = Alignment.CenterVertically
-//        ) {
-//            AnimatedContent(
-//                modifier = Modifier.padding(start = 8.dp),
-//                targetState = title,
-//                transitionSpec = {
-//                    val direction = animationDirection.coerceIn(-1, 1)
-//                    val slideIn = slideInHorizontally { fullWidth -> if (direction >= 0) fullWidth else -fullWidth } + fadeIn()
-//                    val slideOut = slideOutHorizontally { fullWidth -> if (direction >= 0) -fullWidth else fullWidth } + fadeOut()
-//                    slideIn.togetherWith(slideOut)
-//                },
-//                label = "LibraryPillTitle"
-//            ) { targetTitle ->
-//                Text(
-//                    text = targetTitle,
-//                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 26.sp),
-//                    fontWeight = FontWeight.SemiBold,
-//                    color = MaterialTheme.colorScheme.onSurface
-//                )
-//            }
-//
-//            Box(
-//               modifier = Modifier
-//                   .background(
-//                       color = MaterialTheme.colorScheme.onPrimaryContainer,
-//                       shape = CircleShape
-//                   )
-//            ) {
-//                Icon(
-//                    modifier = Modifier.padding(
-//                        4.dp
-//                    ),
-//                    imageVector = Icons.Rounded.KeyboardArrowDown,
-//                    contentDescription = null,
-//                    tint = MaterialTheme.colorScheme.primaryContainer
-//                )
-//            }
-//        }
-//    }
-//}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LibraryTabSwitcherSheet(
