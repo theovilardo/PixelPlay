@@ -63,12 +63,15 @@ class ThemeStateHolder @Inject constructor(
         }
     }
 
+    private var currentAlbumArtUri: String? = null
+
     suspend fun extractAndGenerateColorScheme(albumArtUriAsUri: Uri?, currentSongUriString: String?, isPreload: Boolean = false) {
         Trace.beginSection("ThemeStateHolder.extractAndGenerateColorScheme")
         try {
             if (albumArtUriAsUri == null) {
                 if (!isPreload && currentSongUriString == null) {
                     _currentAlbumArtColorSchemePair.value = null
+                    currentAlbumArtUri = null
                 }
                 return
             }
@@ -79,10 +82,12 @@ class ThemeStateHolder @Inject constructor(
 
             if (!isPreload && currentSongUriString == uriString) {
                 _currentAlbumArtColorSchemePair.value = schemePair
+                currentAlbumArtUri = uriString
             }
         } catch (e: Exception) {
             if (!isPreload && albumArtUriAsUri != null && currentSongUriString == albumArtUriAsUri.toString()) {
                 _currentAlbumArtColorSchemePair.value = null
+                currentAlbumArtUri = null
             }
         } finally {
             Trace.endSection()
@@ -127,6 +132,30 @@ class ThemeStateHolder @Inject constructor(
     
     suspend fun getOrGenerateColorScheme(uriString: String): ColorSchemePair? {
          return colorSchemeProcessor.getOrGenerateColorScheme(uriString)
+    }
+
+    suspend fun forceRegenerateColorScheme(uriString: String) {
+         android.util.Log.d("ThemeStateHolder", "forceRegenerateColorScheme called for: $uriString")
+         android.util.Log.d("ThemeStateHolder", "Current tracked global URI: $currentAlbumArtUri")
+         
+         colorSchemeProcessor.invalidateScheme(uriString)
+         
+         val newScheme = colorSchemeProcessor.getOrGenerateColorScheme(uriString, forceRefresh = true)
+
+         // Iterate if there is an active flow for this URI and update it
+         val activeFlow = individualAlbumColorSchemes[uriString]
+         if (activeFlow != null) {
+             activeFlow.value = newScheme
+         }
+         
+         // Also update the main current album art scheme if it matches the one we are tracking
+         // We use equality check. If they are the same string object or equal content.
+         if (currentAlbumArtUri == uriString) {
+             android.util.Log.d("ThemeStateHolder", "Updating global color scheme flow directly.")
+             _currentAlbumArtColorSchemePair.value = newScheme
+         } else {
+             android.util.Log.d("ThemeStateHolder", "Global URI did not match. Skipping global update.")
+         }
     }
 
 }

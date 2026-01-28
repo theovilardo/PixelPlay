@@ -94,4 +94,5 @@
     <string name="artist_id_not_found">Artist ID not found</string>
     <string name="error_loading_artist">Error loading artist data: %s</string>
     <string name="could_not_find_artist">Could not find the artist</string>
+    <string name="no_valid_songs">No valid songs found to play</string>
 </resources>

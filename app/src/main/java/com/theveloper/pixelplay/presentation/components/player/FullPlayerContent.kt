@@ -3,6 +3,7 @@ package com.theveloper.pixelplay.presentation.components.player
 import android.annotation.SuppressLint
 import android.content.res.Configuration
 import android.net.Uri
+import com.theveloper.pixelplay.data.model.Lyrics
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -101,6 +102,8 @@ import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.res.stringResource
 import androidx.media3.common.Player
@@ -108,6 +111,7 @@ import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.data.preferences.AlbumArtQuality
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.FullPlayerLoadingTweaks
 import com.theveloper.pixelplay.presentation.components.AlbumCarouselSection
@@ -133,6 +137,11 @@ import kotlinx.coroutines.withTimeoutOrNull
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
 import kotlin.math.roundToLong
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import com.theveloper.pixelplay.presentation.components.WavySliderExpressive
+import com.theveloper.pixelplay.presentation.components.ToggleSegmentButton
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @SuppressLint("StateFlowValueCalledInComposition")
@@ -153,6 +162,10 @@ fun FullPlayerContent(
     currentPositionProvider: () -> Long,
     isPlayingProvider: () -> Boolean,
     isFavoriteProvider: () -> Boolean,
+    repeatModeProvider: () -> Int,
+    isShuffleEnabledProvider: () -> Boolean,
+    totalDurationProvider: () -> Long,
+    lyricsProvider: () -> Lyrics? = { null }, 
     // State
     isCastConnecting: Boolean = false,
     // Event Handlers
@@ -181,10 +194,16 @@ fun FullPlayerContent(
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var showLyricsSheet by remember { mutableStateOf(false) }
     var showArtistPicker by rememberSaveable { mutableStateOf(false) }
-    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
+    
+    // REMOVED: val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
+    
     val lyricsSearchUiState by playerViewModel.lyricsSearchUiState.collectAsState()
     val currentSongArtists by playerViewModel.currentSongArtists.collectAsState()
     val lyricsSyncOffset by playerViewModel.currentSongLyricsSyncOffset.collectAsState()
+    val albumArtQuality by playerViewModel.albumArtQuality.collectAsState()
+    val immersiveLyricsEnabled by playerViewModel.immersiveLyricsEnabled.collectAsState()
+    val immersiveLyricsTimeout by playerViewModel.immersiveLyricsTimeout.collectAsState()
+    val isImmersiveTemporarilyDisabled by playerViewModel.isImmersiveTemporarilyDisabled.collectAsState()
 
     var showFetchLyricsDialog by remember { mutableStateOf(false) }
     var totalDrag by remember { mutableStateOf(0f) }
@@ -211,9 +230,8 @@ fun FullPlayerContent(
     )
 
     // totalDurationValue is derived from stablePlayerState, so it's fine.
-    val totalDurationValue by remember {
-        playerViewModel.stablePlayerState.map { it.totalDuration }.distinctUntilChanged()
-    }.collectAsState(initial = 0L)
+    // OPTIMIZATION: Use passed provider instead of collecting flow
+    val totalDurationValue = totalDurationProvider()
 
     val stableControlAnimationSpec = remember {
         tween<Float>(durationMillis = 240, easing = FastOutSlowInEasing)
@@ -233,7 +251,7 @@ fun FullPlayerContent(
 
     // Lógica para el botón de Lyrics en el reproductor expandido
     val onLyricsClick = {
-        val lyrics = stablePlayerState.lyrics
+        val lyrics = lyricsProvider()
         if (lyrics?.synced.isNullOrEmpty() && lyrics?.plain.isNullOrEmpty()) {
             // Si no hay letra, mostramos el diálogo para buscar
             showFetchLyricsDialog = true
@@ -246,7 +264,7 @@ fun FullPlayerContent(
     if (showFetchLyricsDialog) {
         FetchLyricsDialog(
             uiState = lyricsSearchUiState,
-            currentSong = stablePlayerState.currentSong,
+            currentSong = song, // Use 'song' which is derived from args/retained
             onConfirm = { forcePick ->
                 // El usuario confirma, iniciamos la búsqueda
                 playerViewModel.fetchLyricsForCurrentSong(forcePick)
@@ -335,7 +353,8 @@ fun FullPlayerContent(
                         }
                     },
                     carouselStyle = carouselStyle,
-                    modifier = Modifier.height(carouselHeight)
+                    modifier = Modifier.height(carouselHeight),
+                    albumArtQuality = albumArtQuality
                 )
             }
         }
@@ -387,8 +406,8 @@ fun FullPlayerContent(
                         .heightIn(min = 58.dp, max = 78.dp)
                         .padding(horizontal = 26.dp, vertical = 0.dp)
                         .padding(bottom = 6.dp),
-                    isShuffleEnabled = isShuffleEnabled,
-                    repeatMode = repeatMode,
+                    isShuffleEnabled = isShuffleEnabledProvider(),
+                    repeatMode = repeatModeProvider(),
                     isFavoriteProvider = isFavoriteProvider,
                     onShuffleToggle = onShuffleToggle,
                     onRepeatToggle = onRepeatToggle,
@@ -812,6 +831,13 @@ fun FullPlayerContent(
         enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
         exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut()
     ) {
+        // We can create a temporary StablePlayerState for LyricsSheet if needed, or update LyricsSheet to take Granular args.
+        // For now, let's keep LyricsSheet collecting stablePlayerState internally IF it must, OR better:
+        // Pass the subset we have.
+        // LyricsSheet signature: stablePlayerStateFlow: StateFlow<StablePlayerState>
+        // We can't change that easily without refactoring LyricsSheet too.
+        // For now, pass the flow but LyricsSheet is only visible when sheet is open.
+        // Ideally we should refactor LyricsSheet too, but let's stick to FullPlayerContent optimizations first.
         LyricsSheet(
             stablePlayerStateFlow = playerViewModel.stablePlayerState,
             playerUiStateFlow = playerViewModel.playerUiState,
@@ -840,7 +866,13 @@ fun FullPlayerContent(
             onSeekTo = { playerViewModel.seekTo(it) },
             onPlayPause = {
                 playerViewModel.playPause()
-            }
+            },
+            onNext = onNext,
+            onPrev = onPrevious,
+            immersiveLyricsEnabled = immersiveLyricsEnabled,
+            immersiveLyricsTimeout = immersiveLyricsTimeout,
+            isImmersiveTemporarilyDisabled = isImmersiveTemporarilyDisabled,
+            onSetImmersiveTemporarilyDisabled = { playerViewModel.setImmersiveTemporarilyDisabled(it) }
         )
     }
 
@@ -1066,49 +1098,90 @@ private fun PlayerProgressBarSection(
     loadingTweaks: FullPlayerLoadingTweaks? = null,
     modifier: Modifier = Modifier
 ) {
-    val expansionFraction = expansionFractionProvider()
-    val isExpanded = currentSheetState == PlayerSheetState.EXPANDED &&
-            expansionFraction >= 0.995f
+    val expansionFraction by remember { derivedStateOf { expansionFractionProvider() } }
+    
+    val isVisible by remember { derivedStateOf { expansionFraction > 0.01f } }
+
+    val isExpanded by remember { 
+        derivedStateOf { 
+            currentSheetState == PlayerSheetState.EXPANDED && expansionFraction >= 0.995f 
+        } 
+    }
 
     val durationForCalc = totalDurationValue.coerceAtLeast(1L)
-    val rawPosition = currentPositionProvider()
-    val rawProgress = (rawPosition.coerceAtLeast(0) / durationForCalc.toFloat()).coerceIn(0f, 1f)
-
-    val (smoothProgress, _) = rememberSmoothProgress(
+    
+    // Pass isVisible to rememberSmoothProgress
+    val (smoothProgressState, _) = rememberSmoothProgress(
         isPlayingProvider = isPlayingProvider,
         currentPositionProvider = currentPositionProvider,
         totalDuration = totalDurationValue,
         sampleWhilePlayingMs = 200L,
-        sampleWhilePausedMs = 800L
+        sampleWhilePausedMs = 800L,
+        isVisible = isVisible
     )
 
     var sliderDragValue by remember { mutableStateOf<Float?>(null) }
-    val interactionSource = remember { MutableInteractionSource() }
-
-    val targetProgress = sliderDragValue ?: if (isExpanded) rawProgress else smoothProgress
-
-    val animatedProgress = remember {
-        Animatable(targetProgress)
-    }
-
-    LaunchedEffect(targetProgress, sliderDragValue != null) {
-        val clampedTarget = targetProgress.coerceIn(0f, 1f)
-        if (sliderDragValue != null) {
-            animatedProgress.snapTo(clampedTarget)
-        } else {
-            animatedProgress.animateTo(
-                targetValue = clampedTarget,
-                animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
-            )
+    // Optimistic Seek: Holds the target position immediately after seek to prevent snap-back
+    var optimisticPosition by remember { mutableStateOf<Long?>(null) }
+    
+    // Clear optimistic position ONLY when the SMOOTH (visual) progress catches up
+    // using raw position causes a jump because smooth progress might lag behind raw.
+    LaunchedEffect(optimisticPosition) {
+        val target = optimisticPosition
+        if (target != null) {
+            val start = System.currentTimeMillis()
+            val targetFl = target.toFloat() / durationForCalc.toFloat()
+            
+            while (optimisticPosition != null) {
+                // Check if the current VISUAL progress (smoothState) corresponds to the target
+                // We use the derived state value which falls back to smoothProgressState
+                val currentVisual = smoothProgressState.value
+                val currentVisualMs = (currentVisual * durationForCalc).toLong()
+                
+                // If visual is close enough (within 500ms visual distance)
+                if (kotlin.math.abs(currentVisualMs - target) < 500 || (System.currentTimeMillis() - start) > 2000) {
+                     optimisticPosition = null
+                }
+                kotlinx.coroutines.delay(50)
+            }
         }
     }
 
-    val effectiveProgress = animatedProgress.value
-    val effectivePosition = (effectiveProgress * durationForCalc).roundToLong().coerceIn(0L, totalDurationValue.coerceAtLeast(0L))
+    val interactionSource = remember { MutableInteractionSource() }
+
+    // Logic to determine target progress without reading values
+    val rawPositionProvider = remember(currentPositionProvider, isVisible) {
+        { if (isVisible) currentPositionProvider() else 0L }
+    }
+    
+    // DIRECT State derivation - No intermediate Animatable (fixes "stepping" lag)
+    val animatedProgressState = remember(isExpanded, sliderDragValue, optimisticPosition, smoothProgressState, durationForCalc, rawPositionProvider) {
+        derivedStateOf {
+             if (sliderDragValue != null) {
+                 sliderDragValue!!
+             } else if (optimisticPosition != null) {
+                 (optimisticPosition!!.toFloat() / durationForCalc.toFloat()).coerceIn(0f, 1f)
+             } else if (isExpanded) {
+                 val rawPos = rawPositionProvider()
+                 (rawPos.coerceAtLeast(0) / durationForCalc.toFloat()).coerceIn(0f, 1f)
+             } else {
+                 smoothProgressState.value
+             }
+        }
+    }
+
+    // No LaunchedEffect/snapshotFlow needed anymore. 
+    // smoothProgressState is already 60fps animated.
+
+    val effectivePositionState = remember(durationForCalc, animatedProgressState, isVisible, totalDurationValue) {
+        derivedStateOf {
+             val progress = animatedProgressState.value
+             (progress * durationForCalc).roundToLong().coerceIn(0L, totalDurationValue.coerceAtLeast(0L))
+        }
+    }
 
     val shouldDelay = loadingTweaks?.let { it.delayAll || it.delayProgressBar } ?: false
 
-    // Placeholder colors needed here too
     val placeholderColor = LocalMaterialTheme.current.primary.copy(alpha = 0.08f)
     val placeholderOnColor = LocalMaterialTheme.current.primary.copy(alpha = 0.04f)
 
@@ -1123,58 +1196,115 @@ private fun PlayerProgressBarSection(
              if (loadingTweaks?.transparentPlaceholders == true) {
                  Box(Modifier.fillMaxWidth().heightIn(min = 70.dp))
              } else {
-                 ProgressPlaceholder(expansionFractionProvider(), placeholderColor, placeholderOnColor)
+                 ProgressPlaceholder(expansionFraction, placeholderColor, placeholderOnColor)
              }
         }
     ) {
         Column(
             modifier = modifier
                 .fillMaxWidth()
+                .graphicsLayer { 
+                    // No reads here
+                }
                 .padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
                 .heightIn(min = 70.dp)
         ) {
-            WavyMusicSlider(
-                value = effectiveProgress,
-                onValueChange = { newValue -> sliderDragValue = newValue },
+            
+            // Isolated Slider Component
+            EfficientSlider(
+                valueState = animatedProgressState,
+                onValueChange = { sliderDragValue = it },
                 onValueChangeFinished = {
                     sliderDragValue?.let { finalValue ->
-                        onSeek((finalValue * durationForCalc).roundToLong())
+                        val targetMs = (finalValue * durationForCalc).roundToLong()
+                        optimisticPosition = targetMs
+                        onSeek(targetMs)
                     }
                     sliderDragValue = null
                 },
-                interactionSource = interactionSource,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                trackHeight = 6.dp,
-                thumbRadius = 8.dp,
+                thumbColor = thumbColor,
                 activeTrackColor = activeTrackColor,
                 inactiveTrackColor = inactiveTrackColor,
-                thumbColor = thumbColor,
-                waveLength = 30.dp,
-                isPlaying = (isPlayingProvider() && isExpanded),
-                isWaveEligible = isExpanded
+                interactionSource = interactionSource,
+                isPlaying = isPlayingProvider()
             )
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    formatDuration(effectivePosition),
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                    color = timeTextColor
-                )
-                Text(
-                    formatDuration(totalDurationValue),
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                    color = timeTextColor
-                )
-            }
+            // Isolated Time Labels
+            EfficientTimeLabels(
+                positionState = effectivePositionState,
+                duration = totalDurationValue,
+                isVisible = isVisible,
+                textColor = timeTextColor
+            )
         }
+    }
+}
+
+@Composable
+private fun EfficientSlider(
+    valueState: androidx.compose.runtime.State<Float>,
+    onValueChange: (Float) -> Unit,
+    onValueChangeFinished: () -> Unit,
+    thumbColor: Color,
+    activeTrackColor: Color,
+    inactiveTrackColor: Color,
+    interactionSource: MutableInteractionSource,
+    isPlaying: Boolean // Added parameter
+) {
+    WavySliderExpressive(
+        value = valueState.value,
+        onValueChange = onValueChange,
+        onValueChangeFinished = onValueChangeFinished,
+        activeTrackColor = activeTrackColor,
+        inactiveTrackColor = inactiveTrackColor,
+        thumbColor = thumbColor,
+        isPlaying = isPlaying,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp, horizontal = 6.dp)
+    )
+}
+
+@Composable
+private fun EfficientTimeLabels(
+    positionState: androidx.compose.runtime.State<Long>,
+    duration: Long,
+    isVisible: Boolean,
+    textColor: Color
+) {
+    // Move state derivation inside the component but remember it based on inputs
+    // Actually, we can just use derivedStateOf here.
+    val posStr by remember(isVisible) { 
+        derivedStateOf { if (isVisible) formatDuration(positionState.value) else "--:--" } 
+    }
+    val durStr by remember(isVisible, duration) { 
+        derivedStateOf { if (isVisible) formatDuration(duration) else "--:--" } 
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Reads happen here, but now we read the derived String state.
+        // If the String doesn't change, Text *might* skip recomposition if it's smart,
+        // but the Row body will still execute?
+        // No, if we read `posStr` (delegated property), we read the State<String>. 
+        // If the State<String> didn't change (because derivedStateOf result equality check), 
+        // this scope won't recompose!
+        
+        Text(
+            posStr,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+            color = textColor
+        )
+        Text(
+            durStr,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+            color = textColor
+        )
     }
 }
 
@@ -1469,7 +1599,7 @@ private fun ControlsPlaceholder(color: Color, onColor: Color) {
             ) {
                  // 5 buttons: Prev, Play/Pause, Next + 2 smaller extras
                  // Size order: 42, 42, 64, 42, 42
-                 val sizes = listOf(42.dp, 42.dp, 64.dp, 42.dp, 42.dp)
+                 val sizes = listOf(74.dp, 74.dp, 74.dp)
                  sizes.forEach { size ->
                      PlaceholderBox(
                          modifier = Modifier.size(size),
@@ -1589,42 +1719,4 @@ private fun BottomToggleRow(
     }
 }
 
-@Composable
-fun ToggleSegmentButton(
-    modifier: Modifier,
-    active: Boolean,
-    activeColor: Color,
-    inactiveColor: Color = Color.Gray,
-    activeContentColor: Color = LocalMaterialTheme.current.onPrimary,
-    activeCornerRadius: Dp = 8.dp,
-    onClick: () -> Unit,
-    iconId: Int,
-    contentDesc: String
-) {
-    val bgColor by animateColorAsState(
-        targetValue = if (active) activeColor else inactiveColor,
-        animationSpec = tween(durationMillis = 250),
-        label = ""
-    )
-    val cornerRadius by animateDpAsState(
-        targetValue = if (active) activeCornerRadius else 8.dp,
-        animationSpec = spring(stiffness = Spring.StiffnessLow),
-        label = ""
-    )
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .clip(RoundedCornerShape(cornerRadius))
-            .background(bgColor)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            painter = painterResource(iconId),
-            contentDescription = contentDesc,
-            tint = if (active) activeContentColor else LocalMaterialTheme.current.primary,
-            modifier = Modifier.size(24.dp)
-        )
-    }
-}

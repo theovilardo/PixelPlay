@@ -16,9 +16,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SongArtistCrossRef::class,
         TelegramSongEntity::class,
         TelegramChannelEntity::class,
-        SongEngagementEntity::class
+        SongEngagementEntity::class,
+        FavoritesEntity::class,
+        LyricsEntity::class
     ],
-    version = 16, // Incremented for combined updates
+    version = 18, // Incremented for combined updates
     exportSchema = false
 )
 abstract class PixelPlayDatabase : RoomDatabase() {
@@ -28,6 +30,8 @@ abstract class PixelPlayDatabase : RoomDatabase() {
     abstract fun transitionDao(): TransitionDao
     abstract fun telegramDao(): TelegramDao
     abstract fun engagementDao(): EngagementDao
+    abstract fun favoritesDao(): FavoritesDao
+    abstract fun lyricsDao(): LyricsDao // Added FavoritesDao
 
     companion object {
         val MIGRATION_3_4 = object : Migration(3, 4) {
@@ -140,6 +144,36 @@ abstract class PixelPlayDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE songs ADD COLUMN telegram_chat_id INTEGER DEFAULT NULL")
                 db.execSQL("ALTER TABLE songs ADD COLUMN telegram_file_id INTEGER DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS favorites (
+                        songId INTEGER NOT NULL PRIMARY KEY,
+                        isFavorite INTEGER NOT NULL,
+                        timestamp INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                
+                // Migrate existing favorites from songs table if possible
+                // Note: We need to cast is_favorite (boolean/int) to ensure compatibility
+                db.execSQL("""
+                    INSERT OR IGNORE INTO favorites (songId, isFavorite, timestamp)
+                    SELECT id, is_favorite, ? FROM songs WHERE is_favorite = 1
+                """, arrayOf(System.currentTimeMillis()))
+            }
+        }
+
+        val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `lyrics` (`songId` INTEGER NOT NULL, `content` TEXT NOT NULL, `isSynced` INTEGER NOT NULL DEFAULT 0, `source` TEXT, PRIMARY KEY(`songId`))"
+                )
+                database.execSQL(
+                    "INSERT INTO lyrics (songId, content) SELECT id, lyrics FROM songs WHERE lyrics IS NOT NULL AND lyrics != ''"
+                )
             }
         }
     }

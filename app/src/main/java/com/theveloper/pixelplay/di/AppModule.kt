@@ -13,6 +13,8 @@ import coil.memory.MemoryCache
 import com.theveloper.pixelplay.PixelPlayApplication
 import com.theveloper.pixelplay.data.database.AlbumArtThemeDao
 import com.theveloper.pixelplay.data.database.EngagementDao
+import com.theveloper.pixelplay.data.database.FavoritesDao
+import com.theveloper.pixelplay.data.database.LyricsDao
 import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.PixelPlayDatabase
 import com.theveloper.pixelplay.data.database.SearchHistoryDao
@@ -87,7 +89,9 @@ object AppModule {
             PixelPlayDatabase.MIGRATION_12_13,
             PixelPlayDatabase.MIGRATION_13_14,
             PixelPlayDatabase.MIGRATION_14_15,
-            PixelPlayDatabase.MIGRATION_15_16
+            PixelPlayDatabase.MIGRATION_15_16,
+            PixelPlayDatabase.MIGRATION_16_17,
+            PixelPlayDatabase.MIGRATION_17_18
         )
             .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
@@ -123,6 +127,18 @@ object AppModule {
         return database.engagementDao()
     }
 
+    @Singleton
+    @Provides
+    fun provideFavoritesDao(database: PixelPlayDatabase): FavoritesDao {
+        return database.favoritesDao()
+    }
+
+    @Singleton
+    @Provides
+    fun provideLyricsDao(database: PixelPlayDatabase): LyricsDao {
+        return database.lyricsDao()
+    }
+
     @Provides
     @Singleton
     fun provideImageLoader(
@@ -151,12 +167,30 @@ object AppModule {
     fun provideLyricsRepository(
         @ApplicationContext context: Context,
         lrcLibApiService: LrcLibApiService,
-        musicDao: MusicDao
+        musicDao: MusicDao,
+        lyricsDao: LyricsDao
     ): LyricsRepository {
         return LyricsRepositoryImpl(
             context = context,
             lrcLibApiService = lrcLibApiService,
-            musicDao = musicDao
+            //musicDao = musicDao,
+            lyricsDao = lyricsDao
+        )
+    }
+
+    @Provides
+    @Singleton
+    fun provideSongRepository(
+        @ApplicationContext context: Context,
+        mediaStoreObserver: com.theveloper.pixelplay.data.observer.MediaStoreObserver,
+        favoritesDao: FavoritesDao,
+        userPreferencesRepository: UserPreferencesRepository
+    ): com.theveloper.pixelplay.data.repository.SongRepository {
+        return com.theveloper.pixelplay.data.repository.MediaStoreSongRepository(
+            context = context,
+            mediaStoreObserver = mediaStoreObserver,
+            favoritesDao = favoritesDao,
+            userPreferencesRepository = userPreferencesRepository
         )
     }
 
@@ -172,11 +206,13 @@ object AppModule {
         @ApplicationContext context: Context,
         userPreferencesRepository: UserPreferencesRepository,
         searchHistoryDao: SearchHistoryDao,
-        musicDao: MusicDao, // Añadir MusicDao como parámetro
+        musicDao: MusicDao,
         lyricsRepository: LyricsRepository,
         telegramDao: com.theveloper.pixelplay.data.database.TelegramDao,
         telegramCacheManager: com.theveloper.pixelplay.data.telegram.TelegramCacheManager,
-        telegramRepository: com.theveloper.pixelplay.data.telegram.TelegramRepository
+        telegramRepository: com.theveloper.pixelplay.data.telegram.TelegramRepository,
+        songRepository: com.theveloper.pixelplay.data.repository.SongRepository,
+        favoritesDao: FavoritesDao
     ): MusicRepository {
         return MusicRepositoryImpl(
             context = context,
@@ -186,8 +222,11 @@ object AppModule {
             lyricsRepository = lyricsRepository,
             telegramDao = telegramDao,
             telegramCacheManager = telegramCacheManager,
-            telegramRepository = telegramRepository
+            telegramRepository = telegramRepository,
+            songRepository = songRepository,
+            favoritesDao = favoritesDao
         )
+
     }
 
     @Provides

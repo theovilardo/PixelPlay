@@ -6,7 +6,6 @@ import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Color
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Trace
@@ -32,7 +31,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -44,7 +42,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -110,7 +107,6 @@ import com.theveloper.pixelplay.presentation.viewmodel.MainViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.PixelPlayTheme
 import com.theveloper.pixelplay.utils.CrashHandler
-import com.theveloper.pixelplay.utils.CrashLogData
 import com.theveloper.pixelplay.utils.LogUtils
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.collections.immutable.persistentListOf
@@ -119,6 +115,7 @@ import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import javax.annotation.concurrent.Immutable
 import javax.inject.Inject
+import com.theveloper.pixelplay.utils.CrashLogData
 
 @Immutable
 data class BottomNavItem(
@@ -147,6 +144,7 @@ class MainActivity : ComponentActivity() {
         // Handle the result in onResume
     }
 
+    @OptIn(ExperimentalPermissionsApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         LogUtils.d(this, "onCreate")
         installSplashScreen()
@@ -177,11 +175,41 @@ class MainActivity : ComponentActivity() {
             // Crash report dialog state
             var showCrashReportDialog by remember { mutableStateOf(false) }
             var crashLogData by remember { mutableStateOf<CrashLogData?>(null) }
-
-            LaunchedEffect(isSetupComplete) {
-                showSetupScreen = if (isBenchmarkMode) false else !isSetupComplete
-            }
             
+            // Permissions Logic
+            val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                listOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+            }
+            @OptIn(ExperimentalPermissionsApi::class)
+            val permissionState = rememberMultiplePermissionsState(permissions = permissions)
+            val needsAllFilesAccess = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+                    !android.os.Environment.isExternalStorageManager()
+
+            // Determine if we need to show Setup based on completion OR missing permissions
+            val permissionsValid = permissionState.allPermissionsGranted && !needsAllFilesAccess
+
+            LaunchedEffect(isSetupComplete, permissionsValid) {
+                // If benchmark, skip setup.
+                // Otherwise, show setup if: Setup incomplete OR Permissions invalid
+                // FIX: Only Open setup automatically. Close is handled by callback to prevent premature closing if permissions change mid-flow.
+                if (!isBenchmarkMode && (!isSetupComplete || !permissionsValid)) {
+                    showSetupScreen = true
+                } else if (showSetupScreen == null) {
+                    // FIX: If starting up and conditions are valid, explicitly go to main app.
+                    showSetupScreen = false
+                }
+            }
+
+            // Sync Trigger: When we are NOT showing setup (meaning permissions are good and setup is done)
+            LaunchedEffect(showSetupScreen) {
+                if (showSetupScreen == false) {
+                     LogUtils.i(this, "Setup complete/skipped and permissions valid. Starting sync.")
+                     mainViewModel.startSync()
+                }
+            }
+
             // Check for crash log when app starts
             LaunchedEffect(Unit) {
                 if (CrashHandler.hasCrashLog()) {
@@ -210,9 +238,15 @@ class MainActivity : ComponentActivity() {
                             label = "SetupTransition"
                         ) { targetState ->
                             if (targetState == true) {
-                                SetupScreen(onSetupComplete = { showSetupScreen = false })
+                                SetupScreen(onSetupComplete = {
+                                    // Re-check permissions on completion.
+                                    // If permissions are still missing despite setup "completing" (e.g. user skipped or ignored?), 
+                                    // the LaunchedEffect(permissionsValid) above handles state, 
+                                    // but we explicitly update local state here too.
+                                    showSetupScreen = false
+                                })
                             } else {
-                                HandlePermissions(mainViewModel, isBenchmarkMode)
+                                MainAppContent(playerViewModel, mainViewModel)
                             }
                         }
                     }
@@ -261,7 +295,7 @@ class MainActivity : ComponentActivity() {
                 playerViewModel.showPlayer()
             }
 
-            intent.action == Intent.ACTION_VIEW && intent.data != null -> {
+            intent.action == android.content.Intent.ACTION_VIEW && intent.data != null -> {
                 intent.data?.let { uri ->
                     persistUriPermissionIfNeeded(intent, uri)
                     playerViewModel.playExternalUri(uri)
@@ -269,7 +303,7 @@ class MainActivity : ComponentActivity() {
                 clearExternalIntentPayload(intent)
             }
 
-            intent.action == Intent.ACTION_SEND && intent.type?.startsWith("audio/") == true -> {
+            intent.action == android.content.Intent.ACTION_SEND && intent.type?.startsWith("audio/") == true -> {
                 resolveStreamUri(intent)?.let { uri ->
                     persistUriPermissionIfNeeded(intent, uri)
                     playerViewModel.playExternalUri(uri)
@@ -299,12 +333,12 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_PLAYLIST_ID = "playlist_id"
     }
 
-    private fun resolveStreamUri(intent: Intent): Uri? {
+    private fun resolveStreamUri(intent: Intent): android.net.Uri? {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)?.let { return it }
+            intent.getParcelableExtra(android.content.Intent.EXTRA_STREAM, android.net.Uri::class.java)?.let { return it }
         } else {
             @Suppress("DEPRECATION")
-            val legacyUri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+            val legacyUri = intent.getParcelableExtra<android.net.Uri>(android.content.Intent.EXTRA_STREAM)
             if (legacyUri != null) return legacyUri
         }
 
@@ -317,18 +351,18 @@ class MainActivity : ComponentActivity() {
         return intent.data
     }
 
-    private fun persistUriPermissionIfNeeded(intent: Intent, uri: Uri) {
+    private fun persistUriPermissionIfNeeded(intent: Intent, uri: android.net.Uri) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            val hasPersistablePermission = intent.flags and Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION != 0
+            val hasPersistablePermission = intent.flags and android.content.Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION != 0
             if (hasPersistablePermission) {
-                val takeFlags = intent.flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                val takeFlags = intent.flags and (android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
                 if (takeFlags != 0) {
                     try {
                         contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     } catch (securityException: SecurityException) {
-                        Log.w("MainActivity", "Unable to persist URI permission for $uri", securityException)
+                        android.util.Log.w("MainActivity", "Unable to persist URI permission for $uri", securityException)
                     } catch (illegalArgumentException: IllegalArgumentException) {
-                        Log.w("MainActivity", "Persistable URI permission not granted for $uri", illegalArgumentException)
+                        android.util.Log.w("MainActivity", "Persistable URI permission not granted for $uri", illegalArgumentException)
                     }
                 }
             }
@@ -338,58 +372,7 @@ class MainActivity : ComponentActivity() {
     private fun clearExternalIntentPayload(intent: Intent) {
         intent.data = null
         intent.clipData = null
-        intent.removeExtra(Intent.EXTRA_STREAM)
-    }
-
-    @OptIn(ExperimentalPermissionsApi::class)
-    @Composable
-    private fun HandlePermissions(mainViewModel: MainViewModel, isBenchmark: Boolean) {
-        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            listOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
-        } else {
-            listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
-        }
-        val permissionState = rememberMultiplePermissionsState(permissions = permissions)
-
-        var showAllFilesAccessDialog by remember { mutableStateOf(false) }
-        val needsAllFilesAccess = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
-                !android.os.Environment.isExternalStorageManager()
-
-        LaunchedEffect(Unit) {
-            if (!permissionState.allPermissionsGranted) {
-                permissionState.launchMultiplePermissionRequest()
-            }
-        }
-
-        if (permissionState.allPermissionsGranted) {
-            LaunchedEffect(Unit) {
-                LogUtils.i(this, "Permissions granted")
-                Log.i("MainActivity", "Permissions granted. Calling mainViewModel.startSync()")
-                mainViewModel.startSync()
-                if (needsAllFilesAccess && !isBenchmark) {
-                    showAllFilesAccessDialog = true
-                }
-            }
-            MainAppContent(playerViewModel, mainViewModel)
-        } else {
-            PermissionsNotGrantedScreen {
-                permissionState.launchMultiplePermissionRequest()
-            }
-        }
-
-        if (showAllFilesAccessDialog) {
-            AllFilesAccessDialog(
-                onDismiss = { showAllFilesAccessDialog = false },
-                onConfirm = {
-                    showAllFilesAccessDialog = false
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                        intent.data = "package:$packageName".toUri()
-                        requestAllFilesAccessLauncher.launch(intent)
-                    }
-                }
-            )
-        }
+        intent.removeExtra(android.content.Intent.EXTRA_STREAM)
     }
 
     @androidx.annotation.OptIn(UnstableApi::class)
@@ -435,7 +418,7 @@ class MainActivity : ComponentActivity() {
                         success = true
                         _pendingPlaylistNavigation.value = null
                     } catch (e: IllegalArgumentException) {
-                        kotlinx.coroutines.delay(100)
+                        delay(100)
                         attempts++
                     }
                 }
@@ -592,7 +575,7 @@ class MainActivity : ComponentActivity() {
                     ) {
                         derivedStateOf {
                             if (navBarStyle == NavBarStyle.FULL_WIDTH) {
-                                return@derivedStateOf lerp(32.dp, 26.dp, playerContentExpansionFraction)
+                                return@derivedStateOf lerp(navBarCornerRadius.dp, 26.dp, playerContentExpansionFraction)
                             }
 
                             if (showPlayerContentArea) {
@@ -804,34 +787,6 @@ class MainActivity : ComponentActivity() {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            }
-        }
-    }
-
-    @Composable
-    fun PermissionsNotGrantedScreen(onRequestPermissions: () -> Unit) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "Permission Required",
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "PixelPlayer needs access to your audio files to scan and play your music. Please grant permission to continue.",
-                style = MaterialTheme.typography.bodyLarge,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            Button(onClick = onRequestPermissions) {
-                Text("Grant Permission")
             }
         }
     }

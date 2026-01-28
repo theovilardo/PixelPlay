@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -59,7 +60,8 @@ fun rememberSmoothProgress(
     totalDuration: Long,
     sampleWhilePlayingMs: Long = 200L,
     sampleWhilePausedMs: Long = 800L,
-): Pair<Float, Long> {
+    isVisible: Boolean = true
+): Pair<androidx.compose.runtime.State<Float>, androidx.compose.runtime.State<Long>> {
     var sampledPosition by remember { mutableLongStateOf(0L) }
     var targetFraction by remember { mutableFloatStateOf(0f) }
 
@@ -69,7 +71,9 @@ fun rememberSmoothProgress(
     val safeDuration = totalDuration.coerceAtLeast(1L)
     val safeUpperBound = totalDuration.coerceAtLeast(0L)
 
-    LaunchedEffect(totalDuration, sampleWhilePlayingMs, sampleWhilePausedMs) {
+    LaunchedEffect(totalDuration, sampleWhilePlayingMs, sampleWhilePausedMs, isVisible) {
+        if (!isVisible) return@LaunchedEffect
+
         while (isActive) {
             val isPlaying = latestIsPlayingProvider()
             val rawPosition = latestPositionProvider()
@@ -87,12 +91,28 @@ fun rememberSmoothProgress(
     val animationDuration = ((if (isPlaying) sampleWhilePlayingMs else sampleWhilePausedMs) * 0.9f)
         .roundToInt()
         .coerceAtLeast(1)
-    val smooth by animateFloatAsState(
-        targetValue = targetFraction,
-        animationSpec = tween(durationMillis = animationDuration, easing = LinearEasing),
-        label = "SmoothProgressAnim"
-    )
-    val animatedPosition = (smooth * safeDuration).roundToLong().coerceIn(0L, totalDuration)
-    val displayedPosition = if (isPlaying) animatedPosition else sampledPosition
-    return smooth to displayedPosition
+    
+    val smoothState = if (isVisible) {
+        animateFloatAsState(
+            targetValue = targetFraction,
+            animationSpec = tween(durationMillis = animationDuration, easing = LinearEasing),
+            label = "SmoothProgressAnim"
+        )
+    } else {
+        rememberUpdatedState(targetFraction)
+    }
+
+    val animatedPositionState = remember(smoothState, safeDuration, totalDuration) {
+        derivedStateOf {
+            (smoothState.value * safeDuration).roundToLong().coerceIn(0L, totalDuration)
+        }
+    }
+    
+    val displayedPositionState = remember(isPlaying, animatedPositionState, sampledPosition) {
+        derivedStateOf {
+            if (isPlaying) animatedPositionState.value else sampledPosition
+        }
+    }
+
+    return smoothState to displayedPositionState
 }

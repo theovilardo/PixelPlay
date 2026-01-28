@@ -26,7 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.theveloper.pixelplay.presentation.components.WavyMusicSlider
+import com.theveloper.pixelplay.presentation.components.WavySliderExpressive
 import com.theveloper.pixelplay.utils.formatDuration
 import kotlin.math.roundToLong
 
@@ -60,40 +60,41 @@ fun PlayerSeekBar(
             .clip(CircleShape)
             .background(backgroundColor)
             .padding(horizontal = 16.dp, vertical = 0.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            modifier = Modifier.weight(0.15f),
-            text = formatDuration(currentPosition),
-            textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-            color = onBackgroundColor,
-            fontSize = 12.sp
-        )
-        WavyMusicSlider(
+//        Text(
+//            modifier = Modifier.weight(0.2f),
+//            text = formatDuration(currentPosition),
+//            textAlign = TextAlign.Center,
+//            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+//            color = onBackgroundColor,
+//            fontSize = 12.sp
+//        )
+        WavySliderExpressive(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.7f),
+                .padding(horizontal = 6.dp),
+                //.weight(0.8f),
             value = progressFraction,
             onValueChange = { newFraction ->
                 onSeek((newFraction * totalDuration).roundToLong())
             },
-            trackHeight = 6.dp,
+            strokeWidth = 5.dp, // Was trackHeight
             thumbRadius = 8.dp,
             activeTrackColor = primaryColor,
             inactiveTrackColor = primaryColor.copy(alpha = 0.2f),
             thumbColor = primaryColor,
-            waveLength = 30.dp,
+            wavelength = 30.dp, // Was waveLength
             isPlaying = isPlaying
         )
-        Text(
-            modifier = Modifier.weight(0.15f),
-            text = formatDuration(totalDuration),
-            textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-            color = onBackgroundColor,
-            fontSize = 12.sp
-        )
+//        Text(
+//            modifier = Modifier.weight(0.2f),
+//            text = formatDuration(totalDuration),
+//            textAlign = TextAlign.Center,
+//            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+//            color = onBackgroundColor,
+//            fontSize = 12.sp
+//        )
     }
 }

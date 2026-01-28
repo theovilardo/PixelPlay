@@ -197,9 +197,9 @@ fun QueueBottomSheet(
     onToggleRepeat: () -> Unit,
     onToggleShuffle: () -> Unit,
     onClearQueue: () -> Unit,
-    activeTimerValueDisplay: String?,
-    playCount: Float,
-    isEndOfTrackTimerActive: Boolean,
+    activeTimerValueDisplay: androidx.compose.runtime.State<String?>,
+    playCount: androidx.compose.runtime.State<Float>,
+    isEndOfTrackTimerActive: androidx.compose.runtime.State<Boolean>,
     onSetPredefinedTimer: (minutes: Int) -> Unit,
     onSetEndOfTrackTimer: (enable: Boolean) -> Unit,
     onOpenCustomTimePicker: () -> Unit,
@@ -628,7 +628,9 @@ fun QueueBottomSheet(
                                     ,
                                     onClick = { onPlaySong(song) },
                                     song = song,
-                                    isCurrentSong = song.id == currentSongId,
+                                    // Use index comparison to correctly highlight only the current song
+                                    // even when the same song appears multiple times in the queue
+                                    isCurrentSong = index == currentSongDisplayIndex,
                                     isPlaying = isPlaying,
                                     isDragging = isDragging,
                                     onRemoveClick = { onRemoveSong(song.id) },
@@ -699,10 +701,15 @@ fun QueueBottomSheet(
                     verticalAlignment = Alignment.CenterVertically // Alinea FAB y Toolbar al centro verticalmente
                 ) {
                     // Extracted toolbar for better recomposition behavior
+    val isTimerActiveDerived = remember { 
+        derivedStateOf { activeTimerValueDisplay.value != null }
+    }
+    
+    // ...
                     QueueControlsToolbar(
                         isShuffleOn = isShuffleOn,
                         repeatMode = repeatMode,
-                        isTimerActive = activeTimerValueDisplay != null,
+                        isTimerActive = isTimerActiveDerived,
                         onToggleShuffle = onToggleShuffle,
                         onToggleRepeat = onToggleRepeat,
                         onTimerClick = { showTimerOptions = true }
@@ -850,9 +857,9 @@ fun QueueBottomSheet(
         if (showTimerOptions) {
             TimerOptionsBottomSheet(
                 onPlayCounter = onPlayCounter,
-                activeTimerValueDisplay = activeTimerValueDisplay,
-                playCount = playCount,
-                isEndOfTrackTimerActive = isEndOfTrackTimerActive,
+                activeTimerValueDisplay = activeTimerValueDisplay.value,
+                playCount = playCount.value,
+                isEndOfTrackTimerActive = isEndOfTrackTimerActive.value,
                 onDismiss = { showTimerOptions = false },
                 onSetPredefinedTimer = onSetPredefinedTimer,
                 onSetEndOfTrackTimer = onSetEndOfTrackTimer,
@@ -987,7 +994,7 @@ private fun QueueHeader(
 private fun QueueControlsToolbar(
     isShuffleOn: Boolean,
     repeatMode: Int,
-    isTimerActive: Boolean,
+    isTimerActive: androidx.compose.runtime.State<Boolean>,
     onToggleShuffle: () -> Unit,
     onToggleRepeat: () -> Unit,
     onTimerClick: () -> Unit,
@@ -1050,7 +1057,7 @@ private fun QueueControlsToolbar(
             Spacer(modifier = Modifier.width(12.dp))
             FilledTonalIconButton(
                 onClick = onTimerClick,
-                colors = if (isTimerActive) activeColors else inactiveColors,
+                colors = if (isTimerActive.value) activeColors else inactiveColors,
                 modifier = Modifier.size(48.dp)
             ) {
                 Icon(

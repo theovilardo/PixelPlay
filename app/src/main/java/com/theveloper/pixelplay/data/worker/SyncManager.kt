@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
+import com.theveloper.pixelplay.data.observer.MediaStoreObserver
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -49,7 +50,8 @@ data class SyncProgress(
 @Singleton
 class SyncManager @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val mediaStoreObserver: MediaStoreObserver
 ) {
     private val workManager = WorkManager.getInstance(context)
     private val sharingScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -68,6 +70,10 @@ class SyncManager @Inject constructor(
                 started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
                 replay = 1
             )
+
+    init {
+        // Ensure worker is not cancelled blindly on startup
+    }
 
     /**
      * Flow that exposes the detailed sync progress including song count.
@@ -121,27 +127,13 @@ class SyncManager @Inject constructor(
             )
 
     fun sync() {
-        sharingScope.launch {
-            val lastSyncTime = userPreferencesRepository.getLastSyncTimestamp()
-            val currentTime = System.currentTimeMillis()
-
-            if (lastSyncTime == 0L || (currentTime - lastSyncTime) >= MIN_SYNC_INTERVAL_MS) {
-                Log.d(TAG, "Syncing library (last sync: ${(currentTime - lastSyncTime) / 1000}s ago)")
-                val syncRequest = if (lastSyncTime == 0L) {
-                    Log.d(TAG, "Initial sync detected. Using REBUILD mode for maximum speed.")
-                    SyncWorker.rebuildDatabaseWork()
-                } else {
-                    SyncWorker.startUpSyncWork()
-                }
-                workManager.enqueueUniqueWork(
-                    SyncWorker.WORK_NAME,
-                    ExistingWorkPolicy.REPLACE,
-                    syncRequest
-                )
-            } else {
-                Log.d(TAG, "Skipping sync - last sync was ${(currentTime - lastSyncTime) / 1000}s ago (min: ${MIN_SYNC_INTERVAL_MS / 1000}s)")
-            }
-        }
+        Log.i(TAG, "Sync requested - Scheduling Incremental Sync")
+        workManager.enqueueUniqueWork(
+            SyncWorker.WORK_NAME,
+            ExistingWorkPolicy.KEEP,
+            SyncWorker.incrementalSyncWork()
+        )
+        mediaStoreObserver.forceRescan() // Keep this for reactive updates
     }
 
     /**
@@ -150,12 +142,8 @@ class SyncManager @Inject constructor(
      * This is the recommended sync method for pull-to-refresh actions.
      */
     fun incrementalSync() {
-        val syncRequest = SyncWorker.incrementalSyncWork()
-        workManager.enqueueUniqueWork(
-            SyncWorker.WORK_NAME,
-            ExistingWorkPolicy.REPLACE,
-            syncRequest
-        )
+        Log.i(TAG, "Incremental sync requested - Triggering MediaStore rescan")
+        mediaStoreObserver.forceRescan()
     }
 
     /**
@@ -163,12 +151,8 @@ class SyncManager @Inject constructor(
      * Use this when the user explicitly wants to force a complete rescan.
      */
     fun fullSync() {
-        val syncRequest = SyncWorker.fullSyncWork(deepScan = false)
-        workManager.enqueueUniqueWork(
-            SyncWorker.WORK_NAME,
-            ExistingWorkPolicy.REPLACE,
-            syncRequest
-        )
+        Log.i(TAG, "Full sync requested - Triggering MediaStore rescan")
+        mediaStoreObserver.forceRescan()
     }
 
     /**
@@ -177,12 +161,8 @@ class SyncManager @Inject constructor(
      * Use when database is corrupted or songs are missing.
      */
     fun rebuildDatabase() {
-        val syncRequest = SyncWorker.rebuildDatabaseWork()
-        workManager.enqueueUniqueWork(
-            SyncWorker.WORK_NAME,
-            ExistingWorkPolicy.REPLACE,
-            syncRequest
-        )
+        Log.i(TAG, "Rebuild database requested - Triggering MediaStore rescan")
+        mediaStoreObserver.forceRescan()
     }
 
     /**
@@ -190,12 +170,8 @@ class SyncManager @Inject constructor(
      * existente. Ideal para el botón de "Refrescar Biblioteca".
      */
     fun forceRefresh() {
-        val syncRequest = SyncWorker.startUpSyncWork(true)
-        workManager.enqueueUniqueWork(
-            SyncWorker.WORK_NAME,
-            ExistingWorkPolicy.REPLACE,
-            syncRequest
-        )
+        Log.i(TAG, "Force refresh requested - Triggering MediaStore rescan")
+        mediaStoreObserver.forceRescan()
     }
 
     companion object {

@@ -39,6 +39,7 @@ import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Science
+import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -72,6 +73,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
@@ -93,6 +95,7 @@ import com.theveloper.pixelplay.presentation.viewmodel.LyricsRefreshProgress
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.SettingsViewModel
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsCategoryScreen(
@@ -321,6 +324,17 @@ fun SettingsCategoryScreen(
                             )
                         }
                         SettingsCategory.APPEARANCE -> {
+                            val useSmoothCorners by settingsViewModel.useSmoothCorners.collectAsState()
+
+                            SwitchSettingItem(
+                                title = "Use Smooth Corners",
+                                subtitle = "Use complex shaped corners effectively improving aesthetics but may affect performance on low-end devices",
+                                checked = useSmoothCorners,
+                                onCheckedChange = settingsViewModel::setUseSmoothCorners,
+                                leadingIcon = { Icon(painterResource(R.drawable.rounded_rounded_corner_24), null, tint = MaterialTheme.colorScheme.secondary) }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            
                             ThemeSelectorItem(
                                 label = "App Theme",
                                 description = "Switch between light, dark, or follow system appearance.",
@@ -357,7 +371,32 @@ fun SettingsCategoryScreen(
                                 onSelectionChanged = { settingsViewModel.setNavBarStyle(it) },
                                 leadingIcon = { Icon(Icons.Outlined.Style, null, tint = MaterialTheme.colorScheme.secondary) }
                             )
-                            if (uiState.navBarStyle == NavBarStyle.DEFAULT) {
+                            Spacer(Modifier.height(4.dp))
+                            SwitchSettingItem(
+                                title = "Immersive Lyrics",
+                                subtitle = "Auto-hide controls and enlarge text.",
+                                checked = uiState.immersiveLyricsEnabled,
+                                onCheckedChange = { settingsViewModel.setImmersiveLyricsEnabled(it) },
+                                leadingIcon = { Icon(painterResource(R.drawable.rounded_lyrics_24), null, tint = MaterialTheme.colorScheme.secondary) }
+                            )
+
+                            if (uiState.immersiveLyricsEnabled) {
+                                Spacer(Modifier.height(4.dp))
+                                ThemeSelectorItem(
+                                    label = "Auto-hide Delay",
+                                    description = "Time before controls hide.",
+                                    options = mapOf(
+                                        "3000" to "3s",
+                                        "4000" to "4s",
+                                        "5000" to "5s",
+                                        "6000" to "6s"
+                                    ),
+                                    selectedKey = uiState.immersiveLyricsTimeout.toString(),
+                                    onSelectionChanged = { settingsViewModel.setImmersiveLyricsTimeout(it.toLong()) },
+                                    leadingIcon = { Icon(Icons.Rounded.Timer, null, tint = MaterialTheme.colorScheme.secondary) }
+                                )
+                            }
+                            // if (uiState.navBarStyle == NavBarStyle.DEFAULT) { // Allow for both modes now
                                 Spacer(Modifier.height(4.dp))
                                 SettingsItem(
                                     title = "NavBar Corner Radius",
@@ -366,7 +405,7 @@ fun SettingsCategoryScreen(
                                     trailingIcon = { Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                                     onClick = { navController.navigate("nav_bar_corner_radius") }
                                 )
-                            }
+                            //}
                             Spacer(Modifier.height(4.dp))
                             ThemeSelectorItem(
                                 label = "Carousel Style",
@@ -483,6 +522,14 @@ fun SettingsCategoryScreen(
                                     }
                                 },
                                 leadingIcon = { Icon(painterResource(R.drawable.rounded_all_inclusive_24), null, tint = MaterialTheme.colorScheme.secondary) }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            SwitchSettingItem(
+                                title = "Tap background closes player",
+                                subtitle = "Tap the blurred background to close the player sheet.",
+                                checked = uiState.tapBackgroundClosesPlayer,
+                                onCheckedChange = { settingsViewModel.setTapBackgroundClosesPlayer(it) },
+                                leadingIcon = { Icon(painterResource(R.drawable.rounded_touch_app_24), null, tint = MaterialTheme.colorScheme.secondary) }
                             )
                         }
                         SettingsCategory.AI_INTEGRATION -> {

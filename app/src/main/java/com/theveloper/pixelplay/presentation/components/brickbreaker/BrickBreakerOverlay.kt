@@ -281,9 +281,23 @@ fun BrickBreakerOverlay(
         attachBallToPaddle()
     }
 
+    var isInitialized by remember { mutableStateOf(false) }
+
     LaunchedEffect(areaSize) {
         if (areaSize != IntSize.Zero) {
-            resetGame(true)
+            if (!isInitialized) {
+                resetGame(true)
+                isInitialized = true
+            } else {
+                // Resize logic: update paddle constraints without resetting game progress
+                val widthFactor = (0.25f - (level * 0.02f)).coerceAtLeast(0.10f)
+                paddleWidthPx = areaSize.width * widthFactor
+                paddleX = paddleX.coerceIn(0f, areaSize.width - paddleWidthPx)
+                
+                if (!ballLaunched && !isGameOver && !hasWon) {
+                    attachBallToPaddle()
+                }
+            }
         }
     }
 

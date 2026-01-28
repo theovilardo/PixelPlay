@@ -114,6 +114,7 @@ import com.theveloper.pixelplay.presentation.components.scoped.rememberExpansion
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.StablePlayerState
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.coroutineScope
@@ -163,26 +164,42 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
-    // Granular collection for playerUiState fields used directly by UnifiedPlayerSheet or its main sub-components
-    val currentPosition by remember {
+    val infrequentPlayerStateReference = remember {
+        playerViewModel.stablePlayerState
+            .map { it.copy(currentPosition = 0L) } // Keep totalDuration, only mask volatile position
+            .distinctUntilChanged()
+    }.collectAsState(initial = StablePlayerState())
+    val infrequentPlayerState = infrequentPlayerStateReference.value
+
+    val currentPositionState = remember {
         playerViewModel.playerUiState.map { it.currentPosition }.distinctUntilChanged()
     }.collectAsState(initial = 0L)
-    val remotePosition by playerViewModel.remotePosition.collectAsState()
+
+    val remotePositionState = playerViewModel.remotePosition.collectAsState()
+    // We observe isRemotePlaybackActive directly as switching modes is a major event
     val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
-    val positionToDisplay = if (isRemotePlaybackActive) remotePosition else currentPosition
+    
+    // Position Provider: Reads state inside the lambda to prevent recomposition of UnifiedPlayerSheet
+    val positionToDisplayProvider = remember(isRemotePlaybackActive) {
+        {
+            if (isRemotePlaybackActive) remotePositionState.value
+            else currentPositionState.value
+        }
+    }
+    
     val isFavorite by playerViewModel.isCurrentSongFavorite.collectAsState()
 
     val currentPlaybackQueue by remember {
         playerViewModel.playerUiState.map { it.currentPlaybackQueue }.distinctUntilChanged()
     }.collectAsState(initial = persistentListOf())
+
     val currentQueueSourceName by remember {
         playerViewModel.playerUiState.map { it.currentQueueSourceName }.distinctUntilChanged()
     }.collectAsState(initial = "")
+
     val showDismissUndoBar by remember {
         playerViewModel.playerUiState.map { it.showDismissUndoBar }.distinctUntilChanged()
     }.collectAsState(initial = false)
-
 
     val currentSheetContentState by playerViewModel.sheetState.collectAsState()
     val predictiveBackCollapseProgress by playerViewModel.predictiveBackCollapseFraction.collectAsState()
@@ -192,12 +209,15 @@ fun UnifiedPlayerSheet(
     val navBarStyle by playerViewModel.navBarStyle.collectAsState()
     val carouselStyle by playerViewModel.carouselStyle.collectAsState()
     val fullPlayerLoadingTweaks by playerViewModel.fullPlayerLoadingTweaks.collectAsState()
-    LaunchedEffect(stablePlayerState.currentSong?.id) {
-        if (stablePlayerState.currentSong != null) {
+    val tapBackgroundClosesPlayer by playerViewModel.tapBackgroundClosesPlayer.collectAsState()
+    val useSmoothCorners by playerViewModel.useSmoothCorners.collectAsState()
+
+    LaunchedEffect(infrequentPlayerState.currentSong?.id) {
+        if (infrequentPlayerState.currentSong != null) {
             prewarmFullPlayer = true
         }
     }
-    LaunchedEffect(stablePlayerState.currentSong?.id, prewarmFullPlayer) {
+    LaunchedEffect(infrequentPlayerState.currentSong?.id, prewarmFullPlayer) {
         if (prewarmFullPlayer) {
             delay(32)
             prewarmFullPlayer = false
@@ -231,8 +251,8 @@ fun UnifiedPlayerSheet(
 
     val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
 
-    val showPlayerContentArea by remember {
-        derivedStateOf { stablePlayerState.currentSong != null || isCastConnecting }
+    val showPlayerContentArea by remember(infrequentPlayerState.currentSong, isCastConnecting) {
+        derivedStateOf { infrequentPlayerState.currentSong != null || isCastConnecting }
     }
 
     // Use the granular showDismissUndoBar here
@@ -513,8 +533,8 @@ fun UnifiedPlayerSheet(
         navBarStyle,
         showPlayerContentArea,
         playerContentExpansionFraction,
-        stablePlayerState.isPlaying,
-        stablePlayerState.currentSong,
+        infrequentPlayerState.isPlaying,
+        infrequentPlayerState.currentSong,
         predictiveBackCollapseProgress,
         currentSheetContentState,
         swipeDismissProgress.value,
@@ -542,7 +562,7 @@ fun UnifiedPlayerSheet(
                             26.dp
                         }
                     } else {
-                        if (!stablePlayerState.isPlaying || stablePlayerState.currentSong == null) {
+                        if (!infrequentPlayerState.isPlaying || infrequentPlayerState.currentSong == null) {
                             if (isNavBarHidden) 32.dp else navBarCornerRadius.dp
                         } else {
                             if (isNavBarHidden) 32.dp else 12.dp
@@ -828,17 +848,32 @@ fun UnifiedPlayerSheet(
 
     val miniAlpha by t.animateFloat(label = "miniAlpha") { f -> (1f - f * 2f).coerceIn(0f, 1f) }
 
-    val playerShadowShape = remember(overallSheetTopCornerRadius, playerContentActualBottomRadius) {
-        AbsoluteSmoothCornerShape(
-            cornerRadiusTL = overallSheetTopCornerRadius,
-            smoothnessAsPercentBL = 60,
-            cornerRadiusTR = overallSheetTopCornerRadius,
-            smoothnessAsPercentBR = 60,
-            cornerRadiusBR = playerContentActualBottomRadius,
-            smoothnessAsPercentTL = 60,
-            cornerRadiusBL = playerContentActualBottomRadius,
-            smoothnessAsPercentTR = 60
-        )
+    val useSmoothShape by remember(useSmoothCorners, isDragging, playerContentExpansionFraction.isRunning) {
+        derivedStateOf {
+            useSmoothCorners && !isDragging && !playerContentExpansionFraction.isRunning
+        }
+    }
+
+    val playerShadowShape = remember(overallSheetTopCornerRadius, playerContentActualBottomRadius, useSmoothShape) {
+        if (useSmoothShape) {
+             AbsoluteSmoothCornerShape(
+                cornerRadiusTL = overallSheetTopCornerRadius,
+                smoothnessAsPercentBL = 60,
+                cornerRadiusTR = overallSheetTopCornerRadius,
+                smoothnessAsPercentBR = 60,
+                cornerRadiusBR = playerContentActualBottomRadius,
+                smoothnessAsPercentTL = 60,
+                cornerRadiusBL = playerContentActualBottomRadius,
+                smoothnessAsPercentTR = 60
+            )
+        } else {
+            RoundedCornerShape(
+                topStart = overallSheetTopCornerRadius,
+                topEnd = overallSheetTopCornerRadius,
+                bottomStart = playerContentActualBottomRadius,
+                bottomEnd = playerContentActualBottomRadius
+            )
+        }
     }
 
     val isCollapsedState =
@@ -1006,16 +1041,7 @@ fun UnifiedPlayerSheet(
                                 )
                                 .background(
                                     color = albumColorScheme.primaryContainer,
-                                    shape = AbsoluteSmoothCornerShape(
-                                        cornerRadiusTL = overallSheetTopCornerRadius,
-                                        smoothnessAsPercentBL = 60,
-                                        cornerRadiusTR = overallSheetTopCornerRadius,
-                                        smoothnessAsPercentBR = 60,
-                                        cornerRadiusBR = playerContentActualBottomRadius,
-                                        smoothnessAsPercentTL = 60,
-                                        cornerRadiusBL = playerContentActualBottomRadius,
-                                        smoothnessAsPercentTR = 60
-                                    )
+                                    shape = playerShadowShape
                                 )
                                 .clipToBounds()
                                 .pointerInput(Unit) {
@@ -1131,16 +1157,17 @@ fun UnifiedPlayerSheet(
                                     )
                                 }
                                 .clickable(
-                                    enabled = true,
+                                    enabled = tapBackgroundClosesPlayer || currentSheetContentState == PlayerSheetState.COLLAPSED,
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
                                 ) {
                                     playerViewModel.togglePlayerSheetState()
                                 }
                         ) {
-                            if (showPlayerContentArea) {
-                                // stablePlayerState.currentSong is already available from the top-level collection
-                                stablePlayerState.currentSong?.let { currentSongNonNull ->
+                                    // MiniPlayerContentInternal
+                                    // stablePlayerState.currentSong is already available from the top-level collection
+                                    // Use infrequentPlayerState
+                                    infrequentPlayerState.currentSong?.let { currentSongNonNull ->
                                     // MiniPlayer
                                     Crossfade(
                                         targetState = albumColorScheme,
@@ -1150,18 +1177,19 @@ fun UnifiedPlayerSheet(
                                         CompositionLocalProvider(
                                             LocalMaterialTheme provides (scheme ?: MaterialTheme.colorScheme)
                                         ) {
+                                            val miniPlayerZIndex by remember { derivedStateOf { if (playerContentExpansionFraction.value < 0.5f) 1f else 0f } }
                                             Box(
                                                 modifier = Modifier
                                                     .align(Alignment.TopCenter)
                                                     .graphicsLayer {
                                                         alpha = miniAlpha
                                                     }
-                                                    .zIndex(if (playerContentExpansionFraction.value < 0.5f) 1f else 0f)
+                                                    .zIndex(miniPlayerZIndex)
                                             ) {
                                                 MiniPlayerContentInternal(
                                                     song = currentSongNonNull, // Use non-null version
                                                     cornerRadiusAlb = (overallSheetTopCornerRadius.value * 0.5).dp,
-                                                    isPlaying = stablePlayerState.isPlaying, // from top-level stablePlayerState
+                                                    isPlaying = infrequentPlayerState.isPlaying, // from top-level stablePlayerState
                                                     isCastConnecting = isCastConnecting,
                                                     onPlayPause = { playerViewModel.playPause() },
                                                     onPrevious = { playerViewModel.previousSong() },
@@ -1186,6 +1214,10 @@ fun UnifiedPlayerSheet(
                                                 )
                                             }
                                         }
+                                        
+                                        val fullPlayerZIndex by remember { derivedStateOf { if (playerContentExpansionFraction.value >= 0.5f) 1f else 0f } }
+                                        val fullPlayerOffset by remember { derivedStateOf { if (playerContentExpansionFraction.value <= 0.01f) IntOffset(0, 10000) else IntOffset.Zero } }
+                                        
                                         Box(
                                             modifier = Modifier
                                                 .graphicsLayer {
@@ -1194,23 +1226,27 @@ fun UnifiedPlayerSheet(
                                                     scaleX = fullPlayerScale
                                                     scaleY = fullPlayerScale
                                                 }
-                                                .zIndex(if (playerContentExpansionFraction.value >= 0.5f) 1f else 0f)
-                                                .offset { if (playerContentExpansionFraction.value <= 0.01f) IntOffset(0, 10000) else IntOffset.Zero }
+                                                .zIndex(fullPlayerZIndex)
+                                                .offset { fullPlayerOffset }
                                         ) {
                                             FullPlayerContent(
                                                 currentSong = currentSongNonNull,
                                                 currentPlaybackQueue = currentPlaybackQueue,
                                                 currentQueueSourceName = currentQueueSourceName,
-                                                isShuffleEnabled = stablePlayerState.isShuffleEnabled,
-                                                repeatMode = stablePlayerState.repeatMode,
+                                                isShuffleEnabled = infrequentPlayerState.isShuffleEnabled,
+                                                repeatMode = infrequentPlayerState.repeatMode,
                                                 expansionFractionProvider = { playerContentExpansionFraction.value },
                                                 currentSheetState = currentSheetContentState,
                                                 carouselStyle = carouselStyle,
                                                 loadingTweaks = fullPlayerLoadingTweaks,
                                                 playerViewModel = playerViewModel,
                                                 // State Providers
-                                                currentPositionProvider = { positionToDisplay },
-                                                isPlayingProvider = { stablePlayerState.isPlaying },
+                                                currentPositionProvider = positionToDisplayProvider,
+                                                isPlayingProvider = { infrequentPlayerState.isPlaying },
+                                                repeatModeProvider = { infrequentPlayerState.repeatMode },
+                                                isShuffleEnabledProvider = { infrequentPlayerState.isShuffleEnabled },
+                                                totalDurationProvider = { infrequentPlayerState.totalDuration },
+                                                lyricsProvider = { infrequentPlayerState.lyrics },
                                                 isFavoriteProvider = { isFavorite },
                                                 // Event Handlers
                                                 onPlayPause = playerViewModel::playPause,
@@ -1235,12 +1271,11 @@ fun UnifiedPlayerSheet(
                                         }
                                     }
                                 }
-                            }
                         }
                     }
 
                     // Prewarm full player once per track to reduce first-open jank.
-                    if (prewarmFullPlayer && stablePlayerState.currentSong != null) {
+                    if (prewarmFullPlayer && infrequentPlayerState.currentSong != null) {
                         CompositionLocalProvider(
                             LocalMaterialTheme provides (albumColorScheme
                                 ?: MaterialTheme.colorScheme)
@@ -1253,18 +1288,22 @@ fun UnifiedPlayerSheet(
                                     .clipToBounds()
                             ) {
                                 FullPlayerContent(
-                                    currentSong = stablePlayerState.currentSong!!,
+                                    currentSong = infrequentPlayerState.currentSong!!,
                                     currentPlaybackQueue = currentPlaybackQueue,
                                     currentQueueSourceName = currentQueueSourceName,
-                                    isShuffleEnabled = stablePlayerState.isShuffleEnabled,
-                                    repeatMode = stablePlayerState.repeatMode,
+                                    isShuffleEnabled = infrequentPlayerState.isShuffleEnabled,
+                                    repeatMode = infrequentPlayerState.repeatMode,
                                     expansionFractionProvider = { 1f },
                                     currentSheetState = PlayerSheetState.EXPANDED,
                                     carouselStyle = carouselStyle,
                                     loadingTweaks = fullPlayerLoadingTweaks,
                                     playerViewModel = playerViewModel,
-                                    currentPositionProvider = { positionToDisplay },
-                                    isPlayingProvider = { stablePlayerState.isPlaying },
+                                    currentPositionProvider = positionToDisplayProvider,
+                                    isPlayingProvider = { infrequentPlayerState.isPlaying },
+                                    repeatModeProvider = { infrequentPlayerState.repeatMode },
+                                    isShuffleEnabledProvider = { infrequentPlayerState.isShuffleEnabled },
+                                    totalDurationProvider = { infrequentPlayerState.totalDuration },
+                                    lyricsProvider = { infrequentPlayerState.lyrics },
                                     isFavoriteProvider = { isFavorite },
                                     onShowQueueClicked = { animateQueueSheet(true) },
                                     onQueueDragStart = { beginQueueDrag() },
@@ -1275,14 +1314,11 @@ fun UnifiedPlayerSheet(
                                             velocity
                                         )
                                     },
-//                                queueSheetState = queueSheetState,
-//                                isQueueSheetVisible = false,
                                     onPlayPause = playerViewModel::playPause,
                                     onSeek = playerViewModel::seekTo,
                                     onNext = playerViewModel::nextSong,
                                     onPrevious = playerViewModel::previousSong,
                                     onCollapse = {},
-//                                onQueueSheetVisibilityChange = {},
                                     onShowCastClicked = {},
                                     onShuffleToggle = playerViewModel::toggleShuffle,
                                     onRepeatToggle = playerViewModel::cycleRepeatMode,
@@ -1302,8 +1338,6 @@ fun UnifiedPlayerSheet(
                 BackHandler(enabled = isQueueVisible && !internalIsKeyboardVisible) {
                     animateQueueSheet(false)
                 }
-
-
 
 
                 if (!internalIsKeyboardVisible || selectedSongForInfo != null) {
@@ -1328,78 +1362,89 @@ fun UnifiedPlayerSheet(
                                 )
                             }
 
-                            QueueBottomSheet(
-                                modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .fillMaxWidth()
-                                    .zIndex(1f)
-                                    .offset {
-                                        IntOffset(
-                                            x = 0,
-                                            y = queueSheetOffset.value.roundToInt()
-                                        )
+                                val onDimissQueueRequest = remember { { animateQueueSheet(false) } }
+                                val onQueueSongInfoClick = remember { { song: Song -> selectedSongForInfo = song } }
+                                val onPlayQueueSong = remember(currentPlaybackQueue, currentQueueSourceName) {
+                                    { song: Song -> 
+                                        playerViewModel.playSongs(currentPlaybackQueue, song, currentQueueSourceName)
                                     }
-                                    .graphicsLayer {
-                                        alpha =
-                                            if (queueHiddenOffsetPx == 0f || !showQueueSheet) 0f else 1f
+                                }
+                                val onRemoveQueueSong = remember { { id: String -> playerViewModel.removeSongFromQueue(id) } }
+                                val onReorderQueue = remember { { from: Int, to: Int -> playerViewModel.reorderQueueItem(from, to) } }
+                                val onToggleRepeat = remember { { playerViewModel.cycleRepeatMode() } }
+                                val onToggleShuffle = remember { { playerViewModel.toggleShuffle() } }
+                                val onClearQueue = remember { { playerViewModel.clearQueueExceptCurrent() } }
+                                val onSetPredefinedTimer = remember { { minutes: Int -> playerViewModel.setSleepTimer(minutes) } }
+                                val onSetEndOfTrackTimer = remember { { enable: Boolean -> playerViewModel.setEndOfTrackTimer(enable) } }
+                                val onOpenCustomTimePicker: () -> Unit = remember { { Log.d("TimerOptions", "OpenCustomTimePicker clicked") } }
+                                val onCancelTimer = remember { { playerViewModel.cancelSleepTimer() } }
+                                val onCancelCountedPlay = remember { playerViewModel::cancelCountedPlay }
+                                val onPlayCounter = remember { playerViewModel::playCounted }
+                                val onRequestSavePlaylist = remember {
+                                    { songs: List<Song>, defName: String, onConf: (String, Set<String>) -> Unit ->
+                                        launchSaveQueueOverlay(songs, defName, onConf)
                                     }
-                                    .onGloballyPositioned { coordinates ->
-                                        queueSheetHeightPx = coordinates.size.height.toFloat()
-                                    },
-                                queue = currentPlaybackQueue, // Use granular state
-                                currentQueueSourceName = currentQueueSourceName, // Use granular state
-                                currentSongId = stablePlayerState.currentSong?.id, // stablePlayerState is fine here
-                                onDismiss = { animateQueueSheet(false) },
-                                onSongInfoClick = { song -> selectedSongForInfo = song }, // Trigger SongInfoBottomSheet
-                                onPlaySong = { song ->
-                                    playerViewModel.playSongs(
-                                        currentPlaybackQueue, // Use granular state
-                                        song,
-                                        currentQueueSourceName // Use granular state
-                                    )
-                                },
-                                onRemoveSong = { songId ->
-                                    playerViewModel.removeSongFromQueue(
-                                        songId
-                                    )
-                                },
-                                onReorder = { from, to ->
-                                    playerViewModel.reorderQueueItem(
-                                        from,
-                                        to
-                                    )
-                                },
-                                repeatMode = stablePlayerState.repeatMode,
-                                isShuffleOn = stablePlayerState.isShuffleEnabled,
-                                onToggleRepeat = { playerViewModel.cycleRepeatMode() },
-                                onToggleShuffle = { playerViewModel.toggleShuffle() },
-                                onClearQueue = { playerViewModel.clearQueueExceptCurrent() },
-                                activeTimerValueDisplay = playerViewModel.activeTimerValueDisplay.collectAsState().value,
-                                playCount = playerViewModel.playCount.collectAsState().value,
-                                isEndOfTrackTimerActive = playerViewModel.isEndOfTrackTimerActive.collectAsState().value,
-                                onSetPredefinedTimer = { minutes ->
-                                    playerViewModel.setSleepTimer(
-                                        minutes
-                                    )
-                                },
-                                onSetEndOfTrackTimer = { enable ->
-                                    playerViewModel.setEndOfTrackTimer(
-                                        enable
-                                    )
-                                },
-                                onOpenCustomTimePicker = {
-                                    Log.d("TimerOptions", "OpenCustomTimePicker clicked")
-                                },
-                                onCancelTimer = { playerViewModel.cancelSleepTimer() },
-                                onCancelCountedPlay = playerViewModel::cancelCountedPlay,
-                                onPlayCounter = playerViewModel::playCounted,
-                                onRequestSaveAsPlaylist = { songs, defaultName, onConfirm ->
-                                    launchSaveQueueOverlay(songs, defaultName, onConfirm)
-                                },
-                                onQueueDragStart = { beginQueueDrag() },
-                                onQueueDrag = { dragQueueBy(it) },
-                                onQueueRelease = { drag, velocity -> endQueueDrag(drag, velocity) }
-                            )
+                                }
+                                val onQueueStartDrag = remember { { beginQueueDrag() } }
+                                val onQueueDrag = remember { { drag: Float -> dragQueueBy(drag) } }
+                                val onQueueRelease = remember { { drag: Float, vel: Float -> endQueueDrag(drag, vel) } }
+
+                                val shouldRenderQueueSheet by remember(showQueueSheet, queueSheetOffset.value, queueHiddenOffsetPx, queueSheetHeightPx) {
+                                  derivedStateOf {
+                                    showQueueSheet || queueSheetHeightPx == 0f || queueSheetOffset.value < queueHiddenOffsetPx
+                                  }
+                                }
+                                
+                                // Force re-measure on configuration change
+                                LaunchedEffect(configuration) {
+                                    queueSheetHeightPx = 0f
+                                }
+
+                                if (shouldRenderQueueSheet) {
+                                  QueueBottomSheet(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .offset {
+                                             IntOffset(
+                                                x = 0,
+                                                y = queueSheetOffset.value.roundToInt()
+                                            )
+                                        }
+                                        .graphicsLayer {
+                                            alpha =
+                                                if (queueHiddenOffsetPx == 0f || !showQueueSheet) 0f else 1f
+                                        }
+                                        .onGloballyPositioned { coordinates ->
+                                            queueSheetHeightPx = coordinates.size.height.toFloat()
+                                        },
+                                    queue = currentPlaybackQueue,
+                                    currentQueueSourceName = currentQueueSourceName,
+                                    currentSongId = infrequentPlayerState.currentSong?.id,
+                                    onDismiss = onDimissQueueRequest,
+                                    onSongInfoClick = onQueueSongInfoClick,
+                                    onPlaySong = onPlayQueueSong, // Correct lambda reference
+                                    onRemoveSong = onRemoveQueueSong,
+                                    onReorder = onReorderQueue,
+                                    repeatMode = infrequentPlayerState.repeatMode,
+                                    isShuffleOn = infrequentPlayerState.isShuffleEnabled,
+                                    onToggleRepeat = onToggleRepeat,
+                                    onToggleShuffle = onToggleShuffle,
+                                    onClearQueue = onClearQueue,
+                                    activeTimerValueDisplay = playerViewModel.activeTimerValueDisplay.collectAsState(),
+                                    playCount = playerViewModel.playCount.collectAsState(),
+                                    isEndOfTrackTimerActive = playerViewModel.isEndOfTrackTimerActive.collectAsState(),
+                                    onSetPredefinedTimer = onSetPredefinedTimer,
+                                    onSetEndOfTrackTimer = onSetEndOfTrackTimer,
+                                    onOpenCustomTimePicker = onOpenCustomTimePicker,
+                                    onCancelTimer = onCancelTimer,
+                                    onCancelCountedPlay = onCancelCountedPlay,
+                                    onPlayCounter = onPlayCounter,
+                                    onRequestSaveAsPlaylist = onRequestSavePlaylist,
+                                    onQueueDragStart = onQueueStartDrag,
+                                    onQueueDrag = onQueueDrag,
+                                    onQueueRelease = onQueueRelease
+                                )
+                              }
 
                             // Show SongInfoBottomSheet when a song is selected
                             selectedSongForInfo?.let { staticSong ->
@@ -1509,10 +1554,6 @@ fun UnifiedPlayerSheet(
                 )
             }
         }
-
-//        if (isCastConnecting) {
-//            CastConnectingDialog()
-//        }
 
         pendingSaveQueueOverlay?.let { overlay ->
             SaveQueueAsPlaylistSheet(
