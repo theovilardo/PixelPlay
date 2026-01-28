@@ -118,9 +118,12 @@ class DualPlayerEngine @Inject constructor(
             // Track Telegram file for cache management
             val uri = mediaItem?.localConfiguration?.uri
             if (uri?.scheme == "telegram") {
-                val fileId = uri.host?.toIntOrNull()
-                telegramCacheManager.setActivePlayback(fileId)
-                Timber.tag("DualPlayerEngine").d("Telegram playback active: fileId=$fileId")
+                scope.launch {
+                    val result = telegramRepository.resolveTelegramUri(uri.toString())
+                    val fileId = result?.first
+                    telegramCacheManager.setActivePlayback(fileId)
+                    Timber.tag("DualPlayerEngine").d("Telegram playback active: fileId=$fileId")
+                }
                 // Telegram streaming needs Network Lock to prevent buffering/stuttering
                 (playerA as? ExoPlayer)?.setWakeMode(C.WAKE_MODE_LOCAL)
             } else {
