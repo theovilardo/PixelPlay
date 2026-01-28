@@ -646,7 +646,10 @@ fun AlbumSectionItemInArtist(
                 onClick = { 
                     if(album.songs.isNotEmpty()) onSongClick(album.songs.first()) // Simple play first of album
                 },
-                colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                colors = IconButtonDefaults.iconButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
             ) {
                 Icon(Icons.Rounded.PlayArrow, contentDescription = "Play Album")
             }
@@ -660,18 +663,28 @@ fun AlbumSectionItemInArtist(
                 .padding(top = 10.dp)
                 .padding(horizontal = 8.dp)
         ) {
-            album.songs.forEach { song ->
+            val songCount = album.songs.size
+            album.songs.forEachIndexed { index, song ->
+                val shape = when {
+                     songCount == 1 -> RoundedCornerShape(16.dp)
+                     index == 0 -> RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                     index == songCount - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
+                     else -> RoundedCornerShape(4.dp)
+                }
+
                 EnhancedSongListItem(
                      song = song,
                      isPlaying = stablePlayerState.isPlaying,
                      isCurrentSong = stablePlayerState.currentSong?.id == song.id,
                      showAlbumArt = false, // Hide album art as it is redundant
+                     customShape = shape,
                      onClick = {
                          onSongClick(song)
                      },
                      onMoreOptionsClick = onMoreOptionsClick
                  )
             }
+            Spacer(Modifier.height(12.dp))
         }
     }
 }

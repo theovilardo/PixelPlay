@@ -53,6 +53,7 @@ fun EnhancedSongListItem(
     isCurrentSong: Boolean = false,
     isLoading: Boolean = false,
     showAlbumArt: Boolean = true,
+    customShape: androidx.compose.ui.graphics.Shape? = null,
     onMoreOptionsClick: (Song) -> Unit,
     onClick: () -> Unit
 ) {
@@ -69,17 +70,21 @@ fun EnhancedSongListItem(
         label = "cornerRadiusAnimation"
     )
 
-    val surfaceShape = remember(animatedCornerRadius) {
-        AbsoluteSmoothCornerShape(
-            cornerRadiusTL = animatedCornerRadius,
-            smoothnessAsPercentTR = 60,
-            cornerRadiusTR = animatedCornerRadius,
-            smoothnessAsPercentBR = 60,
-            cornerRadiusBL = animatedCornerRadius,
-            smoothnessAsPercentBL = 60,
-            cornerRadiusBR = animatedCornerRadius,
-            smoothnessAsPercentTL = 60
-        )
+    val surfaceShape = remember(animatedCornerRadius, customShape, isCurrentSong, isLoading) {
+        if (customShape != null && (!isCurrentSong || isLoading)) {
+            customShape
+        } else {
+            AbsoluteSmoothCornerShape(
+                cornerRadiusTL = animatedCornerRadius,
+                smoothnessAsPercentTR = 60,
+                cornerRadiusTR = animatedCornerRadius,
+                smoothnessAsPercentBR = 60,
+                cornerRadiusBL = animatedCornerRadius,
+                smoothnessAsPercentBL = 60,
+                cornerRadiusBR = animatedCornerRadius,
+                smoothnessAsPercentTL = 60
+            )
+        }
     }
 
     val albumShape = remember(animatedCornerRadius) {
