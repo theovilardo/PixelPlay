@@ -52,7 +52,11 @@ data class PlaylistUiState(
     val currentPlaylistSortOption: SortOption = SortOption.PlaylistNameAZ,
     val currentPlaylistSongsSortOption: SortOption = SortOption.SongTitleAZ,
     val playlistSongsOrderMode: PlaylistSongsOrderMode = PlaylistSongsOrderMode.Sorted(SortOption.SongTitleAZ),
-    val playlistOrderModes: Map<String, PlaylistSongsOrderMode> = emptyMap()
+    val playlistOrderModes: Map<String, PlaylistSongsOrderMode> = emptyMap(),
+    
+    // AI Generation State
+    val isAiGenerating: Boolean = false,
+    val aiGenerationError: String? = null
 )
 
 sealed class PlaylistSongsOrderMode {
@@ -64,6 +68,7 @@ sealed class PlaylistSongsOrderMode {
 class PlaylistViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val musicRepository: MusicRepository,
+    private val aiPlaylistGenerator: com.theveloper.pixelplay.data.ai.AiPlaylistGenerator,
     private val m3uManager: M3uManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
@@ -780,5 +785,54 @@ class PlaylistViewModel @Inject constructor(
             val option = SortOption.fromStorageKey(value, SortOption.SONGS, SortOption.SongTitleAZ)
             PlaylistSongsOrderMode.Sorted(option)
         }
+    }
+
+    fun generateAiPlaylist(prompt: String, minLength: Int = 10, maxLength: Int = 50) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isAiGenerating = true, aiGenerationError = null) }
+            
+            try {
+                // Fetch all library songs
+                val allSongs = withContext(Dispatchers.IO) {
+                    musicRepository.getAudioFiles().first()
+                }
+
+                // Call AiPlaylistGenerator
+                val result = aiPlaylistGenerator.generate(
+                    userPrompt = prompt,
+                    allSongs = allSongs,
+                    minLength = minLength,
+                    maxLength = maxLength
+                )
+                
+                result.onSuccess { selectedSongs ->
+                    // Create Playlist
+                    val playlistName = "AI: $prompt".take(50) 
+                    
+                    userPreferencesRepository.createPlaylist(
+                        name = playlistName,
+                        songIds = selectedSongs.map { it.id },
+                        isAiGenerated = true
+                    )
+                    
+                    _uiState.update { it.copy(isAiGenerating = false) }
+                    _playlistCreationEvent.emit(true)
+                }.onFailure { e ->
+                    val errorMessage = if (e.message?.contains("API Key") == true) {
+                        "Please configure your Gemini API Key in Settings."
+                    } else {
+                        e.message ?: "Unknown error"
+                    }
+                    _uiState.update { it.copy(isAiGenerating = false, aiGenerationError = errorMessage) }
+                }
+
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isAiGenerating = false, aiGenerationError = e.message) }
+            }
+        }
+    }
+    
+    fun clearAiError() {
+        _uiState.update { it.copy(aiGenerationError = null) }
     }
 }

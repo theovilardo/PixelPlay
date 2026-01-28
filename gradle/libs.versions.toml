@@ -1,6 +1,6 @@
 [versions]
 accompanistDrawablepainter = "0.37.3"
-agp = "8.10.1"
+agp = "8.13.2"
 app = "1.7.0"
 googleGenai = "1.11.0"
 googlePlayServicesCast = "21.5.0"
@@ -87,10 +87,13 @@ uiautomator = "2.2.0"
 benchmarkMacroJunit4 = "1.3.3"
 baselineprofile = "1.3.3"
 profileinstaller = "1.3.1"
-pagingCommon = "3.3.6"
+
 
 [libraries]
 accompanist-drawablepainter = { module = "com.google.accompanist:accompanist-drawablepainter", version.ref = "accompanistDrawablepainter" }
+
+tdlib = { module = "com.github.tdlibx:td", version = "1.8.56" }
+androidx-paging-common = { group = "androidx.paging", name = "paging-common", version = "3.3.6" }
 androidx-app = { module = "androidx.car.app:app", version.ref = "app" }
 androidx-app-projected = { module = "androidx.car.app:app-projected", version.ref = "app" }
 androidx-media = { module = "androidx.media:media", version.ref = "media" }
@@ -191,7 +194,8 @@ androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profi
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }
-androidx-paging-common = { group = "androidx.paging", name = "paging-common", version.ref = "pagingCommon" }
+
+
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

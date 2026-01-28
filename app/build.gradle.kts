@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.jetbrains.kotlin.android)
     alias(libs.plugins.baselineprofile)
     // id("com.google.protobuf") version "0.9.5" // Eliminado plugin de Protobuf
+    id("kotlin-parcelize")
 }
 
 android {
@@ -158,7 +159,7 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
 
     //Duktape
-    implementation(libs.duktape.android)
+    // implementation(libs.duktape.android)
 
     //Smooth corners shape
     implementation(libs.smooth.corner.rect.android.compose)
@@ -282,6 +283,8 @@ dependencies {
     implementation(libs.androidx.app)
     implementation(libs.androidx.app.projected)
 
+    // Telegram TDLib
+    implementation(libs.tdlib)
 }
 
 

@@ -5,10 +5,8 @@ import com.theveloper.pixelplay.data.DailyMixManager
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import kotlinx.coroutines.flow.first
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
-import kotlin.Result
 import kotlin.math.max
 
 class AiPlaylistGenerator @Inject constructor(

@@ -2,7 +2,6 @@ package com.theveloper.pixelplay.data.database
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
-import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
@@ -15,11 +14,13 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ArtistEntity::class,
         TransitionRuleEntity::class,
         SongArtistCrossRef::class,
+        TelegramSongEntity::class,
+        TelegramChannelEntity::class,
         SongEngagementEntity::class,
         FavoritesEntity::class,
         LyricsEntity::class
     ],
-    version = 14, // Incremented version for lyrics table
+    version = 18, // Incremented for combined updates
     exportSchema = false
 )
 abstract class PixelPlayDatabase : RoomDatabase() {
@@ -27,6 +28,7 @@ abstract class PixelPlayDatabase : RoomDatabase() {
     abstract fun searchHistoryDao(): SearchHistoryDao
     abstract fun musicDao(): MusicDao
     abstract fun transitionDao(): TransitionDao
+    abstract fun telegramDao(): TelegramDao
     abstract fun engagementDao(): EngagementDao
     abstract fun favoritesDao(): FavoritesDao
     abstract fun lyricsDao(): LyricsDao // Added FavoritesDao
@@ -44,11 +46,6 @@ abstract class PixelPlayDatabase : RoomDatabase() {
             }
         }
 
-//        val MIGRATION_6_7 = object : Migration(6, 7) {
-//            override fun migrate(db: SupportSQLiteDatabase) {
-//                db.execSQL("ALTER TABLE songs ADD COLUMN date_added INTEGER NOT NULL DEFAULT 0")
-//            }
-//        }
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE songs ADD COLUMN mime_type TEXT")
@@ -59,10 +56,8 @@ abstract class PixelPlayDatabase : RoomDatabase() {
 
         val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Add album_artist column to songs table
                 db.execSQL("ALTER TABLE songs ADD COLUMN album_artist TEXT DEFAULT NULL")
                 
-                // Create song_artist_cross_ref junction table for many-to-many relationship
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS song_artist_cross_ref (
                         song_id INTEGER NOT NULL,
@@ -74,13 +69,10 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                     )
                 """.trimIndent())
                 
-                // Create indices for efficient queries
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_song_artist_cross_ref_song_id ON song_artist_cross_ref(song_id)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_song_artist_cross_ref_artist_id ON song_artist_cross_ref(artist_id)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_song_artist_cross_ref_is_primary ON song_artist_cross_ref(is_primary)")
                 
-                // Migrate existing song-artist relationships to junction table
-                // Each existing song gets its current artist as the primary artist
                 db.execSQL("""
                     INSERT OR REPLACE INTO song_artist_cross_ref (song_id, artist_id, is_primary)
                     SELECT id, artist_id, 1 FROM songs WHERE artist_id IS NOT NULL
@@ -90,13 +82,52 @@ abstract class PixelPlayDatabase : RoomDatabase() {
 
         val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Add image_url column to artists table for Deezer artist images
                 db.execSQL("ALTER TABLE artists ADD COLUMN image_url TEXT DEFAULT NULL")
             }
         }
 
         val MIGRATION_11_12 = object : Migration(11, 12) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS telegram_songs (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        chat_id INTEGER NOT NULL,
+                        message_id INTEGER NOT NULL,
+                        file_id INTEGER NOT NULL,
+                        title TEXT NOT NULL,
+                        artist TEXT NOT NULL,
+                        duration INTEGER NOT NULL,
+                        file_path TEXT NOT NULL,
+                        mime_type TEXT NOT NULL,
+                        date_added INTEGER NOT NULL
+                    )
+                """.trimIndent())
+            }
+        }
+
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE telegram_songs ADD COLUMN album_art_uri TEXT DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS telegram_channels (
+                        chat_id INTEGER NOT NULL PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        username TEXT,
+                        song_count INTEGER NOT NULL DEFAULT 0,
+                        last_sync_time INTEGER NOT NULL DEFAULT 0,
+                        photo_path TEXT
+                    )
+                """.trimIndent())
+            }
+        }
+        
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+             override fun migrate(db: SupportSQLiteDatabase) {
                 // Create song_engagements table for tracking play statistics
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS song_engagements (
@@ -108,8 +139,15 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                 """.trimIndent())
             }
         }
+        
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE songs ADD COLUMN telegram_chat_id INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE songs ADD COLUMN telegram_file_id INTEGER DEFAULT NULL")
+            }
+        }
 
-        val MIGRATION_12_13 = object : Migration(12, 13) {
+        val MIGRATION_16_17 = object : Migration(16, 17) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS favorites (
@@ -127,7 +165,8 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                 """, arrayOf(System.currentTimeMillis()))
             }
         }
-        val MIGRATION_13_14 = object : Migration(13, 14) {
+
+        val MIGRATION_17_18 = object : Migration(17, 18) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL(
                     "CREATE TABLE IF NOT EXISTS `lyrics` (`songId` INTEGER NOT NULL, `content` TEXT NOT NULL, `isSynced` INTEGER NOT NULL DEFAULT 0, `source` TEXT, PRIMARY KEY(`songId`))"

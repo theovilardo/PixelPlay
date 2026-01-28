@@ -16,30 +16,25 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.outlined.Album
-import androidx.compose.material.icons.outlined.Favorite
-import androidx.compose.material.icons.outlined.Headphones
-import androidx.compose.material.icons.outlined.MicExternalOn
-import androidx.compose.material.icons.outlined.MusicVideo
-import androidx.compose.material.icons.outlined.Piano
-import androidx.compose.material.icons.outlined.QueueMusic
-import androidx.compose.material.icons.outlined.Speaker
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import coil.compose.AsyncImage
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
-import com.theveloper.pixelplay.utils.getContrastColor
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material.icons.rounded.MicExternalOn
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Piano
+import androidx.compose.material.icons.rounded.Speaker
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -63,8 +58,13 @@ import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -72,34 +72,20 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Playlist
+import com.theveloper.pixelplay.data.model.PlaylistShapeType
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.screens.PlayerSheetCollapsedCornerRadius
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistUiState
-import com.theveloper.pixelplay.data.model.PlaylistShapeType
-import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
-import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
-import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.rounded.Album
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.Headphones
-import androidx.compose.material.icons.rounded.MicExternalOn
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Piano
-import androidx.compose.material.icons.rounded.QueueMusic
-import androidx.compose.material.icons.rounded.Speaker
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.RoundRect
-import androidx.compose.ui.graphics.Matrix
-import androidx.compose.ui.graphics.Path
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
-import kotlin.collections.set
+import com.theveloper.pixelplay.utils.getContrastColor
+import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -444,7 +430,7 @@ private fun getIconByName(name: String?): ImageVector? {
         "Speaker" -> Icons.Rounded.Speaker
         "Favorite" -> Icons.Rounded.Favorite
         "Piano" -> Icons.Rounded.Piano
-        "Queue" -> Icons.Rounded.QueueMusic
+        "Queue" -> Icons.AutoMirrored.Rounded.QueueMusic
         else -> Icons.Rounded.MusicNote
     }
 }

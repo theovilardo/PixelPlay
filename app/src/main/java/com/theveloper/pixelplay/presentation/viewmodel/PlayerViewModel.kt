@@ -104,11 +104,18 @@ import timber.log.Timber
 import java.io.File
 import java.util.ArrayDeque
 import javax.inject.Inject
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
+import coil.imageLoader
+import coil.memory.MemoryCache
 
 private const val CAST_LOG_TAG = "PlayerCastTransfer"
 
+
+
 @UnstableApi
 @SuppressLint("LogNotTimber")
+@OptIn(coil.annotation.ExperimentalCoilApi::class)
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -119,6 +126,7 @@ class PlayerViewModel @Inject constructor(
 
     private val dualPlayerEngine: DualPlayerEngine,
     private val appShortcutManager: AppShortcutManager,
+    private val telegramCacheManager: com.theveloper.pixelplay.data.telegram.TelegramCacheManager,
     private val listeningStatsTracker: ListeningStatsTracker,
     private val dailyMixStateHolder: DailyMixStateHolder,
     private val lyricsStateHolder: LyricsStateHolder,
@@ -161,6 +169,28 @@ class PlayerViewModel @Inject constructor(
     }
 
 
+
+    /**
+     * Paginated songs for efficient display in LibraryScreen.
+     * Uses Paging 3 for memory-efficient loading of large libraries.
+     */
+    val paginatedSongs: Flow<PagingData<Song>> = musicRepository.getPaginatedSongs()
+        .cachedIn(viewModelScope)
+    
+    // Observe embedded art updates for Telegram songs - refresh colors when available
+    private val embeddedArtObserverJob = viewModelScope.launch {
+        telegramCacheManager.embeddedArtUpdated.collect { updatedArtUri ->
+            val currentSongArtUri = playbackStateHolder.stablePlayerState.value.currentSong?.albumArtUriString
+            if (currentSongArtUri == updatedArtUri) {
+                Timber.d("PlayerViewModel: Embedded art updated for current song, refreshing colors")
+                // Invalidate Coil cache for this URI
+                context.imageLoader.memoryCache?.remove(MemoryCache.Key(updatedArtUri))
+                context.imageLoader.diskCache?.remove(updatedArtUri)
+                // Re-extract colors
+                themeStateHolder.extractAndGenerateColorScheme(updatedArtUri.toUri(), updatedArtUri, isPreload = false)
+            }
+        }
+    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val currentSongArtists: StateFlow<List<Artist>> = stablePlayerState
@@ -297,6 +327,9 @@ class PlayerViewModel @Inject constructor(
 
     // Lyrics search UI state - managed by LyricsStateHolder
     val lyricsSearchUiState: StateFlow<LyricsSearchUiState> = lyricsStateHolder.searchUiState
+
+    private var bufferingDebounceJob: Job? = null
+
 
 
     // Toast Events
@@ -467,7 +500,7 @@ class PlayerViewModel @Inject constructor(
 
     private var mediaController: MediaController? = null
     private val sessionToken = SessionToken(context, ComponentName(context, MusicService::class.java))
-    private val mediaControllerListener = object : MediaController.Listener {
+    private val mediaControllerListener = object : MediaController.Listener, Player.Listener {
         override fun onCustomCommand(
             controller: MediaController,
             command: SessionCommand,
@@ -486,6 +519,27 @@ class PlayerViewModel @Inject constructor(
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
             }
             return Futures.immediateFuture(SessionResult(SessionError.ERROR_NOT_SUPPORTED))
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            super.onPlaybackStateChanged(playbackState)
+            
+            // Debounce buffering state to avoid flickering
+            bufferingDebounceJob?.cancel()
+            
+            if (playbackState == Player.STATE_BUFFERING) {
+                bufferingDebounceJob = viewModelScope.launch {
+                    delay(150) // Wait 150ms before showing buffering indicator
+                    playbackStateHolder.updateStablePlayerState { state ->
+                        state.copy(isBuffering = true)
+                    }
+                }
+            } else {
+                // Immediately hide buffering when not buffering
+                playbackStateHolder.updateStablePlayerState { state ->
+                    state.copy(isBuffering = false)
+                }
+            }
         }
     }
     private val mediaControllerFuture: ListenableFuture<MediaController> =
@@ -798,9 +852,9 @@ class PlayerViewModel @Inject constructor(
         mediaControllerFuture.addListener({
             try {
                 mediaController = mediaControllerFuture.get()
+                mediaController?.addListener(mediaControllerListener)
                 // Pass controller to PlaybackStateHolder
                 playbackStateHolder.setMediaController(mediaController)
-                
                 setupMediaControllerListeners()
                 flushPendingRepeatMode()
                 syncShuffleStateWithSession(playbackStateHolder.stablePlayerState.value.isShuffleEnabled)
@@ -1537,9 +1591,13 @@ class PlayerViewModel @Inject constructor(
             // Validate songs - filter out any with missing files (efficient: uses contentUri check)
             val validSongs = songsToPlay.filter { song ->
                 try {
-                    // Use ContentResolver to check if URI is still valid (more efficient than File check)
                     val uri = song.contentUriString.toUri()
-                    context.contentResolver.openInputStream(uri)?.use { true } ?: false
+                    if (song.contentUriString.startsWith("telegram://")) {
+                        true // Telegram URIs are handled by our proxy/engine
+                    } else {
+                        // Use ContentResolver to check if URI is still valid (more efficient than File check)
+                        context.contentResolver.openInputStream(uri)?.use { true } ?: false
+                    }
                 } catch (e: Exception) {
                     Timber.w("Song file missing or inaccessible: ${song.title}")
                     false
@@ -2658,8 +2716,8 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun acceptLyricsSearchResultForCurrentSong(result: LyricsSearchResult) {
-         val currentSong = stablePlayerState.value.currentSong ?: return
-         lyricsStateHolder.acceptLyricsSearchResult(result, currentSong)
+        val currentSong = stablePlayerState.value.currentSong ?: return
+        lyricsStateHolder.acceptLyricsSearchResult(result, currentSong)
     }
 
     fun resetLyricsForCurrentSong() {
@@ -2701,6 +2759,32 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             musicRepository.invalidateCachesDependentOnAllowedDirectories()
             resetAndLoadInitialData("Blocked directories changed")
+        }
+    }
+
+    fun playSong(song: Song) {
+        viewModelScope.launch {
+             val controller = mediaController ?: return@launch
+             
+             val mediaItem = MediaItem.Builder()
+                 .setMediaId(song.id)
+                 .setUri(Uri.parse(song.contentUriString ?: song.path))
+                 .setMediaMetadata(
+                     MediaMetadata.Builder()
+                         .setTitle(song.title)
+                         .setArtist(song.artist)
+                         .setArtworkUri(if (song.albumArtUriString != null) Uri.parse(song.albumArtUriString) else null)
+                         .build()
+                 )
+                 .build()
+                 
+             controller.setMediaItem(mediaItem)
+             controller.prepare()
+             controller.play()
+             
+             // Also ensure sheet is visible
+             _isSheetVisible.value = true
+             _sheetState.value = PlayerSheetState.EXPANDED
         }
     }
 }

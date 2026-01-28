@@ -5,9 +5,8 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.RawQuery
 import androidx.room.Transaction
-import androidx.sqlite.db.SimpleSQLiteQuery
+import androidx.room.Update
 import com.theveloper.pixelplay.utils.AudioMeta
 import kotlinx.coroutines.flow.Flow
 
@@ -21,8 +20,20 @@ interface MusicDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAlbums(albums: List<AlbumEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAlbumsIgnore(albums: List<AlbumEntity>): List<Long>
+
+    @Update
+    suspend fun updateAlbums(albums: List<AlbumEntity>)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertArtists(artists: List<ArtistEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertArtistsIgnore(artists: List<ArtistEntity>): List<Long>
+
+    @Update
+    suspend fun updateArtists(artists: List<ArtistEntity>)
 
     @Transaction
     suspend fun insertMusicData(songs: List<SongEntity>, albums: List<AlbumEntity>, artists: List<ArtistEntity>) {
@@ -78,11 +89,33 @@ interface MusicDao {
             }
         }
         
-        // Upsert artists, albums, and songs (REPLACE strategy handles updates)
-        insertArtists(artists)
-        insertAlbums(albums)
+        // Upsert artists efficiently manually to avoid REPLACE (delete+insert) which triggers SET_NULL on non-nullable FKs
+        // resulting in "NOT NULL constraint failed: songs.artist_id"
+        val insertedArtistIds = insertArtistsIgnore(artists)
+        val artistsToUpdate = mutableListOf<ArtistEntity>()
+        for (i in insertedArtistIds.indices) {
+            if (insertedArtistIds[i] == -1L) {
+                // Was not inserted, so it exists. We should update it.
+                artistsToUpdate.add(artists[i])
+            }
+        }
+        if (artistsToUpdate.isNotEmpty()) {
+            updateArtists(artistsToUpdate)
+        }
         
-        // Insert songs in chunks to allow concurrent reads
+        // Upsert albums manually to avoid REPLACE (delete+insert) which triggers CASCADE delete on songs!
+        val insertedAlbumIds = insertAlbumsIgnore(albums)
+        val albumsToUpdate = mutableListOf<AlbumEntity>()
+        for (i in insertedAlbumIds.indices) {
+            if (insertedAlbumIds[i] == -1L) {
+                albumsToUpdate.add(albums[i])
+            }
+        }
+        if (albumsToUpdate.isNotEmpty()) {
+            updateAlbums(albumsToUpdate)
+        }
+        
+        // Insert songs in chunks. REPLACE is fine here as it updates the song and we restore cross-refs later.
         songs.chunked(SONG_BATCH_SIZE).forEach { chunk ->
             insertSongs(chunk)
         }

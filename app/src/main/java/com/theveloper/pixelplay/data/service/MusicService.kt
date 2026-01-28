@@ -1,49 +1,45 @@
 package com.theveloper.pixelplay.data.service
 
-import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.util.Log
 import android.util.LruCache
-import androidx.core.app.NotificationCompat
 import androidx.core.graphics.drawable.toBitmap
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
-import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.CommandButton
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionCommands
+import androidx.media3.session.SessionError
 import androidx.media3.session.SessionResult
 import coil.imageLoader
 import coil.request.ImageRequest
 import coil.size.Size
-import android.os.Bundle
-import androidx.media3.session.SessionCommand
-import androidx.media3.session.SessionCommands
-import androidx.media3.session.SessionError
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.theveloper.pixelplay.MainActivity
-import com.theveloper.pixelplay.PixelPlayApplication
 import com.theveloper.pixelplay.R
-import com.theveloper.pixelplay.data.model.PlayerInfo // Import new data class
+import com.theveloper.pixelplay.data.model.PlayerInfo
+import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
+import com.theveloper.pixelplay.data.service.player.DualPlayerEngine
+import com.theveloper.pixelplay.data.service.player.TransitionController
 import com.theveloper.pixelplay.ui.glancewidget.PixelPlayGlanceWidget
 import com.theveloper.pixelplay.ui.glancewidget.PlayerActions
 import com.theveloper.pixelplay.ui.glancewidget.PlayerInfoStateDefinition
-import com.theveloper.pixelplay.utils.LogUtils
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -53,13 +49,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.ByteArrayOutputStream
-import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
-import com.theveloper.pixelplay.data.service.player.DualPlayerEngine
-import com.theveloper.pixelplay.data.service.player.TransitionController
 import javax.inject.Inject
 
 // Acciones personalizadas para compatibilidad con el widget existente
@@ -239,6 +232,7 @@ class MusicService : MediaSessionService() {
         mediaSession = MediaSession.Builder(this, engine.masterPlayer)
             .setSessionActivity(getOpenAppPendingIntent())
             .setCallback(callback)
+            .setBitmapLoader(CoilBitmapLoader(this))
             .build()
 
         setMediaNotificationProvider(
@@ -303,8 +297,16 @@ class MusicService : MediaSessionService() {
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            val player = engine.masterPlayer
+            Timber.tag(TAG).d("onIsPlayingChanged: $isPlaying. Duration: ${player.duration}, Seekable: ${player.isCurrentMediaItemSeekable}")
             requestWidgetFullUpdate()
             mediaSession?.let { refreshMediaSessionUi(it) }
+        }
+        
+        override fun onAvailableCommandsChanged(availableCommands: Player.Commands) {
+             val canSeek = availableCommands.contains(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
+             val player = engine.masterPlayer
+             Timber.tag(TAG).w("onAvailableCommandsChanged. Can Seek Command? $canSeek. IsSeekable? ${player.isCurrentMediaItemSeekable}. Duration: ${player.duration}")
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {

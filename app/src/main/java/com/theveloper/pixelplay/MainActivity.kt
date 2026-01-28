@@ -1,33 +1,56 @@
 package com.theveloper.pixelplay
 
+// import androidx.compose.ui.platform.LocalView // No longer needed for this
+// import androidx.core.view.WindowInsetsCompat // No longer needed for this
 import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.os.Trace
+import android.provider.Settings
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.annotation.DrawableRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularWavyProgressIndicator
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -35,15 +58,19 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import android.os.Trace // Import Trace
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
-// import androidx.compose.ui.platform.LocalView // No longer needed for this
-// import androidx.core.view.WindowInsetsCompat // No longer needed for this
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
+import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
@@ -56,9 +83,22 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import com.theveloper.pixelplay.data.preferences.AppThemeMode
+import com.theveloper.pixelplay.data.preferences.NavBarStyle
+import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.service.MusicService
+import com.theveloper.pixelplay.data.worker.SyncManager
+import com.theveloper.pixelplay.data.worker.SyncProgress
+import com.theveloper.pixelplay.presentation.components.AllFilesAccessDialog
+import com.theveloper.pixelplay.presentation.components.AppSidebarDrawer
+import com.theveloper.pixelplay.presentation.components.CrashReportDialog
+import com.theveloper.pixelplay.presentation.components.DismissUndoBar
+import com.theveloper.pixelplay.presentation.components.DrawerDestination
+import com.theveloper.pixelplay.presentation.components.MiniPlayerBottomSpacer
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
+import com.theveloper.pixelplay.presentation.components.NavBarContentHeightFullWidth
+import com.theveloper.pixelplay.presentation.components.PlayerInternalNavigationBar
 import com.theveloper.pixelplay.presentation.components.UnifiedPlayerSheet
 import com.theveloper.pixelplay.presentation.navigation.AppNavigation
 import com.theveloper.pixelplay.presentation.navigation.Screen
@@ -68,49 +108,14 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.PixelPlayTheme
 import com.theveloper.pixelplay.utils.CrashHandler
 import com.theveloper.pixelplay.utils.LogUtils
-import com.theveloper.pixelplay.presentation.components.CrashReportDialog
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.delay
-import androidx.annotation.DrawableRes
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.Scaffold
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.onSizeChanged
-import com.theveloper.pixelplay.presentation.components.PlayerInternalNavigationBar
-import javax.annotation.concurrent.Immutable
-import com.theveloper.pixelplay.presentation.components.DismissUndoBar
-import com.theveloper.pixelplay.presentation.components.NavBarContentHeightFullWidth
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.material3.NavigationBarDefaults
-import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.unit.lerp
-import com.theveloper.pixelplay.data.preferences.AppThemeMode
-import com.theveloper.pixelplay.data.preferences.NavBarStyle
-import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
-import com.theveloper.pixelplay.data.worker.SyncManager
-import com.theveloper.pixelplay.data.worker.SyncProgress
-import com.theveloper.pixelplay.presentation.components.MiniPlayerBottomSpacer
-import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
-import com.theveloper.pixelplay.presentation.components.AppSidebarDrawer
-import com.theveloper.pixelplay.presentation.components.DrawerDestination
-import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.rememberDrawerState
-import androidx.compose.runtime.rememberCoroutineScope
-import com.theveloper.pixelplay.utils.CrashLogData
 import kotlinx.coroutines.launch
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+import javax.annotation.concurrent.Immutable
 import javax.inject.Inject
+import com.theveloper.pixelplay.utils.CrashLogData
 
 @Immutable
 data class BottomNavItem(
@@ -305,6 +310,20 @@ class MainActivity : ComponentActivity() {
                 }
                 clearExternalIntentPayload(intent)
             }
+            
+            intent.action == "com.theveloper.pixelplay.ACTION_PLAY_SONG" -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                     intent.getParcelableExtra("song", com.theveloper.pixelplay.data.model.Song::class.java)?.let { song ->
+                         playerViewModel.playSong(song)
+                     }
+                } else {
+                     @Suppress("DEPRECATION")
+                     intent.getParcelableExtra<com.theveloper.pixelplay.data.model.Song>("song")?.let { song ->
+                         playerViewModel.playSong(song)
+                     }
+                }
+                intent.action = null
+            }
         }
     }
     
@@ -339,7 +358,7 @@ class MainActivity : ComponentActivity() {
                 val takeFlags = intent.flags and (android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
                 if (takeFlags != 0) {
                     try {
-                        contentResolver.takePersistableUriPermission(uri, takeFlags)
+                        contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     } catch (securityException: SecurityException) {
                         android.util.Log.w("MainActivity", "Unable to persist URI permission for $uri", securityException)
                     } catch (illegalArgumentException: IllegalArgumentException) {
@@ -531,6 +550,11 @@ class MainActivity : ComponentActivity() {
                     }
                     DrawerDestination.Equalizer -> navController.navigate(Screen.Equalizer.route)
                     DrawerDestination.Settings -> navController.navigate(Screen.Settings.route)
+                    DrawerDestination.Telegram -> {
+                        val intent = Intent(this@MainActivity, com.theveloper.pixelplay.presentation.telegram.auth.TelegramLoginActivity::class.java)
+                        startActivity(intent)
+                    }
+                    else -> {}
                 }
             }
         ) {

@@ -11,6 +11,9 @@ import androidx.core.net.toUri
 import com.kyant.taglib.Picture
 import com.kyant.taglib.TagLib
 import com.theveloper.pixelplay.data.database.MusicDao
+import com.theveloper.pixelplay.data.database.TelegramDao // Added
+import com.theveloper.pixelplay.data.database.TelegramSongEntity // Added
+import kotlinx.coroutines.flow.first // Added
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.gagravarr.opus.OpusFile
@@ -40,7 +43,11 @@ enum class MetadataEditError {
 }
 
 
-class SongMetadataEditor(private val context: Context, private val musicDao: MusicDao) {
+class SongMetadataEditor(
+    private val context: Context,
+    private val musicDao: MusicDao,
+    private val telegramDao: TelegramDao // Added
+) {
 
     // File extensions that require VorbisJava (TagLib has issues with these via file descriptors)
     private val opusExtensions = setOf("opus", "ogg")
@@ -115,9 +122,15 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
             val normalizedGenre = trimmedGenre.takeIf { it.isNotBlank() }
             val normalizedLyrics = trimmedLyrics.takeIf { it.isNotBlank() }
 
-            // Get file path to determine which library to use
-            val filePath = getFilePathFromMediaStore(songId)
-            if (filePath == null) {
+            // 1. FIRST: Get file path (Handle both MediaStore and Telegram/Negative IDs)
+            val isTelegramSong = songId < 0
+            val filePath = if (isTelegramSong) {
+                runBlocking { musicDao.getSongById(songId).first()?.filePath }
+            } else {
+                getFilePathFromMediaStore(songId)
+            }
+
+            if (filePath.isNullOrBlank() && !isTelegramSong) {
                 Log.e(TAG, "Could not get file path for songId: $songId")
                 return SongMetadataEditResult(
                     success = false,
@@ -128,7 +141,7 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
             }
 
             // Check write permissions before attempting edit
-            if (!checkFileWritePermission(filePath)) {
+            if (!filePath.isNullOrBlank() && !checkFileWritePermission(filePath)) {
                 Log.e(TAG, "No write permission for file: $filePath")
                 return SongMetadataEditResult(
                     success = false,
@@ -139,23 +152,29 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
             }
 
             // Get file extension to determine which library to use
-            val extension = filePath.substringAfterLast('.', "").lowercase(Locale.ROOT)
+            val finalFilePath = filePath ?: ""
+            val extension = finalFilePath.substringAfterLast('.', "").lowercase(Locale.ROOT)
             val useVorbisJava = extension in opusExtensions
 
-            // 1. FIRST: Update the actual file with ALL metadata
-            // For Opus/Ogg files, we skip file modification because:
-            // - TagLib can't detect Opus via file descriptors
-            // - jaudiotagger doesn't support Opus
-            // - VorbisJava corrupts files (adds .pending, changes extension to .oga)
-            // Instead, we only update MediaStore and local DB, which is enough for the app
-            val fileUpdateSuccess = if (useVorbisJava) {
+            // 2. Update the actual file with ALL metadata (if it exists)
+            val fileExists = finalFilePath.isNotBlank() && File(finalFilePath).exists()
+            
+            val fileUpdateSuccess = if (!fileExists) {
+                if (isTelegramSong) {
+                     Log.w(TAG, "METADATA_EDIT: Telegram file not found (streaming?). Skipping file tags, updating DB only.")
+                     true
+                } else {
+                     Log.e(TAG, "METADATA_EDIT: File does not exist: $finalFilePath")
+                     false
+                }
+            } else if (useVorbisJava) {
                 Log.e(TAG, "METADATA_EDIT: Opus/Ogg file detected - skipping file modification to prevent corruption")
-                Log.e(TAG, "METADATA_EDIT: Will update MediaStore and local DB only for: $filePath")
-                true // Skip file modification, proceed to MediaStore update
+                Log.e(TAG, "METADATA_EDIT: Will update DBs only for: $finalFilePath")
+                true // Skip file modification, proceed to DB update
             } else {
-                Log.e(TAG, "METADATA_EDIT: Using TagLib for $extension file: $filePath")
+                Log.e(TAG, "METADATA_EDIT: Using TagLib for $extension file: $finalFilePath")
                 updateFileMetadataWithTagLib(
-                    filePath = filePath,
+                    filePath = finalFilePath,
                     newTitle = newTitle,
                     newArtist = newArtist,
                     newAlbum = newAlbum,
@@ -176,19 +195,44 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
                 )
             }
 
-            // 2. SECOND: Update MediaStore to reflect the changes
-            val mediaStoreSuccess = updateMediaStoreMetadata(
-                songId = songId,
-                title = newTitle,
-                artist = newArtist,
-                album = newAlbum,
-                genre = trimmedGenre,
-                trackNumber = newTrackNumber
-            )
-
-            if (!mediaStoreSuccess) {
-                Timber.w("MediaStore update failed, but file was updated for songId: $songId")
-                // Continue anyway since the file was updated
+            // 3. Update MediaStore (Local) OR Telegram Database (Telegram)
+            if (isTelegramSong) {
+                // Update Telegram Database
+                 runBlocking {
+                    // Update the cached items so SyncWorker doesn't overwrite our changes
+                     val songEntity = musicDao.getSongById(songId).first()
+                     if (songEntity?.telegramChatId != null && songEntity.telegramFileId != null) {
+                        val telegramId = "${songEntity.telegramChatId}_${songEntity.telegramFileId}"
+                         // Currently we don't have a direct update method in TelegramDao,
+                         // assuming we fetch, modify, insert (REPLACE)
+                         val telegramSong = telegramDao.getSongsByIds(listOf(telegramId)).first().firstOrNull()
+                         if (telegramSong != null) {
+                             val updatedTelegramSong = telegramSong.copy(
+                                 title = newTitle,
+                                 artist = newArtist,
+                                 // Telegram entity doesn't have album/genre/lyrics fields in current schema
+                                 // but updating title/artist is the most important
+                             )
+                             telegramDao.insertSongs(listOf(updatedTelegramSong))
+                             Timber.d("Updated TelegramDao for song: $telegramId")
+                         }
+                     }
+                 }
+            } else {
+                // Update MediaStore to reflect the changes
+                val mediaStoreSuccess = updateMediaStoreMetadata(
+                    songId = songId,
+                    title = newTitle,
+                    artist = newArtist,
+                    album = newAlbum,
+                    genre = trimmedGenre,
+                    trackNumber = newTrackNumber
+                )
+    
+                if (!mediaStoreSuccess) {
+                    Timber.w("MediaStore update failed, but file was updated for songId: $songId")
+                    // Continue anyway since the file was updated
+                }
             }
 
             // 3. Update local database and save cover art preview
@@ -213,7 +257,9 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
             }
 
             // 4. Force media rescan with the known file path
-            forceMediaRescan(filePath)
+            if (finalFilePath.isNotBlank()) {
+                forceMediaRescan(finalFilePath)
+            }
 
             Log.e(TAG, "METADATA_EDIT: Successfully updated metadata for songId: $songId")
             SongMetadataEditResult(success = true, updatedAlbumArtUri = storedCoverArtUri)

@@ -109,4 +109,60 @@
 -dontwarn org.eclipse.jetty.npn.NextProtoNego$ClientProvider
 -dontwarn org.eclipse.jetty.npn.NextProtoNego$Provider
 -dontwarn org.eclipse.jetty.npn.NextProtoNego$ServerProvider
+-dontwarn org.eclipse.jetty.npn.NextProtoNego$ServerProvider
 -dontwarn org.eclipse.jetty.npn.NextProtoNego
+
+# TDLib (Telegram Database Library) rules
+-keep class org.drinkless.tdlib.** { *; }
+-keep interface org.drinkless.tdlib.** { *; }
+
+# Ktor & Netty Rules (Crucial for StreamProxy)
+-keep class io.ktor.** { *; }
+-keep class io.netty.** { *; }
+-keep class kotlinx.coroutines.** { *; }
+-keep class org.slf4j.** { *; }
+
+# Ktor Specific
+-dontwarn io.ktor.**
+-dontwarn kotlinx.coroutines.**
+-dontwarn io.netty.**
+
+# Reflection usage in Ktor/Netty
+-keepnames class io.ktor.** { *; }
+-keepnames class io.netty.** { *; }
+
+# Ensure internal server can start
+-keep class com.theveloper.pixelplay.data.telegram.TelegramStreamProxy { *; }
+
+-keep class com.theveloper.pixelplay.data.telegram.** { *; }
+-keep interface com.theveloper.pixelplay.data.telegram.** { *; }
+
+# Keep Kotlin reflection if needed by Ktor/Serialization in Release
+-keep class kotlin.reflect.** { *; }
+
+# =============================================================================
+# TIMBER LOGGING OPTIMIZATION FOR RELEASE BUILDS
+# =============================================================================
+# Strip VERBOSE and DEBUG log calls entirely from release builds.
+# This removes the method calls at bytecode level, eliminating any overhead
+# from string concatenation or log message building.
+
+-assumenosideeffects class timber.log.Timber {
+    public static void v(...);
+    public static void d(...);
+    public static void i(...);
+}
+
+# Also strip Timber.Tree methods used by custom trees (belt and suspenders)
+-assumenosideeffects class timber.log.Timber$Tree {
+    public void v(...);
+    public void d(...);
+    public void i(...);
+}
+
+# Strip Android Log.v and Log.d calls as well
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}

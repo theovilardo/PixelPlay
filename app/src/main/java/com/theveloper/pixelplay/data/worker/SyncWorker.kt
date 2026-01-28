@@ -19,6 +19,7 @@ import com.theveloper.pixelplay.data.database.ArtistEntity
 import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.SongArtistCrossRef
 import com.theveloper.pixelplay.data.database.SongEntity
+import com.theveloper.pixelplay.data.database.TelegramDao // Added
 import com.theveloper.pixelplay.data.media.AudioMetadataReader
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
@@ -37,6 +38,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.absoluteValue // Added
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -61,7 +63,8 @@ constructor(
         @Assisted workerParams: WorkerParameters,
         private val musicDao: MusicDao,
         private val userPreferencesRepository: UserPreferencesRepository,
-        private val lyricsRepository: LyricsRepository
+        private val lyricsRepository: LyricsRepository,
+        private val telegramDao: TelegramDao
 ) : CoroutineWorker(appContext, workerParams) {
 
     private val contentResolver: ContentResolver = appContext.contentResolver
@@ -370,8 +373,14 @@ constructor(
                         // Clean orphaned album art cache files
                         val allSongIds = musicDao.getAllSongIds().toSet()
                         AlbumArtCacheManager.cleanOrphanedCacheFiles(applicationContext, allSongIds)
+                        
+                        // Sync Telegram songs
+                        syncTelegramData()
+                        
+                        // Recalculate total after telegram sync
+                        val finalTotalSongs = musicDao.getSongCount().first()
 
-                        Result.success(workDataOf(OUTPUT_TOTAL_SONGS to totalSongs))
+                        Result.success(workDataOf(OUTPUT_TOTAL_SONGS to finalTotalSongs))
                     } else {
                         Log.i(TAG, "No new or modified songs found.")
 
@@ -399,7 +408,13 @@ constructor(
                         val allSongIds = musicDao.getAllSongIds().toSet()
                         AlbumArtCacheManager.cleanOrphanedCacheFiles(applicationContext, allSongIds)
                         
-                        Result.success(workDataOf(OUTPUT_TOTAL_SONGS to totalSongs))
+                        // Sync Telegram songs
+                        syncTelegramData()
+                        
+                        // Recalculate total after telegram sync
+                        val finalTotalSongs = musicDao.getSongCount().first()
+
+                        Result.success(workDataOf(OUTPUT_TOTAL_SONGS to finalTotalSongs))
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error during MediaStore synchronization", e)
@@ -552,7 +567,7 @@ constructor(
             correctedSongs.add(
                     song.copy(
                             artistId = primaryArtistId,
-                            artistName = primaryArtistName,
+                            artistName = rawArtistName, // Preserving full artist string for display
                             albumId = finalAlbumId
                     )
             )
@@ -1192,5 +1207,105 @@ constructor(
                 OneTimeWorkRequestBuilder<SyncWorker>()
                         .setInputData(workDataOf(INPUT_SYNC_MODE to SyncMode.REBUILD.name))
                         .build()
+    }
+    
+    // Logic to sync Telegram songs into main DB
+    private suspend fun syncTelegramData() {
+        Log.i(TAG, "Syncing Telegram songs to main database...")
+        try {
+            val telegramSongs = telegramDao.getAllTelegramSongs().first()
+            val channels = telegramDao.getAllChannels().first().associateBy { it.chatId }
+            
+            if (telegramSongs.isEmpty()) { 
+                Log.d(TAG, "No Telegram songs to sync.")
+                return 
+            }
+
+            val songsToInsert = mutableListOf<SongEntity>()
+            val artistsToInsert = mutableListOf<ArtistEntity>()
+            val albumsToInsert = mutableListOf<AlbumEntity>()
+            val crossRefsToInsert = mutableListOf<SongArtistCrossRef>()
+            
+            telegramSongs.forEach { tSong ->
+                val channelName = channels[tSong.chatId]?.title ?: "Telegram Stream"
+                // Synthetic negative ID
+                val songId = -(tSong.id.hashCode().toLong().absoluteValue)
+                val finalSongId = if (songId == 0L) -1L else songId
+                
+                val artistName = tSong.artist.ifBlank { "Unknown Artist" }
+                val artistId = -(artistName.hashCode().toLong().absoluteValue)
+                val finalArtistId = if (artistId == 0L) -1L else artistId
+                
+                val albumName = channelName
+                val albumId = -(albumName.hashCode().toLong().absoluteValue)
+                val finalAlbumId = if (albumId == 0L) -1L else albumId
+                
+                val songEntity = SongEntity(
+                    id = finalSongId,
+                    title = tSong.title,
+                    artistName = artistName,
+                    artistId = finalArtistId,
+                    albumName = albumName,
+                    albumId = finalAlbumId,
+                    albumArtist = "Telegram",
+                    duration = tSong.duration,
+                    contentUriString = "telegram://${tSong.chatId}/${tSong.messageId}",
+                    albumArtUriString = tSong.albumArtUriString,
+                    filePath = tSong.filePath,
+                    parentDirectoryPath = File(tSong.filePath).parent ?: "/Telegram/$channelName",
+                    dateAdded = tSong.dateAdded,
+                    genre = "Telegram",
+                    trackNumber = 0,
+                    year = 0,
+                    isFavorite = false,
+                    lyrics = null,
+                    mimeType = tSong.mimeType,
+                    bitrate = 0,
+                    sampleRate = 0
+                )
+                songsToInsert.add(songEntity)
+                
+                // Artist
+                artistsToInsert.add(ArtistEntity(
+                    id = finalArtistId,
+                    name = artistName,
+                    trackCount = 0, 
+                    imageUrl = null
+                ))
+                
+                // Album
+                albumsToInsert.add(AlbumEntity(
+                    id = finalAlbumId,
+                    title = albumName,
+                    artistName = "Telegram", 
+                    artistId = finalArtistId,
+                    songCount = 0,
+                    year = 0,
+                    albumArtUriString = null
+                ))
+                
+                // CrossRef
+                crossRefsToInsert.add(SongArtistCrossRef(
+                    songId = finalSongId,
+                    artistId = finalArtistId,
+                    isPrimary = true
+                ))
+            }
+            
+            val distinctArtists = artistsToInsert.distinctBy { it.id }
+            val distinctAlbums = albumsToInsert.distinctBy { it.id }
+            
+            // Upsert into MusicDao
+            musicDao.incrementalSyncMusicData(
+                songs = songsToInsert,
+                albums = distinctAlbums,
+                artists = distinctArtists,
+                crossRefs = crossRefsToInsert,
+                deletedSongIds = emptyList() // Do not delete anything here
+            )
+            Log.i(TAG, "Synced ${songsToInsert.size} Telegram songs.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to sync Telegram data", e)
+        }
     }
 }

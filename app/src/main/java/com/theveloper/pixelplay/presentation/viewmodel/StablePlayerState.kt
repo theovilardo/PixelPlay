@@ -14,5 +14,6 @@ data class StablePlayerState(
     val isShuffleEnabled: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
     val isLoadingLyrics: Boolean = false,
-    val lyrics: Lyrics? = null
+    val lyrics: Lyrics? = null,
+    val isBuffering: Boolean = false
 )
