@@ -252,6 +252,27 @@ class PlayerViewModel @Inject constructor(
             initialValue = LyricsSourcePreference.EMBEDDED_FIRST
         )
 
+    val immersiveLyricsEnabled: StateFlow<Boolean> = userPreferencesRepository.immersiveLyricsEnabledFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = false
+        )
+
+    val immersiveLyricsTimeout: StateFlow<Long> = userPreferencesRepository.immersiveLyricsTimeoutFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 4000L
+        )
+
+    private val _isImmersiveTemporarilyDisabled = MutableStateFlow(false)
+    val isImmersiveTemporarilyDisabled: StateFlow<Boolean> = _isImmersiveTemporarilyDisabled.asStateFlow()
+
+    fun setImmersiveTemporarilyDisabled(disabled: Boolean) {
+        _isImmersiveTemporarilyDisabled.value = disabled
+    }
+
     val albumArtQuality: StateFlow<AlbumArtQuality> = userPreferencesRepository.albumArtQualityFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AlbumArtQuality.MEDIUM)
 

@@ -170,6 +170,8 @@ constructor(
         // Developer Options
         val ALBUM_ART_QUALITY = stringPreferencesKey("album_art_quality")
         val TAP_BACKGROUND_CLOSES_PLAYER = booleanPreferencesKey("tap_background_closes_player")
+        val IMMERSIVE_LYRICS_ENABLED = booleanPreferencesKey("immersive_lyrics_enabled")
+        val IMMERSIVE_LYRICS_TIMEOUT = longPreferencesKey("immersive_lyrics_timeout")
     }
 
     val appRebrandDialogShownFlow: Flow<Boolean> =
@@ -463,6 +465,28 @@ constructor(
     suspend fun setAutoScanLrcFiles(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.AUTO_SCAN_LRC_FILES] = enabled
+        }
+    }
+
+    val immersiveLyricsEnabledFlow: Flow<Boolean> =
+            dataStore.data.map { preferences ->
+                preferences[PreferencesKeys.IMMERSIVE_LYRICS_ENABLED] ?: false
+            }
+
+    val immersiveLyricsTimeoutFlow: Flow<Long> =
+            dataStore.data.map { preferences ->
+                preferences[PreferencesKeys.IMMERSIVE_LYRICS_TIMEOUT] ?: 4000L
+            }
+
+    suspend fun setImmersiveLyricsEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.IMMERSIVE_LYRICS_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setImmersiveLyricsTimeout(timeout: Long) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.IMMERSIVE_LYRICS_TIMEOUT] = timeout
         }
     }
 

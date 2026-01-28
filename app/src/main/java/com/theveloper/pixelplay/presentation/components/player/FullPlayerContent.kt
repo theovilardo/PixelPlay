@@ -134,6 +134,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import com.theveloper.pixelplay.presentation.components.WavySliderExpressive
+import com.theveloper.pixelplay.presentation.components.ToggleSegmentButton
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @SuppressLint("StateFlowValueCalledInComposition")
@@ -193,6 +194,9 @@ fun FullPlayerContent(
     val currentSongArtists by playerViewModel.currentSongArtists.collectAsState()
     val lyricsSyncOffset by playerViewModel.currentSongLyricsSyncOffset.collectAsState()
     val albumArtQuality by playerViewModel.albumArtQuality.collectAsState()
+    val immersiveLyricsEnabled by playerViewModel.immersiveLyricsEnabled.collectAsState()
+    val immersiveLyricsTimeout by playerViewModel.immersiveLyricsTimeout.collectAsState()
+    val isImmersiveTemporarilyDisabled by playerViewModel.isImmersiveTemporarilyDisabled.collectAsState()
 
     var showFetchLyricsDialog by remember { mutableStateOf(false) }
     var totalDrag by remember { mutableStateOf(0f) }
@@ -844,7 +848,13 @@ fun FullPlayerContent(
             onSeekTo = { playerViewModel.seekTo(it) },
             onPlayPause = {
                 playerViewModel.playPause()
-            }
+            },
+            onNext = onNext,
+            onPrev = onPrevious,
+            immersiveLyricsEnabled = immersiveLyricsEnabled,
+            immersiveLyricsTimeout = immersiveLyricsTimeout,
+            isImmersiveTemporarilyDisabled = isImmersiveTemporarilyDisabled,
+            onSetImmersiveTemporarilyDisabled = { playerViewModel.setImmersiveTemporarilyDisabled(it) }
         )
     }
 
@@ -1640,42 +1650,4 @@ private fun BottomToggleRow(
     }
 }
 
-@Composable
-fun ToggleSegmentButton(
-    modifier: Modifier,
-    active: Boolean,
-    activeColor: Color,
-    inactiveColor: Color = Color.Gray,
-    activeContentColor: Color = LocalMaterialTheme.current.onPrimary,
-    activeCornerRadius: Dp = 8.dp,
-    onClick: () -> Unit,
-    iconId: Int,
-    contentDesc: String
-) {
-    val bgColor by animateColorAsState(
-        targetValue = if (active) activeColor else inactiveColor,
-        animationSpec = tween(durationMillis = 250),
-        label = ""
-    )
-    val cornerRadius by animateDpAsState(
-        targetValue = if (active) activeCornerRadius else 8.dp,
-        animationSpec = spring(stiffness = Spring.StiffnessLow),
-        label = ""
-    )
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .clip(RoundedCornerShape(cornerRadius))
-            .background(bgColor)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            painter = painterResource(iconId),
-            contentDescription = contentDesc,
-            tint = if (active) activeContentColor else LocalMaterialTheme.current.primary,
-            modifier = Modifier.size(24.dp)
-        )
-    }
-}
