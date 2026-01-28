@@ -228,7 +228,6 @@ fun LyricsFloatingToolbar(
                             // But for now let's just letting it handle the click.
                         }
                     )
-                    //HorizontalDivider()
                 }
             }
         }
