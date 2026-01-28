@@ -108,9 +108,17 @@ class MusicRepositoryImpl @Inject constructor(
     }
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun getAudioFiles(): Flow<List<Song>> {
-        // Delegate to the reactive SongRepository which queries MediaStore directly
-        // and observes directory preference changes in real-time.
-        return songRepository.getSongs()
+        return combine(
+            songRepository.getSongs(),
+            telegramDao.getAllTelegramSongs(),
+            telegramDao.getAllChannels()
+        ) { localSongs, telegramSongs, channels ->
+            val channelMap = channels.associateBy { it.chatId }
+            val mappedTelegramSongs = telegramSongs.map { entity ->
+                entity.toSong(channelTitle = channelMap[entity.chatId]?.title)
+            }
+            localSongs + mappedTelegramSongs
+        }.flowOn(Dispatchers.IO)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -241,7 +249,7 @@ class MusicRepositoryImpl @Inject constructor(
     override fun searchSongs(query: String): Flow<List<Song>> {
         if (query.isBlank()) return flowOf(emptyList())
         
-        return combine(
+        val localSearchFlow = combine(
             musicDao.searchSongs(
                 query = query,
                 allowedParentDirs = emptyList(),
@@ -252,6 +260,18 @@ class MusicRepositoryImpl @Inject constructor(
             allCrossRefsFlow
         ) { songs, config, artists, crossRefs ->
             mapSongList(songs, config, artists, crossRefs)
+        }
+
+        val telegramSearchFlow = combine(
+            telegramDao.searchSongs(query),
+            telegramDao.getAllChannels()
+        ) { songs, channels ->
+            val channelMap = channels.associateBy { it.chatId }
+            songs.map { it.toSong(channelTitle = channelMap[it.chatId]?.title) }
+        }
+
+        return combine(localSearchFlow, telegramSearchFlow) { local, telegram ->
+            local + telegram
         }.conflate().flowOn(Dispatchers.IO)
     }
 
@@ -440,8 +460,20 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     override fun getSong(songId: String): Flow<Song?> {
-        val id = songId.toLongOrNull() ?: return flowOf(null)
-        return musicDao.getSongById(id).map { it?.toSong() }.flowOn(Dispatchers.IO)
+        val longId = songId.toLongOrNull()
+        return if (longId != null) {
+            musicDao.getSongById(longId).map { it?.toSong() }.flowOn(Dispatchers.IO)
+        } else {
+            combine(
+                telegramDao.getSongsByIds(listOf(songId)),
+                telegramDao.getAllChannels()
+            ) { songs, channels ->
+                val channelMap = channels.associateBy { it.chatId }
+                songs.firstOrNull()?.let { 
+                    it.toSong(channelTitle = channelMap[it.chatId]?.title)
+                }
+            }.flowOn(Dispatchers.IO)
+        }
     }
 
     override fun getGenres(): Flow<List<Genre>> {
@@ -560,7 +592,7 @@ class MusicRepositoryImpl @Inject constructor(
                     leafFolder.songs.addAll(songsInFolder)
 
                     // Build hierarchy upwards
-                    var currentPath = folderPath
+                    var currentPath: String = folderPath
                     var currentFile = folderFile
 
                     while (currentFile.parentFile != null) {

@@ -4,6 +4,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.theveloper.pixelplay.data.model.Song
+import kotlin.math.absoluteValue
 
 @Entity(tableName = "telegram_songs")
 data class TelegramSongEntity(
@@ -34,15 +35,18 @@ fun TelegramSongEntity.toSong(channelTitle: String? = null): Song {
         "/storage/emulated/0/Telegram Stream/${channelTitle ?: "Unknown Channel"}/${this.title}.mp3"
     }
 
+    val syntheticArtistId = -(this.artist.hashCode().toLong().absoluteValue)
+    val syntheticAlbumId = -((channelTitle ?: "Telegram Stream").hashCode().toLong().absoluteValue)
+
     return Song(
         id = this.id, // String ID
         title = this.title,
         artist = this.artist,
-        artistId = -1L, // No local artist ID
+        artistId = syntheticArtistId, 
         artists = emptyList(),
-        album = "Telegram Stream", // Static album name
-        albumId = -1L,
-        albumArtist = "Telegram",
+        album = channelTitle ?: "Telegram Stream",
+        albumId = syntheticAlbumId,
+        albumArtist = channelTitle ?: "Telegram",
         path = resolvedPath,
         contentUriString = this.filePath.ifEmpty { "telegram://${this.chatId}/${this.messageId}" }, // Persistent URI scheme
         albumArtUriString = this.albumArtUriString,
