@@ -83,6 +83,36 @@ fun ToggleSegmentButton(
 }
 
 @Composable
+fun ToggleSegmentButton(
+    modifier: Modifier,
+    active: Boolean,
+    activeColor: Color,
+    inactiveColor: Color = Color.Gray,
+    activeContentColor: Color = LocalMaterialTheme.current.onPrimary,
+    inactiveContentColor: Color = LocalMaterialTheme.current.primary,
+    activeCornerRadius: Dp = 8.dp,
+    onClick: () -> Unit,
+    text: String
+) {
+    ToggleSegmentButtonContainer(
+        modifier = modifier,
+        active = active,
+        activeColor = activeColor,
+        inactiveColor = inactiveColor,
+        activeCornerRadius = activeCornerRadius,
+        onClick = onClick
+    ) {
+        androidx.compose.material3.Text(
+            text = text,
+            color = if (active) activeContentColor else inactiveContentColor,
+            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+        )
+    }
+}
+
+
+@Composable
 private fun ToggleSegmentButtonContainer(
     modifier: Modifier,
     active: Boolean,

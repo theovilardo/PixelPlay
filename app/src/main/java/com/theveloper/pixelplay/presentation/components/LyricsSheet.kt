@@ -19,6 +19,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.AnimationState
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -116,6 +117,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.text.style.TextGeometricTransform
+import androidx.compose.ui.text.style.TextOverflow
+import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -397,6 +401,7 @@ fun LyricsSheet(
             // Lyrics Content (Weight 1)
             Box(
                 modifier = Modifier
+                    .align(Alignment.Start)
                     .weight(1f)
                     .fillMaxWidth()
             ) {
@@ -409,15 +414,32 @@ fun LyricsSheet(
                         .togetherWith(fadeOut(animationSpec = tween(300)))
                     },
                     modifier = Modifier
-                        .align(Alignment.TopCenter)
+                        .align(Alignment.TopStart)
                         .zIndex(2f)
-                        .fillMaxWidth(),
+                        // .fillMaxWidth() removed to allow wrapping
+                        .wrapContentWidth(),
                     label = "headerAnimation"
                 ) { song ->
                     LyricsTrackInfo(
                         song = song,
-                        modifier = Modifier.fillMaxWidth(),
-                        backgroundColor = containerColor,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(
+                                top = 4.dp, bottom = 24.dp, start = 18.dp, end = 18.dp
+                            )
+                            .background(
+                                color = backgroundColor,
+                                shape = CircleShape
+//                                shape = RoundedCornerShape(
+//                                    topStart = 16.dp,
+//                                    topEnd = 50.dp,
+//                                    bottomEnd = 50.dp,
+//                                    bottomStart = 16.dp
+//                                )
+                            )
+                            .wrapContentWidth()
+                            .animateContentSize(), // Animate width changes
+                        backgroundColor = backgroundColor, // Distinct solid background
                         contentColor = contentColor
                     )
                 }
@@ -442,7 +464,8 @@ fun LyricsSheet(
                                             )
                                             Spacer(modifier = Modifier.height(8.dp))
                                             LinearWavyProgressIndicator(
-                                                trackColor = accentColor.copy(alpha = .5f),
+                                                trackColor = accentColor.copy(alpha = 0.4f),
+                                                color = accentColor,
                                                 modifier = Modifier.width(100.dp)
                                             )
                                         }
@@ -522,7 +545,7 @@ fun LyricsSheet(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(180.dp)
+                        .height(130.dp)
                         .align(Alignment.TopCenter)
                         .background(
                             brush = Brush.verticalGradient(
@@ -599,7 +622,7 @@ fun LyricsSheet(
 
                     Box(
                         modifier = Modifier
-                            .size(70.dp)
+                            .size(78.dp)
                             .clip(RoundedCornerShape(playPauseCornerRadius))
                             .background(tertiaryColor)
                             .clickable(onClick = onPlayPause),
@@ -611,14 +634,14 @@ fun LyricsSheet(
                         ) { playing ->
                             if (playing) {
                                 Icon(
-                                    modifier = Modifier.size(30.dp),
+                                    modifier = Modifier.size(32.dp),
                                     imageVector = Icons.Rounded.Pause,
                                     contentDescription = "Pause",
                                     tint = onTertiaryColor
                                 )
                             } else {
                                 Icon(
-                                    modifier = Modifier.size(30.dp),
+                                    modifier = Modifier.size(32.dp),
                                     imageVector = Icons.Rounded.PlayArrow,
                                     contentDescription = "Play",
                                     tint = onTertiaryColor
@@ -705,6 +728,10 @@ fun LyricsSheet(
                modifier = Modifier
                    .align(overlayAlignment)
                    .size(100.dp) // Base size
+                   .padding(
+                       start = if(isNext) 0.dp else 6.dp,
+                       end = if(isNext) 6.dp else 0.dp
+                   )
                    .graphicsLayer {
                         val widthPx = size.width
                         val initialOffset = if(isNext) widthPx else -widthPx
@@ -716,10 +743,10 @@ fun LyricsSheet(
                    .background(
                         color = accentColor, // No alpha modulation
                         shape = RoundedCornerShape(
-                            topStart = if(isNext) 50.dp else 0.dp,
-                            bottomStart = if(isNext) 50.dp else 0.dp,
-                            topEnd = if(isNext) 0.dp else 50.dp,
-                            bottomEnd = if(isNext) 0.dp else 50.dp
+                            topStart = if(isNext) 360.dp else 8.dp,
+                            bottomStart = if(isNext) 360.dp else 8.dp,
+                            topEnd = if(isNext) 8.dp else 360.dp,
+                            bottomEnd = if(isNext) 8.dp else 360.dp
                         )
                    ),
                contentAlignment = Alignment.Center
@@ -1043,7 +1070,7 @@ internal suspend fun animateToSnapIndex(
  */
 private fun saveLyricsToFile(
     context: android.content.Context,
-    song: com.theveloper.pixelplay.data.model.Song,
+    song: Song,
     lyrics: Lyrics,
     preferSynced: Boolean
 ) {
@@ -1104,62 +1131,79 @@ private fun LyricsTrackInfo(
 ) {
     if (song == null) return
 
-    val albumShape = AbsoluteSmoothCornerShape(
-        cornerRadiusTR = 10.dp,
-        smoothnessAsPercentTL = 60,
-        cornerRadiusTL = 10.dp,
-        smoothnessAsPercentTR = 60,
-        cornerRadiusBR = 10.dp,
-        smoothnessAsPercentBL = 60,
-        cornerRadiusBL = 10.dp,
-        smoothnessAsPercentBR = 60
-    )
+    val albumShape = CircleShape
+//    val albumShape = AbsoluteSmoothCornerShape(
+//        cornerRadiusTR = 10.dp,
+//        smoothnessAsPercentTL = 60,
+//        cornerRadiusTL = 10.dp,
+//        smoothnessAsPercentTR = 60,
+//        cornerRadiusBR = 10.dp,
+//        smoothnessAsPercentBL = 60,
+//        cornerRadiusBL = 10.dp,
+//        smoothnessAsPercentBR = 60
+//    )
 
     Row(
-        modifier = modifier
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        backgroundColor,
-                        backgroundColor,
-                        backgroundColor.copy(alpha = 0.8f),
-                        Color.Transparent
-                    )
-                )
-            )
-            .padding(top = 24.dp, bottom = 24.dp, start = 24.dp, end = 24.dp),
+        modifier = modifier,
+//            .background(
+//                brush = Brush.verticalGradient(
+//                    colors = listOf(
+//                        backgroundColor,
+//                        backgroundColor,
+//                        backgroundColor.copy(alpha = 0.8f),
+//                        Color.Transparent
+//                    )
+//                )
+//            )
+            //.padding(top = 24.dp, bottom = 24.dp, start = 24.dp, end = 24.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         SmartImage(
             model = song.albumArtUriString ?: R.drawable.rounded_album_24,
             shape = albumShape,
             contentDescription = "Cover Art",
             modifier = Modifier
-                .size(56.dp)
+                .size(66.dp)
+                .padding(6.dp)
                 .clip(albumShape),
             contentScale = ContentScale.Crop
         )
 
         Column(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f, fill = false) // Allow shrinking if content is small
+                .padding(vertical = 6.dp)
+                .padding(end = 6.dp),
             verticalArrangement = Arrangement.Center
         ) {
-            AutoScrollingText(
+            Text(
                 text = song.title,
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.SemiBold,
-                    color = contentColor
+                    color = contentColor,
+                    //textGeometricTransform = TextGeometricTransform(scaleX = (0.9f)),
                 ),
-                gradientEdgeColor = backgroundColor
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-            AutoScrollingText(
+            Text(
                 text = song.displayArtist,
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    color = contentColor.copy(alpha = 0.7f)
+                    color = contentColor.copy(alpha = 0.7f),
+                    //textGeometricTransform = TextGeometricTransform(scaleX = (0.9f)),
                 ),
-                gradientEdgeColor = backgroundColor
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
+
+        PlayingEqIcon(
+            modifier = Modifier
+                .padding(start = 8.dp, end = 18.dp)
+                .size(width = 18.dp, height = 16.dp),
+            color = contentColor,
+            isPlaying = true
+        )
     }
 }

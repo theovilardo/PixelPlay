@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.rounded.ArrowBack
@@ -38,6 +40,8 @@ import com.theveloper.pixelplay.data.model.Lyrics
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.ui.draw.clip
 
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
@@ -97,10 +101,10 @@ fun LyricsFloatingToolbar(
                 activeColor = accentColor,
                 inactiveColor = backgroundColor,
                 activeContentColor = onAccentColor,
+                inactiveContentColor = onBackgroundColor,
                 activeCornerRadius = 50.dp,
                 onClick = { onShowSyncedLyricsChange(true) },
-                imageVector = Icons.Rounded.Lyrics,
-                contentDesc = "Synced"
+                text = "Synced"
             )
 
             ToggleSegmentButton(
@@ -109,10 +113,10 @@ fun LyricsFloatingToolbar(
                 activeColor = accentColor,
                 inactiveColor = backgroundColor,
                 activeContentColor = onAccentColor,
+                inactiveContentColor = onBackgroundColor,
                 activeCornerRadius = 50.dp,
                 onClick = { onShowSyncedLyricsChange(false) },
-                imageVector = Icons.Rounded.TextFormat,
-                contentDesc = "Static"
+                text = "Static"
             )
         }
         
@@ -146,44 +150,6 @@ fun LyricsFloatingToolbar(
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
             ) {
-                // Sync Controls Toggle
-                if (showSyncedLyrics) {
-                     DropdownMenuItem(
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Rounded.Tune,
-                                contentDescription = null
-                            )
-                        },
-                        text = { Text(text = if (isSyncControlsVisible) "Hide Sync Controls" else "Adjust Sync") },
-                        onClick = {
-                            expanded = false
-                            onToggleSyncControls()
-                        }
-                    )
-                    
-                    // Immersive Mode Temporary Disable
-                    DropdownMenuItem(
-                        text = { 
-                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Immersive Off (Once)", style = MaterialTheme.typography.bodyMedium)
-                                Spacer(Modifier.width(8.dp))
-                                Switch(
-                                    checked = isImmersiveTemporarilyDisabled,
-                                    onCheckedChange = null, // Handled by parent click
-                                    modifier = Modifier.scale(0.8f)
-                                )
-                            }
-                        },
-                        onClick = { 
-                            onSetImmersiveTemporarilyDisabled?.invoke(!isImmersiveTemporarilyDisabled)
-                             // Keep menu open for toggling? Or close it? Usually better to keep open for switches.
-                             // But for now let's just letting it handle the click.
-                        }
-                    )
-                    //HorizontalDivider()
-                }
-
                 // Save lyrics as .lrc option
                 DropdownMenuItem(
                     leadingIcon = {
@@ -213,6 +179,57 @@ fun LyricsFloatingToolbar(
                         onResetImportedLyrics()
                     }
                 )
+
+                // Sync Controls Toggle
+                if (showSyncedLyrics) {
+                    DropdownMenuItem(
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Rounded.Tune,
+                                contentDescription = null
+                            )
+                        },
+                        text = { Text(text = if (isSyncControlsVisible) "Hide Sync Controls" else "Adjust Sync") },
+                        onClick = {
+                            expanded = false
+                            onToggleSyncControls()
+                        }
+                    )
+
+                    HorizontalDivider(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .clip(CircleShape),
+                        thickness = 2.dp,
+                        color = onBackgroundColor.copy(alpha = 0.4f)
+                    )
+
+
+                    // Immersive Mode Temporary Disable
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Immersive Off (Once)", style = MaterialTheme.typography.bodyMedium)
+                                Spacer(Modifier.width(8.dp))
+                                Switch(
+                                    modifier = Modifier.scale(0.8f),
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = onAccentColor,
+                                        checkedTrackColor = accentColor,
+                                    ),
+                                    checked = isImmersiveTemporarilyDisabled,
+                                    onCheckedChange = null, // Handled by parent click
+                                )
+                            }
+                        },
+                        onClick = {
+                            onSetImmersiveTemporarilyDisabled?.invoke(!isImmersiveTemporarilyDisabled)
+                            // Keep menu open for toggling? Or close it? Usually better to keep open for switches.
+                            // But for now let's just letting it handle the click.
+                        }
+                    )
+                    //HorizontalDivider()
+                }
             }
         }
     }

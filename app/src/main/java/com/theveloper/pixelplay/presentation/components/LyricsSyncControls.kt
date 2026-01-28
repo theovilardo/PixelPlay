@@ -34,7 +34,7 @@ fun LyricsSyncControls(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(46.dp)
+            .height(52.dp)
             .background(
                 color = backgroundColor,
                 shape = CircleShape
