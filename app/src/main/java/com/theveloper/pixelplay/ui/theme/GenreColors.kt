@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import kotlin.math.abs
 
 data class GenreThemeColor(
@@ -60,5 +61,48 @@ object GenreThemeUtils {
         val hash = abs(genreId.hashCode())
         val index = hash % darkColors.size
         return if (isDark) darkColors[index] else lightColors[index]
+    }
+
+    private fun androidx.compose.ui.graphics.Color.shiftHue(amount: Float): androidx.compose.ui.graphics.Color {
+        val argb = this.toArgb()
+        val hsv = FloatArray(3)
+        android.graphics.Color.colorToHSV(argb, hsv)
+        hsv[0] = (hsv[0] + amount + 360) % 360
+        return androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(hsv))
+    }
+
+    @androidx.compose.runtime.Composable
+    fun getGenreColorScheme(
+        genreId: String,
+        isDark: Boolean,
+        baseScheme: androidx.compose.material3.ColorScheme = androidx.compose.material3.MaterialTheme.colorScheme
+    ): androidx.compose.material3.ColorScheme {
+        val themeColor = getGenreThemeColor(genreId, isDark)
+        val primarySeed = themeColor.container
+        
+        // Generate Secondary (Analogous +25) and Tertiary (Triadic +120)
+        val secondarySeed = primarySeed.shiftHue(25f)
+        val tertiarySeed = primarySeed.shiftHue(120f)
+        
+        // We derive the tonal palettes simply by opacity or reuse for now to avoid full HCT engine overhead.
+        
+        return baseScheme.copy(
+            primary = themeColor.onContainer,
+            onPrimary = themeColor.container,
+            primaryContainer = themeColor.container,
+            onPrimaryContainer = themeColor.onContainer,
+            
+            secondary = secondarySeed,
+            onSecondary = themeColor.onContainer, 
+            secondaryContainer = secondarySeed, // Solid container
+            onSecondaryContainer = themeColor.onContainer,
+            
+            tertiary = tertiarySeed,
+            onTertiary = themeColor.onContainer,
+            tertiaryContainer = tertiarySeed, // Solid container
+            onTertiaryContainer = themeColor.onContainer,
+            
+            surface = themeColor.container // Tinted surface for contrast
+        )
     }
 }

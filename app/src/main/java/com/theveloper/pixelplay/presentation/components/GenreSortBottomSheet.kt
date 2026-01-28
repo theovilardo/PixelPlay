@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.Check
@@ -44,108 +45,139 @@ fun GenreSortBottomSheet(
     onSortSelected: (SortOption) -> Unit,
     onShuffle: () -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState()
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true
+    )
     
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        contentColor = MaterialTheme.colorScheme.onSurface
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
         Column(
             modifier = Modifier
                 .padding(horizontal = 24.dp)
-                .padding(bottom = 24.dp)
+                .padding(bottom = 48.dp) // Extra bottom padding for navigation bar
         ) {
-            Text(
-                text = "Sort & Shuffle",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-
-            // Sort Options
-            SortOptionItem(
-                text = "Sort by Artist",
-                icon = Icons.Rounded.Person,
-                isSelected = currentSort == SortOption.ARTIST,
-                onClick = { onSortSelected(SortOption.ARTIST) }
-            )
-            SortOptionItem(
-                text = "Sort by Album",
-                icon = Icons.Rounded.Album,
-                isSelected = currentSort == SortOption.ALBUM,
-                onClick = { onSortSelected(SortOption.ALBUM) }
-            )
-            SortOptionItem(
-                text = "Sort by Title",
-                icon = Icons.Rounded.SortByAlpha,
-                isSelected = currentSort == SortOption.TITLE,
-                onClick = { onSortSelected(SortOption.TITLE) }
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-            HorizontalDivider(modifier = Modifier.padding(bottom = 24.dp))
-
-            // Big Shuffle Button
-            Button(
-                onClick = onShuffle,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                shape = AbsoluteSmoothCornerShape(16.dp, 60)
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Rounded.Shuffle, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Shuffle Play",
-                    style = MaterialTheme.typography.titleMedium,
+                    text = "Sort & Play",
+                    style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
             }
-            Spacer(modifier = Modifier.height(24.dp)) // Bottom padding
+
+            // Big expresssive buttons for actions
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Shuffle Button (Prominent)
+                Button(
+                    onClick = onShuffle,
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    shape = AbsoluteSmoothCornerShape(16.dp, 60)
+                ) {
+                    Icon(Icons.Rounded.Shuffle, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Shuffle",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            Text(
+                text = "Sort By",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            // Expressive Sort Options (Cards instead of simple rows)
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SortOptionCard(
+                    text = "Artist",
+                    icon = Icons.Rounded.Person,
+                    isSelected = currentSort == SortOption.ARTIST,
+                    onClick = { onSortSelected(SortOption.ARTIST) }
+                )
+                SortOptionCard(
+                    text = "Album",
+                    icon = Icons.Rounded.Album,
+                    isSelected = currentSort == SortOption.ALBUM,
+                    onClick = { onSortSelected(SortOption.ALBUM) }
+                )
+                SortOptionCard(
+                    text = "Title",
+                    icon = Icons.Rounded.SortByAlpha,
+                    isSelected = currentSort == SortOption.TITLE,
+                    onClick = { onSortSelected(SortOption.TITLE) }
+                )
+            }
         }
     }
 }
 
 @Composable
-fun SortOptionItem(
+fun SortOptionCard(
     text: String,
     icon: ImageVector,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val containerColor = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
+    val contentColor = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
+
     Surface(
         onClick = onClick,
-        color = Color.Transparent, // Transparent to show ripple
-        shape = AbsoluteSmoothCornerShape(12.dp, 60)
+        color = containerColor,
+        shape = AbsoluteSmoothCornerShape(16.dp, 60),
+        modifier = Modifier.fillMaxWidth().height(64.dp)
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp, horizontal = 8.dp),
+                .padding(horizontal = 20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                tint = contentColor,
+                modifier = Modifier.size(24.dp)
             )
+            
             Spacer(modifier = Modifier.width(16.dp))
+            
             Text(
                 text = text,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = contentColor,
                 modifier = Modifier.weight(1f)
             )
+            
             if (isSelected) {
                 Icon(
                     imageVector = Icons.Rounded.Check,
                     contentDescription = "Selected",
-                    tint = MaterialTheme.colorScheme.primary
+                    tint = contentColor
                 )
             }
         }

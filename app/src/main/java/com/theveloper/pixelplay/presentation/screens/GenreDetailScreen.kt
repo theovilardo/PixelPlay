@@ -49,6 +49,7 @@ import com.theveloper.pixelplay.presentation.components.ExpressiveTopBarContent
 import com.theveloper.pixelplay.presentation.components.GenreSortBottomSheet
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
+import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
 import com.theveloper.pixelplay.presentation.components.subcomps.EnhancedSongListItem
 import com.theveloper.pixelplay.presentation.viewmodel.GenreDetailViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.GroupedSongListItem
@@ -180,202 +181,207 @@ fun GenreDetailScreen(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .nestedScroll(nestedScrollConnection)
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        val currentTopBarHeightDp = with(density) { topBarHeight.value.toDp() }
+    // Dynamic Theme
+    val genreColorScheme = com.theveloper.pixelplay.ui.theme.GenreThemeUtils.getGenreColorScheme(
+        genreId = uiState.genre?.id ?: "unknown",
+        isDark = darkMode
+    )
 
-        // Content
-        LazyColumn(
-            state = lazyListState,
-            contentPadding = PaddingValues(
-                top = currentTopBarHeightDp + 8.dp, // Push content down initially
-                start = 16.dp,
-                end = 16.dp,
-                bottom = fabBottomPadding + 88.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-             items(displaySections, key = { it.id }) { section ->
-                when (section) {
-                    is SectionData.ArtistSection -> {
-                        val artistImage = remember(section.artistName, artists) {
-                            artists.find { it.name.equals(section.artistName, ignoreCase = true) }?.imageUrl
-                        }
-                        
-                        ArtistSectionItem(
-                            section = section,
-                            artistImageUrl = artistImage,
-                            onSongClick = { song ->
-                                playerViewModel.showAndPlaySong(song, sortedSongs, uiState.genre?.name ?: "Genre")
-                            },
-                            stablePlayerState = stablePlayerState,
-                            onMoreOptionsClick = { song -> showSongOptionsSheet = song }
-                        )
-                    }
-                    is SectionData.AlbumSection -> {
-                        AlbumSectionItem(
-                            album = section.album,
-                            onSongClick = { song ->
-                                 playerViewModel.showAndPlaySong(song, sortedSongs, uiState.genre?.name ?: "Genre")
-                            },
-                            stablePlayerState = stablePlayerState,
-                            onMoreOptionsClick = { song -> showSongOptionsSheet = song }
-                        )
-                    }
-                    is SectionData.FlatList -> {
-                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                             section.songs.forEach { song ->
-                                 EnhancedSongListItem(
-                                     song = song,
-                                     isPlaying = stablePlayerState.isPlaying,
-                                     isCurrentSong = stablePlayerState.currentSong?.id == song.id,
-                                     onClick = {
-                                         playerViewModel.showAndPlaySong(song, sortedSongs, uiState.genre?.name ?: "Genre")
-                                     },
-                                     onMoreOptionsClick = { showSongOptionsSheet = it }
-                                 )
-                             }
-                         }
-                    }
-                }
-            }
-        }
+    // Capture Neutral Colors from the App Theme (before overriding)
+    val baseColorScheme = MaterialTheme.colorScheme
+    val neutralOnSurface = MaterialTheme.colorScheme.onSurface
+    val neutralSurfaceContainer = MaterialTheme.colorScheme.surfaceContainer
 
-        // Collapsible Top Bar with Gradient (On Top of List, High Z-Index)
-        // This ensures the gradient is ON TOP of the scrolling content, so content scrolls BEHIND it.
-        GenreCollapsibleTopBar(
-            title = uiState.genre?.name ?: "Genre",
-            collapseFraction = collapseFraction,
-            headerHeight = currentTopBarHeightDp,
-            onBackPressed = { navController.popBackStack() },
-            startColor = startColor,
-            contentColor = contentColor,
-            containerColor = defaultContainer
-        )
-        
-        // FAB
+    MaterialTheme(colorScheme = genreColorScheme) {
         Box(
-             modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = fabBottomPadding + 16.dp, end = 16.dp)
-                .zIndex(10f) // Ensure FAB is above everything
+            modifier = Modifier
+                .fillMaxSize()
+                .nestedScroll(nestedScrollConnection)
+                .background(MaterialTheme.colorScheme.background) // Uses new theme background
         ) {
-             LargeFloatingActionButton(
-                onClick = { showSortSheet = true },
-                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                shape = AbsoluteSmoothCornerShape(24.dp, 60)
+            val currentTopBarHeightDp = with(density) { topBarHeight.value.toDp() }
+
+                // Content
+            CompositionLocalProvider(
+                androidx.compose.material3.LocalContentColor provides neutralOnSurface
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Tune,
-                    contentDescription = "Options",
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-        }
-        
-        // Sorting Bottom Sheet
-        if (showSortSheet) {
-            GenreSortBottomSheet(
-                onDismiss = { showSortSheet = false },
-                currentSort = sortOption,
-                onSortSelected = { 
-                    sortOption = it
-                    showSortSheet = false
-                },
-                onShuffle = {
-                    if (uiState.songs.isNotEmpty()) {
-                        playerViewModel.showAndPlaySong(uiState.songs.random(), uiState.songs, uiState.genre?.name ?: "Genre Shuffle")
-                        showSortSheet = false
+                LazyColumn(
+                    state = lazyListState,
+                    contentPadding = PaddingValues(
+                        top = currentTopBarHeightDp + 8.dp, // Push content down initially
+                        start = 16.dp,
+                        end = 16.dp,
+                        bottom = fabBottomPadding + 148.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                     items(displaySections, key = { it.id }) { section ->
+                        when (section) {
+                            is SectionData.ArtistSection -> {
+                                val artistImage = remember(section.artistName, artists) {
+                                    artists.find { it.name.equals(section.artistName, ignoreCase = true) }?.imageUrl
+                                }
+
+                                ArtistSectionItem(
+                                    section = section,
+                                    artistImageUrl = artistImage,
+                                    onSongClick = { song ->
+                                        playerViewModel.showAndPlaySong(song, sortedSongs, uiState.genre?.name ?: "Genre")
+                                    },
+                                    stablePlayerState = stablePlayerState,
+                                    onMoreOptionsClick = { song -> showSongOptionsSheet = song }
+                                )
+                            }
+                            is SectionData.AlbumSection -> {
+                                AlbumSectionItem(
+                                    album = section.album,
+                                    onSongClick = { song ->
+                                         playerViewModel.showAndPlaySong(song, sortedSongs, uiState.genre?.name ?: "Genre")
+                                    },
+                                    stablePlayerState = stablePlayerState,
+                                    onMoreOptionsClick = { song -> showSongOptionsSheet = song }
+                                )
+                            }
+                            is SectionData.FlatList -> {
+                                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                     section.songs.forEach { song ->
+                                         EnhancedSongListItem(
+                                             song = song,
+                                             isPlaying = stablePlayerState.isPlaying,
+                                             isCurrentSong = stablePlayerState.currentSong?.id == song.id,
+                                             onClick = {
+                                                 playerViewModel.showAndPlaySong(song, sortedSongs, uiState.genre?.name ?: "Genre")
+                                             },
+                                             onMoreOptionsClick = { showSongOptionsSheet = it }
+                                         )
+                                     }
+                                 }
+                            }
+                        }
                     }
                 }
-            )
-        }
-        
-        // Song Options Bottom Sheet
-        showSongOptionsSheet?.let { song ->
-            val isFavorite = favoriteSongIds.contains(song.id)
+            }
 
-            com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet(
-                song = song,
-                isFavorite = isFavorite,
-                onToggleFavorite = {
-                    playerViewModel.toggleFavoriteSpecificSong(song)
-                },
-                onDismiss = { showSongOptionsSheet = null },
-                onPlaySong = {
-                    playerViewModel.showAndPlaySong(song, sortedSongs, uiState.genre?.name ?: "Genre")
-                    showSongOptionsSheet = null
-                },
-                onAddToQueue = {
-                    playerViewModel.addSongToQueue(song)
-                    showSongOptionsSheet = null
-                    playerViewModel.sendToast("Added to the queue")
-                },
-                onAddNextToQueue = {
-                     playerViewModel.addSongNextToQueue(song)
-                     showSongOptionsSheet = null
-                     playerViewModel.sendToast("Will play next")
-                },
-                onAddToPlayList = {
-                    showPlaylistBottomSheet = true
-                    // Keep song sheet open? Or close it? Library closes it if we rely on state overlap. 
-                    // Usually we might want to close song options when opening playlist options.
-                    // But playlist sheet might need `showSongOptionsSheet` to be null if they are mutually exclusive modal sheets.
-                    // If they are strictly modal, we should probably close this one or handle z-ordering.
-                    // Let's close this one for now to avoid overlapping bottoms sheets issues if framework doesn't stack them nicely.
-                    // But wait, PlaylistBottomSheet needs a `song` to add.
-                    // If we close `showSongOptionsSheet`, `song` variable (from let) is gone if we don't save it.
-                    // But we have `showSongOptionsSheet` which DOES hold the song. 
-                    // So if we set `showSongOptionsSheet = null`, we lose the song reference for the playlist sheet!
-                    // We need a separate state for `selectedSongForPlaylist` or just keep utilizing `showSongOptionsSheet`'s value
-                    // but we can't have two modal sheets at once easily. 
-                    // Actually, Material3 ModalBottomSheet can stack but it's messy.
-                    // Better pattern: Set a separate `selectedSongForPlaylist = song` then `showPlaylistBottomSheet = true` then `showSongOptionsSheet = null`.
-                    // effectively: do nothing here regarding state, just set boolean active?
-                    // Let's rely on `showSongOptionsSheet` being the source of truth for the song.
-                },
-                onDeleteFromDevice = playerViewModel::deleteFromDevice,
-                onNavigateToAlbum = { 
-                    com.theveloper.pixelplay.presentation.navigation.Screen.AlbumDetail.createRoute(song.albumId).let { route ->
-                        navController.navigate(route)
-                    }
-                    showSongOptionsSheet = null
-                },
-                onNavigateToArtist = {
-                    com.theveloper.pixelplay.presentation.navigation.Screen.ArtistDetail.createRoute(song.artistId).let { route ->
-                        navController.navigate(route)
-                    }
-                    showSongOptionsSheet = null
-                },
-                onEditSong = { newTitle, newArtist, newAlbum, newGenre, newLyrics, newTrackNumber, coverArtUpdate ->
-                     playerViewModel.editSongMetadata(song, newTitle, newArtist, newAlbum, newGenre, newLyrics, newTrackNumber, coverArtUpdate)
-                },
-                generateAiMetadata = { fields ->
-                    playerViewModel.generateAiMetadata(song, fields)
-                },
-                removeFromListTrigger = {}
+            // Collapsible Top Bar with Gradient (On Top of List, High Z-Index)
+            // This ensures the gradient is ON TOP of the scrolling content, so content scrolls BEHIND it.
+            GenreCollapsibleTopBar(
+                title = uiState.genre?.name ?: "Genre",
+                collapseFraction = collapseFraction,
+                headerHeight = currentTopBarHeightDp,
+                onBackPressed = { navController.popBackStack() },
+                startColor = startColor,
+                contentColor = contentColor,
+                containerColor = neutralSurfaceContainer, // Collapsed Background is Neutral
+                collapsedContentColor = neutralOnSurface // Collapsed Content is Neutral
             )
-            
-            if (showPlaylistBottomSheet) {
-                com.theveloper.pixelplay.presentation.components.PlaylistBottomSheet(
-                    playlistUiState = playlistUiState,
-                    song = song,
-                    onDismiss = { showPlaylistBottomSheet = false },
-                    bottomBarHeight = 0.dp, // Or calculate if needed
-                    playerViewModel = playerViewModel
+        
+            // FAB
+            Box(
+                 modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = fabBottomPadding + 16.dp, end = 16.dp)
+                    .zIndex(10f) // Ensure FAB is above everything
+            ) {
+                 LargeFloatingActionButton(
+                    onClick = { showSortSheet = true },
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                    shape = AbsoluteSmoothCornerShape(24.dp, 60)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Tune,
+                        contentDescription = "Options",
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+        
+            // Sorting Bottom Sheet
+            if (showSortSheet) {
+                GenreSortBottomSheet(
+                    onDismiss = { showSortSheet = false },
+                    currentSort = sortOption,
+                    onSortSelected = {
+                        sortOption = it
+                        showSortSheet = false
+                    },
+                    onShuffle = {
+                        if (uiState.songs.isNotEmpty()) {
+                            playerViewModel.showAndPlaySong(uiState.songs.random(), uiState.songs, uiState.genre?.name ?: "Genre Shuffle")
+                            showSortSheet = false
+                        }
+                    }
                 )
             }
-        }
         
-        // Loading/Error States
-        if (uiState.isLoadingSongs) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            // Song Options Bottom Sheet
+            showSongOptionsSheet?.let { song ->
+                val isFavorite = favoriteSongIds.contains(song.id)
+
+                MaterialTheme(colorScheme = baseColorScheme) {
+                    SongInfoBottomSheet(
+                        song = song,
+                        isFavorite = isFavorite,
+                        onToggleFavorite = {
+                            playerViewModel.toggleFavoriteSpecificSong(song)
+                        },
+                        onDismiss = { showSongOptionsSheet = null },
+                        onPlaySong = {
+                            playerViewModel.showAndPlaySong(song, sortedSongs, uiState.genre?.name ?: "Genre")
+                            showSongOptionsSheet = null
+                        },
+                        onAddToQueue = {
+                            playerViewModel.addSongToQueue(song)
+                            showSongOptionsSheet = null
+                            playerViewModel.sendToast("Added to the queue")
+                        },
+                        onAddNextToQueue = {
+                            playerViewModel.addSongNextToQueue(song)
+                            showSongOptionsSheet = null
+                            playerViewModel.sendToast("Will play next")
+                        },
+                        onAddToPlayList = {
+                            showPlaylistBottomSheet = true
+                        },
+                        onDeleteFromDevice = playerViewModel::deleteFromDevice,
+                        onNavigateToAlbum = {
+                            com.theveloper.pixelplay.presentation.navigation.Screen.AlbumDetail.createRoute(song.albumId).let { route ->
+                                navController.navigate(route)
+                            }
+                            showSongOptionsSheet = null
+                        },
+                        onNavigateToArtist = {
+                            com.theveloper.pixelplay.presentation.navigation.Screen.ArtistDetail.createRoute(song.artistId).let { route ->
+                                navController.navigate(route)
+                            }
+                            showSongOptionsSheet = null
+                        },
+                        onEditSong = { newTitle, newArtist, newAlbum, newGenre, newLyrics, newTrackNumber, coverArtUpdate ->
+                            playerViewModel.editSongMetadata(song, newTitle, newArtist, newAlbum, newGenre, newLyrics, newTrackNumber, coverArtUpdate)
+                        },
+                        generateAiMetadata = { fields ->
+                            playerViewModel.generateAiMetadata(song, fields)
+                        },
+                        removeFromListTrigger = {}
+                    )
+                }
+
+                if (showPlaylistBottomSheet) {
+                    com.theveloper.pixelplay.presentation.components.PlaylistBottomSheet(
+                        playlistUiState = playlistUiState,
+                        song = song,
+                        onDismiss = { showPlaylistBottomSheet = false },
+                        bottomBarHeight = 0.dp, // Or calculate if needed
+                        playerViewModel = playerViewModel
+                    )
+                }
+            }
+        
+            // Loading/Error States
+            if (uiState.isLoadingSongs) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            }
         }
     }
 }
@@ -389,13 +395,21 @@ fun GenreCollapsibleTopBar(
     onBackPressed: () -> Unit,
     startColor: Color,
     containerColor: Color,
-    contentColor: Color
+    contentColor: Color,
+    collapsedContentColor: Color
 ) {
     val density = LocalDensity.current
     
     // Calculate alpha for the solid background layer based on collapse fraction
     // It should become fully opaque as we approach the collapsed state
     val solidAlpha = (collapseFraction * 2f).coerceIn(0f, 1f) // Becomes opaque halfway through collapse
+    
+    // Interpolate content color from Vibrant to Neutral
+    val animatedContentColor = androidx.compose.ui.graphics.lerp(
+        start = contentColor,
+        stop = collapsedContentColor,
+        fraction = solidAlpha
+    )
 
     Box(
         modifier = Modifier
@@ -403,11 +417,11 @@ fun GenreCollapsibleTopBar(
             .height(headerHeight)
             .zIndex(5f)
     ) {
-        // Layer 1: The solid background that fades in
+        // Layer 1: The solid background that fades in (Neutral Surface)
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(startColor.copy(alpha = solidAlpha))
+                .background(containerColor.copy(alpha = solidAlpha)) 
         )
         
         // Layer 2: The gradient (visible when expanded, fades out when collapsed to avoid double darkening?)
@@ -432,11 +446,11 @@ fun GenreCollapsibleTopBar(
                     .zIndex(10f),
                 onClick = onBackPressed,
                 colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = contentColor.copy(alpha = 0.1f), // Tonal style for better contrast
-                    contentColor = contentColor
+                    containerColor = animatedContentColor.copy(alpha = 0.1f), // Tonal style 
+                    contentColor = animatedContentColor
                 )
             ) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = contentColor)
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = animatedContentColor)
             }
 
             ExpressiveTopBarContent(
@@ -446,7 +460,7 @@ fun GenreCollapsibleTopBar(
                 collapsedTitleStartPadding = 68.dp,
                 expandedTitleStartPadding = 20.dp,
                 maxLines = 1,
-                contentColor = contentColor
+                contentColor = animatedContentColor
             )
         }
     }
@@ -525,7 +539,7 @@ fun ArtistSectionItem(
             // Header
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 0.dp)
             ) {
                  Box(
                     modifier = Modifier
@@ -628,7 +642,6 @@ fun AlbumSectionItemInArtist(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            
              IconButton(
                 onClick = { 
                     if(album.songs.isNotEmpty()) onSongClick(album.songs.first()) // Simple play first of album
