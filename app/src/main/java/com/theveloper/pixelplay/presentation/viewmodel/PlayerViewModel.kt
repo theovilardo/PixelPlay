@@ -1591,9 +1591,13 @@ class PlayerViewModel @Inject constructor(
             // Validate songs - filter out any with missing files (efficient: uses contentUri check)
             val validSongs = songsToPlay.filter { song ->
                 try {
-                    // Use ContentResolver to check if URI is still valid (more efficient than File check)
                     val uri = song.contentUriString.toUri()
-                    context.contentResolver.openInputStream(uri)?.use { true } ?: false
+                    if (song.contentUriString.startsWith("telegram://")) {
+                        true // Telegram URIs are handled by our proxy/engine
+                    } else {
+                        // Use ContentResolver to check if URI is still valid (more efficient than File check)
+                        context.contentResolver.openInputStream(uri)?.use { true } ?: false
+                    }
                 } catch (e: Exception) {
                     Timber.w("Song file missing or inaccessible: ${song.title}")
                     false
