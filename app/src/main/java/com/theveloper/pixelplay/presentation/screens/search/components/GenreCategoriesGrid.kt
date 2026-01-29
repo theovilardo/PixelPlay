@@ -119,12 +119,12 @@ private fun GenreCard(
     genre: Genre,
     onClick: () -> Unit
 ) {
-    val backgroundColor = remember(genre) {
-        Color(android.graphics.Color.parseColor(genre.lightColorHex ?: "#7D5260")) // Fallback color
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val themeColor = remember(genre, isDark) {
+        com.theveloper.pixelplay.ui.theme.GenreThemeUtils.getGenreThemeColor(genre.id, isDark)
     }
-    val onBackgroundColor = remember(genre) {
-        Color(android.graphics.Color.parseColor(genre.onLightColorHex ?: "#FFFFFF")) // Fallback color
-    }
+    val backgroundColor = themeColor.container
+    val onBackgroundColor = themeColor.onContainer
 
     Card(
         modifier = Modifier

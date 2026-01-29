@@ -31,6 +31,9 @@ class ArtistImageRepository @Inject constructor(
     // Mutex to prevent duplicate API calls for the same artist
     private val fetchMutex = Mutex()
     private val pendingFetches = mutableSetOf<String>()
+    
+    // Set to track artists for whom image fetching failed (e.g. not found), to avoid retrying in the same session
+    private val failedFetches = mutableSetOf<String>()
 
     /**
      * Get artist image URL, fetching from Deezer if not cached.
@@ -46,6 +49,11 @@ class ArtistImageRepository @Inject constructor(
         // Check memory cache first
         memoryCache.get(normalizedName)?.let { cachedUrl ->
             return cachedUrl
+        }
+        
+        // Check if previously failed
+        if (failedFetches.contains(normalizedName)) {
+            return null
         }
 
         // Check database cache
@@ -69,14 +77,20 @@ class ArtistImageRepository @Inject constructor(
         withContext(Dispatchers.IO) {
             artists.forEach { (artistId, artistName) ->
                 try {
-                    getArtistImageUrl(artistName, artistId)
+                     val normalizedName = artistName.trim().lowercase()
+                     // Only fetch if not in memory, not failed, and not pending
+                     if(memoryCache.get(normalizedName) == null && !failedFetches.contains(normalizedName)) {
+                         getArtistImageUrl(artistName, artistId)
+                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "Failed to prefetch image for $artistName: ${e.message}")
                 }
             }
         }
     }
-
+    
+    // ... fetchAndCacheArtistImage method ...
+    
     private suspend fun fetchAndCacheArtistImage(
         artistName: String,
         artistId: Long,
@@ -116,11 +130,16 @@ class ArtistImageRepository @Inject constructor(
                     }
                 } else {
                     Log.d(TAG, "No Deezer artist found for: $artistName")
+                    failedFetches.add(normalizedName) // Mark as failed
                     null
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching artist image for $artistName: ${e.message}")
+            // Consider transient errors? For now treating as failed to avoid spam.
+            if(e !is java.net.SocketTimeoutException) {
+                failedFetches.add(normalizedName)
+            }
             null
         } finally {
             fetchMutex.withLock {
@@ -128,11 +147,12 @@ class ArtistImageRepository @Inject constructor(
             }
         }
     }
-
+    
     /**
      * Clear all cached images. Useful for debugging or forced refresh.
      */
     fun clearCache() {
         memoryCache.evictAll()
+        failedFetches.clear()
     }
 }

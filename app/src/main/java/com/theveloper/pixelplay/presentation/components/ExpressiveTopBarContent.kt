@@ -31,6 +31,7 @@ fun ExpressiveTopBarContent(
     containerHeightRange: Pair<Dp, Dp> = 88.dp to 56.dp,
     collapsedTitleVerticalBias: Float = -1f,
     maxLines: Int = 2,
+    contentColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface,
     supportingContent: (@Composable () -> Unit)? = null
 ) {
     val clampedFraction = collapseFraction.coerceIn(0f, 1f)
@@ -55,7 +56,7 @@ fun ExpressiveTopBarContent(
                     text = title,
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = contentColor,
                     maxLines = maxLines,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     lineHeight = MaterialTheme.typography.headlineMedium.fontSize * 1.1f, // Slight breathing room
