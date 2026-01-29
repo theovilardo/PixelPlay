@@ -71,6 +71,12 @@ object GenreThemeUtils {
         return androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(hsv))
     }
 
+    private fun androidx.compose.ui.graphics.Color.contrastColor(): androidx.compose.ui.graphics.Color {
+        // Calculate luminance using standard formula
+        val luminance = (0.299 * red + 0.587 * green + 0.114 * blue)
+        return if (luminance > 0.5) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
+    }
+
     @androidx.compose.runtime.Composable
     fun getGenreColorScheme(
         genreId: String,
@@ -93,14 +99,14 @@ object GenreThemeUtils {
             onPrimaryContainer = themeColor.onContainer,
             
             secondary = secondarySeed,
-            onSecondary = themeColor.onContainer, 
+            onSecondary = secondarySeed.contrastColor(), 
             secondaryContainer = secondarySeed, // Solid container
-            onSecondaryContainer = themeColor.onContainer,
+            onSecondaryContainer = secondarySeed.contrastColor(),
             
             tertiary = tertiarySeed,
-            onTertiary = themeColor.onContainer,
+            onTertiary = tertiarySeed.contrastColor(),
             tertiaryContainer = tertiarySeed, // Solid container
-            onTertiaryContainer = themeColor.onContainer,
+            onTertiaryContainer = tertiarySeed.contrastColor(),
             
             surface = themeColor.container // Tinted surface for contrast
         )

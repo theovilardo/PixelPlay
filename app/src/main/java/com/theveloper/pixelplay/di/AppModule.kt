@@ -198,7 +198,8 @@ object AppModule {
         musicDao: MusicDao,
         lyricsRepository: LyricsRepository,
         songRepository: com.theveloper.pixelplay.data.repository.SongRepository,
-        favoritesDao: FavoritesDao
+        favoritesDao: FavoritesDao,
+        artistImageRepository: ArtistImageRepository
     ): MusicRepository {
         return MusicRepositoryImpl(
             context = context,
@@ -207,7 +208,8 @@ object AppModule {
             musicDao = musicDao,
             lyricsRepository = lyricsRepository,
             songRepository = songRepository,
-            favoritesDao = favoritesDao
+            favoritesDao = favoritesDao,
+            artistImageRepository = artistImageRepository
         )
     }
 

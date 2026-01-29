@@ -203,7 +203,7 @@ fun GenreDetailScreen(
 
                 // Content
             CompositionLocalProvider(
-                androidx.compose.material3.LocalContentColor provides neutralOnSurface
+                LocalContentColor provides neutralOnSurface
             ) {
                 LazyColumn(
                     state = lazyListState,
@@ -290,7 +290,7 @@ fun GenreDetailScreen(
                     shape = AbsoluteSmoothCornerShape(24.dp, 60)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Tune,
+                        imageVector = Icons.Rounded.Menu,
                         contentDescription = "Options",
                         modifier = Modifier.size(28.dp)
                     )

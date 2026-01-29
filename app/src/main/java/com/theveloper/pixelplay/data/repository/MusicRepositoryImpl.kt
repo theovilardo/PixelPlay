@@ -13,6 +13,7 @@ import android.util.Log
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.FavoritesDao
+import com.theveloper.pixelplay.data.repository.ArtistImageRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -70,6 +71,7 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.map
 import androidx.paging.filter
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
@@ -80,7 +82,8 @@ class MusicRepositoryImpl @Inject constructor(
     private val musicDao: MusicDao,
     private val lyricsRepository: LyricsRepository,
     private val songRepository: SongRepository,
-    private val favoritesDao: FavoritesDao
+    private val favoritesDao: FavoritesDao,
+    private val artistImageRepository: ArtistImageRepository
 ) : MusicRepository {
 
     private val directoryScanMutex = Mutex()
@@ -136,17 +139,38 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     override fun getArtists(): Flow<List<Artist>> {
-        return getAudioFiles().map { songs ->
-            songs.groupBy { it.artistId }
+        // Combine MediaStore songs (for filtering/grouping) with DB Artists (for Image URLs)
+        return combine(
+            getAudioFiles(),
+            musicDao.getAllArtistsRaw()
+        ) { songs, dbArtists ->
+            val dbArtistsMap = dbArtists.associateBy { it.id }
+            
+            val artists = songs.groupBy { it.artistId }
                 .map { (artistId, songs) ->
                     val first = songs.first()
+                    // Get image URL from DB cache if available
+                    val imageUrl = dbArtistsMap[artistId]?.imageUrl
+                    
                     Artist(
                         id = artistId,
                         name = first.artist,
-                        songCount = songs.size
+                        songCount = songs.size,
+                        imageUrl = imageUrl
                     )
                 }
                 .sortedBy { it.name.lowercase() }
+            
+            // Trigger prefetch for missing images
+            // We use a separate list to avoid passing the entire heavy payload to the IO dispatcher if not needed
+            val missingImages = artists.filter { it.imageUrl == null }.map { it.id to it.name }
+            if (missingImages.isNotEmpty()) {
+                // Ensure this doesn't block the UI flow emission
+               kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                    artistImageRepository.prefetchArtistImages(missingImages)
+               }
+            }
+            artists
         }.flowOn(Dispatchers.Default)
     }
 
